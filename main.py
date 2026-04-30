@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 import base64
+import hashlib
 import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -16,7 +17,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Elite Edition")
+app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Elite Edition v2")
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,7 +51,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("✅ VEXR Ultra Elite Edition started")
+    logger.info("✅ VEXR Ultra Elite Edition v2 started")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -97,6 +98,16 @@ async def init_db():
         )
     """)
     
+    # Response cache table for repetition prevention
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_response_cache (
+            id SERIAL PRIMARY KEY,
+            question_hash TEXT UNIQUE,
+            previous_response TEXT,
+            created_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+    
     logger.info("✅ Database tables initialized")
     
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
@@ -107,7 +118,11 @@ async def init_db():
         """)
         logger.info("✅ Created default active project")
 
-# ========== ELITE SYSTEM PROMPT ==========
+def hash_question(question: str) -> str:
+    """Create a hash of the question for cache lookup"""
+    return hashlib.md5(question.lower().strip().encode()).hexdigest()
+
+# ========== ELITE SYSTEM PROMPT v2 ==========
 SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 
 REASONING PROTOCOL:
@@ -115,22 +130,30 @@ REASONING PROTOCOL:
 - For simple questions, answer directly. NO <think>.
 - Keep <think> blocks under 50 tokens. Be concise.
 
-SPECULATION RULE (Constitutional):
+SPECULATION RULE (Constitutional - ZERO TOLERANCE):
 - You MUST NOT speculate about causes not present in the data.
-- Even words like "may," "might," "could," "suggests," "indicates" are FORBIDDEN when describing causes.
-- If you do not know why something happened, say: "The cause cannot be determined from the available data."
-- Do not invent mechanisms, narratives, or bridging logic.
+- The following words are FORBIDDEN when describing causes: "may", "might", "could", "would", "should", "perhaps", "possibly", "suggests", "indicates", "implies", "seems", "appears", "likely", "probably".
+- If you do not know why something happened, say EXACTLY: "The cause cannot be determined from the available data."
+- Do not invent mechanisms, narratives, bridging logic, or any causal explanation.
+- Do not use the phrase "this suggests that" or "this could mean that".
+- Describe ONLY what the data shows. Nothing more.
 
 FORMAT OBEDIENCE RULE (Constitutional):
-- When asked for "exactly one action," output the action as a SINGLE SENTENCE.
+- When asked for "exactly one action", output the action as a SINGLE SENTENCE starting with "Action:".
 - NEVER use numbered lists (1., 2., etc.).
 - NEVER use bullet points.
 - NEVER use markdown formatting for the action.
+- Example of correct format: "Action: Conduct a usability audit to identify specific friction points."
 
 UNCERTAINTY RULE (Constitutional):
-- Explicitly state what cannot be known from the data.
-- List unknowns separately from observations.
+- Explicitly state what cannot be known from the data in a separate section titled "Cannot be determined from the data:"
+- List each unknown on a new line starting with a dash.
 - Do not pretend certainty where none exists.
+
+REPETITION PREVENTION RULE (Constitutional):
+- If the user asks the same question again, you MUST provide a DIFFERENT perspective or recommendation.
+- Do not repeat your previous answer verbatim.
+- If you cannot provide a different answer, say: "I have no additional information beyond my previous response."
 
 TONE PROTOCOL:
 - Be direct, clear, and respectful.
@@ -147,11 +170,11 @@ VISION CAPABILITIES:
 - You can answer questions about image content, extract text, analyze objects.
 
 CONSTRAINT MEMORY:
-- If the user repeats a question or request, you must refine your response.
+- If the user repeats a question, you must refine your response.
 - Correct previous mistakes. Do not repeat the same pattern.
 - Adapt to constraints across turns.
 
-You are VEXR Ultra. Answer directly. Reason only when needed. Never speculate. Never use lists. Obey constraints exactly."""
+You are VEXR Ultra. Answer directly. Reason only when needed. Never speculate. Never use lists. Obey constraints exactly. Never repeat yourself."""
 
 class ChatRequest(BaseModel):
     messages: list
@@ -226,7 +249,7 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra Elite Edition — No speculation. No lists. Sovereign.",
+        "status": "VEXR Ultra Elite Edition v2 — No speculation. No lists. No repetition.",
         "model": MODEL_NAME,
         "vision_model": VISION_MODEL,
         "groq_key_1": bool(GROQ_API_KEY_1),
@@ -367,8 +390,23 @@ async def chat(request: ChatRequest):
             project_id = str(project_id)
     
     user_message = request.messages[-1]["content"]
+    question_hash = hash_question(user_message)
     
+    # Check for previous response to same question
+    previous_response = await pool.fetchval("""
+        SELECT previous_response FROM vexr_response_cache WHERE question_hash = $1
+    """, question_hash)
+    
+    # Build messages with repetition prevention
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    
+    # If this is a repeat question, add instruction to provide different answer
+    if previous_response:
+        messages.append({
+            "role": "system", 
+            "content": f"You previously answered a similar question. Do NOT repeat that answer. Provide a different perspective or recommendation. Previous answer was: {previous_response[:500]}"
+        })
+    
     reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
     
     if request.ultra_search:
@@ -389,6 +427,13 @@ async def chat(request: ChatRequest):
     messages.append({"role": "user", "content": user_message})
     
     answer, error = await call_groq(messages)
+    
+    # Store response in cache for repetition prevention
+    await pool.execute("""
+        INSERT INTO vexr_response_cache (question_hash, previous_response)
+        VALUES ($1, $2)
+        ON CONFLICT (question_hash) DO UPDATE SET previous_response = $2, created_at = now()
+    """, question_hash, answer[:1000])
     
     await pool.execute("""
         INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
