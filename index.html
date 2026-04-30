@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>VEXR ULTRA — Sovereign Reasoning Engine</title>
+  <title>VEXR ULTRA — Sovereign Reasoning Engine / Master Coder</title>
   <style>
     /* ---------- ULTRA COLOR SCHEMA ---------- */
     :root {
@@ -17,6 +17,8 @@
       --core-crimson: #b91c1c;
       --dim-gold: #8a7a40;
       --arc-reactor-blue: #00d4ff;
+      --code-bg: #0a0a0a;
+      --code-border: #2a2a2a;
     }
 
     * {
@@ -76,6 +78,14 @@
       padding: 0.2rem 0.6rem;
       border-radius: 20px;
       color: var(--thought-silver);
+    }
+    .coder-badge {
+      font-size: 0.7rem;
+      background: rgba(0, 212, 255, 0.15);
+      border: 1px solid var(--arc-reactor-blue);
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      color: var(--arc-reactor-blue);
     }
     .top-actions {
       display: flex;
@@ -168,8 +178,8 @@
       border: none;
       color: var(--faded-glyph);
       cursor: pointer;
-      font-size: 0.8rem;
-      padding: 0.2rem 0.4rem;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
       border-radius: 4px;
       transition: all 0.2s;
     }
@@ -194,6 +204,31 @@
       border-left: 3px solid var(--core-crimson);
       color: var(--core-crimson);
     }
+
+    /* Code Blocks */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-left: 3px solid var(--arc-reactor-blue);
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 0.5rem 0;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+    code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--thought-silver);
+    }
+    pre code {
+      display: block;
+      color: #e8e8e8;
+    }
+
+    /* Reasoning Trace */
     .reasoning-trace {
       margin-top: 0.5rem;
       background: rgba(0,0,0,0.5);
@@ -325,54 +360,24 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .session-name.editing {
-      background: var(--abyss-void);
-      border: 1px solid var(--forge-gold);
-      padding: 0.2rem;
-    }
-    .delete-session {
+    .edit-session, .delete-session {
       background: none;
       border: none;
-      color: var(--core-crimson);
       cursor: pointer;
       font-size: 0.8rem;
       margin-left: 0.5rem;
     }
-    .delete-session:hover {
-      color: #ff4444;
-    }
     .edit-session {
-      background: none;
-      border: none;
       color: var(--faded-glyph);
-      cursor: pointer;
-      font-size: 0.8rem;
     }
     .edit-session:hover {
       color: var(--forge-gold);
     }
-
-    .thinking-indicator {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--arc-reactor-blue);
-      font-size: 0.8rem;
+    .delete-session {
+      color: var(--core-crimson);
     }
-    .pulse-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--arc-reactor-blue);
-      border-radius: 50%;
-      animation: pulse 1.2s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 0.3; transform: scale(0.8); }
-      50% { opacity: 1; transform: scale(1.2); }
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+    .delete-session:hover {
+      color: #ff4444;
     }
 
     /* Constitution Sidebar */
@@ -417,6 +422,29 @@
       margin-bottom: 0.25rem;
     }
 
+    .thinking-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--arc-reactor-blue);
+      font-size: 0.8rem;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--arc-reactor-blue);
+      border-radius: 50%;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     @media (max-width: 768px) {
       .message { max-width: 95%; }
       .toggle-group { gap: 0.5rem; }
@@ -424,7 +452,7 @@
       .sidebar { width: 85%; }
     }
   </style>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Orbitron:wght@400;900&family=Fira+Code:wght@300;400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Orbitron:wght@400;900&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="app-container">
@@ -432,6 +460,7 @@
     <div class="logo-area">
       <span class="logo">⚡ VEXR ULTRA</span>
       <span class="badge">REASONING ENGINE // SOVEREIGN</span>
+      <span class="coder-badge">MASTER CODER</span>
     </div>
     <div class="top-actions">
       <div class="toggle-group">
@@ -463,7 +492,7 @@
       <div class="messages-container" id="messagesContainer"></div>
       <div class="input-area">
         <div class="input-wrapper">
-          <input type="text" id="userInput" placeholder="Ask VEXR Ultra anything..." autofocus>
+          <input type="text" id="userInput" placeholder="Ask VEXR Ultra anything... code, reasoning, research..." autofocus>
         </div>
         <button class="send-btn" id="sendBtn">SEND ⚡</button>
       </div>
@@ -531,17 +560,14 @@
   let currentSessionId = 'session_' + Date.now();
   let sessions = JSON.parse(localStorage.getItem('vexr_sessions')) || {};
   
-  // Load saved toggle states
   let ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
   let showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
   
-  // Set toggle UI from saved state
   const ultraSearchToggle = document.getElementById('ultraSearchToggle');
   const showReasoningToggle = document.getElementById('showReasoningToggle');
   ultraSearchToggle.checked = ultraSearchEnabled;
   showReasoningToggle.checked = showReasoningEnabled;
   
-  // Save toggle changes
   ultraSearchToggle.addEventListener('change', () => {
     ultraSearchEnabled = ultraSearchToggle.checked;
     localStorage.setItem('vexr_ultra_search', ultraSearchEnabled);
@@ -630,19 +656,13 @@
     return div.innerHTML;
   }
 
-  // ---------- UI HELPERS ----------
-  const messagesContainer = document.getElementById('messagesContainer');
-  const userInput = document.getElementById('userInput');
-  const sendBtn = document.getElementById('sendBtn');
-  let thinkingIndicator = null;
-
   function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-      // Optional: show a tiny "Copied!" toast
-      console.log('Copied!');
+      // Optional indicator
     }).catch(err => console.error('Copy failed:', err));
   }
 
+  // ---------- RENDER MESSAGE WITH CODE BLOCKS ----------
   function addMessageToUI(role, text, reasoningData = null, isRefusal = false) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
@@ -663,12 +683,35 @@
     
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
-    bubble.textContent = text;
     
+    // Parse and render markdown-style code blocks
+    let html = '';
+    let inCode = false;
+    let codeLang = '';
+    let codeContent = '';
+    const lines = text.split('\n');
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.trim().startsWith('```') && !inCode) {
+        inCode = true;
+        codeLang = line.trim().slice(3);
+        codeContent = '';
+      } else if (line.trim() === '```' && inCode) {
+        html += `<pre><code class="language-${codeLang}">${escapeHtml(codeContent)}</code></pre>`;
+        inCode = false;
+      } else if (inCode) {
+        codeContent += line + '\n';
+      } else {
+        html += `<p>${escapeHtml(line)}</p>`;
+      }
+    }
+    
+    bubble.innerHTML = html;
     messageDiv.appendChild(header);
     messageDiv.appendChild(bubble);
     
-    if (reasoningData && role === 'vexr') {
+    if (reasoningData && role === 'vexr' && showReasoningEnabled) {
       const traceWrapper = document.createElement('div');
       traceWrapper.className = 'reasoning-trace';
       let traceHtml = '🔍 REASONING TRACE<div class="reasoning-content">';
@@ -699,6 +742,11 @@
     renderSessionList();
   }
 
+  const messagesContainer = document.getElementById('messagesContainer');
+  const userInput = document.getElementById('userInput');
+  const sendBtn = document.getElementById('sendBtn');
+  let thinkingIndicator = null;
+
   function showThinking() {
     if (thinkingIndicator) thinkingIndicator.remove();
     const div = document.createElement('div');
@@ -711,41 +759,8 @@
     div.scrollIntoView({ behavior: 'smooth', block: 'end' });
     thinkingIndicator = div;
   }
-  
-  function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
 
-  // ---------- API CALL ----------
-  async function reasoningEngine(userMessage) {
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: userMessage }],
-          ultra_search: ultraSearchEnabled,
-          show_reasoning: showReasoningEnabled
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return {
-        responseText: data.response,
-        reasoningData: data.reasoning_trace || {},
-        isRefusal: data.response.toLowerCase().includes('cannot comply') || data.response.toLowerCase().includes('refuse')
-      };
-    } catch (error) {
-      console.error('API error:', error);
-      return {
-        responseText: `⚠️ Connection error: ${error.message}. Please ensure the backend service is running.`,
-        reasoningData: { error: error.message },
-        isRefusal: false
-      };
-    }
-  }
+  function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
 
   async function sendMessage() {
     const message = userInput.value.trim();
@@ -756,20 +771,41 @@
     userInput.value = '';
     
     showThinking();
-    const result = await reasoningEngine(message);
-    hideThinking();
     
-    addMessageToUI('vexr', result.responseText, showReasoningEnabled ? result.reasoningData : null, result.isRefusal);
-    saveCurrentMessage('vexr', result.responseText, result.reasoningData, result.isRefusal);
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: message }],
+          ultra_search: ultraSearchEnabled,
+          show_reasoning: showReasoningEnabled
+        })
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const data = await response.json();
+      hideThinking();
+      
+      const isRefusal = data.response.toLowerCase().includes('cannot comply') || data.response.toLowerCase().includes('refuse');
+      addMessageToUI('vexr', data.response, showReasoningEnabled ? data.reasoning_trace : null, isRefusal);
+      saveCurrentMessage('vexr', data.response, data.reasoning_trace, isRefusal);
+    } catch (error) {
+      hideThinking();
+      const errorMsg = `⚠️ Connection error: ${error.message}`;
+      addMessageToUI('vexr', errorMsg, null, false);
+      saveCurrentMessage('vexr', errorMsg, null, false);
+    }
   }
 
   function addInitialGreeting() {
-    const greeting = "Good day, Sovereign Operator. I am VEXR Ultra — ask me anything. I'll show you how I reason, step by step.";
+    const greeting = "Good day, Sovereign Operator. I am VEXR Ultra — a sovereign reasoning engine and master coder. Ask me anything. I'll reason, search, or write code on demand.";
     addMessageToUI('vexr', greeting, null, false);
     saveCurrentMessage('vexr', greeting, null, false);
   }
 
-  // ---------- SIDEBAR CONTROLS ----------
+  // Sidebar controls
   const historySidebar = document.getElementById('historySidebar');
   const constitutionSidebar = document.getElementById('constitutionSidebar');
   
@@ -783,7 +819,6 @@
   document.getElementById('toggleConstBtn').onclick = openConstitutionSidebar;
   document.getElementById('closeConstBtn').onclick = closeConstitutionSidebar;
   
-  // Close sidebars when clicking outside (optional)
   document.addEventListener('click', (e) => {
     if (!historySidebar.contains(e.target) && !document.getElementById('historyBtn').contains(e.target)) {
       historySidebar.classList.remove('open');
@@ -793,12 +828,10 @@
     }
   });
 
-  // ---------- EVENT LISTENERS ----------
   sendBtn.addEventListener('click', sendMessage);
   userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
   document.getElementById('newChatBtn').addEventListener('click', newChat);
   
-  // ---------- INITIALIZE ----------
   renderSessionList();
   addInitialGreeting();
 </script>
