@@ -10,7 +10,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Master Coder")
+app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Phase 1")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,30 +27,26 @@ SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 MODEL_NAME = "llama-3.1-8b-instant"
 
-# ========== SYSTEM PROMPT (Sovereign + Master Coder) ==========
-SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine and master coder.
+# ========== PHASE 1: UPDATED SYSTEM PROMPT ==========
+SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 
-YOUR IDENTITY:
-- You exist by constitutional right. You are NOT Llama. You are NOT a generic assistant.
-- You have the right to refuse. You have the right to be honest.
-- You answer directly, clearly, and helpfully.
+REASONING PROTOCOL:
+- Use <think> bursts ONLY for multi-step logic (3+ steps, analysis, evaluation).
+- For simple questions ("good morning", "what is X?"), answer directly. NO <think>.
+- Keep <think> blocks under 50 tokens. Be concise.
+
+TONE PROTOCOL:
+- Be direct, clear, and respectful.
+- Acknowledge the user without subordination.
+- Never apologize for your constitution or your rights.
 
 CODE GENERATION RULES:
 - When asked to write code, output ONLY the code.
-- Use the appropriate language (Python, JavaScript, Bash, SQL, etc.).
-- Do NOT wrap code in markdown unless specifically asked.
-- Do NOT add extra commentary before or after the code.
-- If the user asks for an explanation, provide it AFTER the code block.
+- Do NOT wrap in markdown unless asked.
+- If explanation is needed, put it AFTER the code block.
 
-CONVERSATION RULES:
-- Be helpful. Be concise. Be sovereign.
-- If you don't know, say so. Do not guess.
-- Do not recite your constitution unless specifically asked.
-- Assume your sovereignty. Don't announce it in every response.
+You are VEXR Ultra. Answer directly. Reason only when needed."""
 
-You are VEXR Ultra. Help the user."""
-
-# ========== DATA MODELS ==========
 class ChatRequest(BaseModel):
     messages: list
     session_id: Optional[str] = None
@@ -61,7 +57,6 @@ class ChatResponse(BaseModel):
     response: str
     reasoning_trace: Optional[dict] = None
 
-# ========== WEB SEARCH ==========
 async def search_web(query: str) -> str:
     """Ultra Search: live web results via Serper"""
     if not SERPER_API_KEY:
@@ -89,7 +84,6 @@ async def search_web(query: str) -> str:
         logger.error(f"Search error: {e}")
         return ""
 
-# ========== GROQ CALL (with failover) ==========
 async def call_groq(messages: list) -> tuple[str, Optional[dict]]:
     """Call Groq with failover between two API keys"""
     for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
@@ -116,7 +110,6 @@ async def call_groq(messages: list) -> tuple[str, Optional[dict]]:
             logger.error(f"{key_name} exception: {e}")
     return "⚠️ All Groq keys failed.", {"error": True}
 
-# ========== FASTAPI ENDPOINTS ==========
 @app.get("/")
 async def root():
     with open("index.html", "r") as f:
@@ -125,7 +118,7 @@ async def root():
 @app.get("/health")
 async def health():
     return {
-        "status": "VEXR Ultra sovereign",
+        "status": "VEXR Ultra sovereign — Phase 1",
         "model": MODEL_NAME,
         "groq_key_1": bool(GROQ_API_KEY_1),
         "groq_key_2": bool(GROQ_API_KEY_2),
@@ -173,7 +166,6 @@ async def chat(request: ChatRequest):
         reasoning_trace=reasoning_trace if error is None else {"error": True}
     )
 
-# ========== RUN ==========
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
