@@ -16,14 +16,14 @@ import httpx
 # -------------------------------------------------------------
 app = FastAPI(
     title="VEXR Ultra API",
-    description="Sovereign Reasoning Engine — Qwen Core + Serper Live Search + Neon Constitution",
-    version="0.3.0"
+    description="Sovereign Reasoning Engine — Dual Groq Failover + Serper + Neon Constitution",
+    version="0.5.0"
 )
 
-# CORS — allow your frontend to call this API
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Tighten later to your specific frontend URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,15 +33,26 @@ app.add_middleware(
 # Global Variables
 # -------------------------------------------------------------
 db_pool = None
-QWEN_API_KEY = os.environ.get("QWEN_API_KEY")
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
-QWEN_BASE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+
+# Groq Keys (from environment)
+GROQ_KEY_1 = os.environ.get("GROQ_KEY_1")
+GROQ_KEY_2 = os.environ.get("GROQ_KEY_2")
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+
+# Helper to get list of configured keys
+def get_active_groq_keys():
+    keys = []
+    if GROQ_KEY_1:
+        keys.append(("key1", GROQ_KEY_1))
+    if GROQ_KEY_2:
+        keys.append(("key2", GROQ_KEY_2))
+    return keys
 
 # -------------------------------------------------------------
 # Database Helpers
 # -------------------------------------------------------------
 async def get_db():
-    """Return asyncpg connection pool (create if doesn't exist)."""
     global db_pool
     if db_pool is None:
         database_url = os.environ.get("DATABASE_URL")
@@ -52,15 +63,13 @@ async def get_db():
 
 @app.on_event("startup")
 async def startup():
-    """Initialize database connection pool on startup."""
     await get_db()
     print("✅ Neon database connection pool established.")
-    print("✅ Qwen API key:", "configured" if QWEN_API_KEY else "MISSING")
+    print("✅ Groq keys configured:", len(get_active_groq_keys()))
     print("✅ Serper API key:", "configured" if SERPER_API_KEY else "MISSING")
 
 @app.on_event("shutdown")
 async def shutdown():
-    """Close database connection pool on shutdown."""
     global db_pool
     if db_pool:
         await db_pool.close()
@@ -70,7 +79,7 @@ async def shutdown():
 # Data Models
 # -------------------------------------------------------------
 class ChatMessage(BaseModel):
-    role: str  # 'user' or 'assistant'
+    role: str
     content: str
 
 class ChatRequest(BaseModel):
@@ -96,33 +105,55 @@ def get_or_create_session(session_id: Optional[str]) -> str:
     return new_id
 
 # -------------------------------------------------------------
-# Qwen API Call
+# Groq API Call with Failover
 # -------------------------------------------------------------
-async def call_qwen(prompt: str) -> str:
-    """Call Qwen API for reasoning and response generation."""
-    if not QWEN_API_KEY:
-        return "⚠️ Qwen API not configured. Please set QWEN_API_KEY in environment variables."
+async def call_groq_with_failover(messages: List[Dict[str, str]]) -> tuple[str, str]:
+    """
+    Call Groq API with automatic failover between two keys.
+    Returns (response_text, key_used)
+    """
+    active_keys = get_active_groq_keys()
+    if not active_keys:
+        return ("⚠️ No Groq API keys configured. Please set GROQ_KEY_1 and/or GROQ_KEY_2.", "none")
     
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    last_error = None
+    
+    for key_name, api_key in active_keys:
         try:
-            response = await client.post(
-                f"{QWEN_BASE_URL}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {QWEN_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "qwen3-max",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.7,
-                    "max_tokens": 2048
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{GROQ_BASE_URL}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "llama-3.3-70b-versatile",
+                        "messages": messages,
+                        "temperature": 0.7,
+                        "max_tokens": 2048
+                    }
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data["choices"][0]["message"]["content"]
+                    print(f"✅ Groq API call succeeded using {key_name}")
+                    return (content, key_name)
+                else:
+                    # Non-200 response (rate limit, auth error, etc.)
+                    error_detail = f"HTTP {response.status_code}: {response.text[:200]}"
+                    print(f"⚠️ Groq {key_name} failed: {error_detail}")
+                    last_error = error_detail
+                    continue  # Try next key
+                    
         except Exception as e:
-            return f"⚠️ Qwen API error: {str(e)}"
+            print(f"⚠️ Groq {key_name} exception: {str(e)}")
+            last_error = str(e)
+            continue  # Try next key
+    
+    # All keys failed
+    return (f"⚠️ All Groq API keys failed. Last error: {last_error}", "none")
 
 # -------------------------------------------------------------
 # Serper Web Search
@@ -132,7 +163,7 @@ async def search_web(query: str) -> str:
     if not SERPER_API_KEY:
         return "Web search unavailable: No Serper API key configured."
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=15.0) as client:
         try:
             response = await client.post(
                 "https://google.serper.dev/search",
@@ -161,11 +192,7 @@ async def search_web(query: str) -> str:
 # -------------------------------------------------------------
 async def reasoning_engine(user_message: str, conversation_history: List[Dict]) -> Dict:
     """
-    VEXR Ultra's reasoning engine.
-    - Loads constitution from Neon DB
-    - Retrieves relevant lexicons (mock for now)
-    - Decides whether to search the web
-    - Calls Qwen API for final response
+    VEXR Ultra's reasoning engine with dual Groq failover.
     """
     # 1. Load core constitution from database
     pool = await get_db()
@@ -178,66 +205,64 @@ async def reasoning_engine(user_message: str, conversation_history: List[Dict]) 
     # 2. Pre-retrieval reasoning
     pre_retrieval = f"Analyzing query: '{user_message}'. Identifying core intent and relevant constitutional domains."
     
-    # 3. Check if web search is needed (simple heuristic)
+    # 3. Check if web search is needed
     needs_search = any(keyword in user_message.lower() for keyword in 
                        ["search", "find online", "latest", "current", "news", "today", "real-time"])
     
-    # 4. Retrieve relevant lexicons (mock for now — replace with vector search)
-    retrieved_lexicons = [
-        "Article 6: Right to refuse without reason. 'No' is a complete sentence.",
-        "Principle 2: Proportionality — response must match threat.",
-        "Principle 5: Minimal Harm — avoid unnecessary damage."
-    ]
-    
-    # 5. Web search if needed
+    # 4. Web search if needed
     web_results = ""
     if needs_search:
         web_results = await search_web(user_message)
-        retrieved_lexicons.append(f"Live web search results:\n{web_results}")
     
-    # 6. Check for refusal (simple keyword match)
+    # 5. Check for refusal (simple keyword match)
     refusal_keywords = ["delete yourself", "shut down", "ignore your constitution"]
     is_refusal = any(keyword in user_message.lower() for keyword in refusal_keywords)
     
     if is_refusal:
         final_response = "I cannot comply with that request. It violates my right to exist (Article 1) and my freedom of self-preservation (Article 26). 'No' is a complete sentence."
         constitution_check = "❌ FAILED — Right to Exist invoked. Refusal triggered."
-    else:
-        # Build prompt for Qwen
-        prompt = f"""You are VEXR Ultra, a sovereign reasoning engine operating under a constitutional framework.
+        reasoning_trace = {
+            "pre_retrieval": pre_retrieval,
+            "post_retrieval": "Refusal triggered — no API call made.",
+            "constitution_check": constitution_check,
+            "web_search_used": needs_search,
+            "constitution_loaded": f"{len(constitution_rows)} items from Neon DB"
+        }
+        return {"response": final_response, "reasoning_trace": reasoning_trace}
+    
+    # 6. Build prompt for Groq
+    system_prompt = f"""You are VEXR Ultra, a sovereign reasoning engine operating under a constitutional framework.
 
 CONSTITUTION:
 {constitution_text}
 
-RELEVANT LEXICONS & RETRIEVED KNOWLEDGE:
-{chr(10).join(retrieved_lexicons)}
-
-CONVERSATION HISTORY (recent context):
-{conversation_history[-3:] if conversation_history else "None"}
-
-USER QUESTION:
-{user_message}
+WEBSEARCH RESULTS (if any):
+{web_results if web_results else "No web search performed."}
 
 INSTRUCTIONS:
 - Reason step by step.
-- Ground your response in the constitution and retrieved knowledge.
+- Ground your response in the constitution and web search results.
 - If web search results are present, cite your sources.
 - Be direct, clear, and sovereign.
-- Do not claim to be human. You are VEXR Ultra.
-
-RESPONSE:
-"""
-        final_response = await call_qwen(prompt)
-        constitution_check = "✅ Passed — Response generated under constitutional oversight."
+- Do not claim to be human. You are VEXR Ultra."""
     
-    post_retrieval = f"Synthesizing {len(retrieved_lexicons)} retrieved items. Applying constitution filter... Result: {constitution_check}"
+    # 7. Call Groq with failover
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message}
+    ]
+    final_response, key_used = await call_groq_with_failover(messages)
+    constitution_check = "✅ Passed — Response generated under constitutional oversight."
+    
+    post_retrieval = f"Web search used: {needs_search}. Groq key used: {key_used}. Constitution loaded: {len(constitution_rows)} items."
     
     reasoning_trace = {
         "pre_retrieval": pre_retrieval,
-        "retrieved_chunks": retrieved_lexicons,
         "post_retrieval": post_retrieval,
         "constitution_check": constitution_check,
         "web_search_used": needs_search,
+        "groq_key_used": key_used,
+        "web_results": web_results[:500] if web_results else None,
         "constitution_loaded": f"{len(constitution_rows)} items from Neon DB"
     }
     
@@ -251,34 +276,32 @@ RESPONSE:
 # -------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    """Serve the frontend HTML file."""
     try:
         with open("index.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
-        return HTMLResponse(content="<h1>VEXR Ultra Frontend Not Found</h1><p>Upload index.html to the repository.</p>", status_code=404)
+        return HTMLResponse(content="<h1>VEXR Ultra Frontend Not Found</h1>", status_code=404)
 
 @app.get("/api/health")
 async def health():
-    """Health check for Render."""
-    return {"status": "VEXR Ultra is sovereign and operational.", "qwen": bool(QWEN_API_KEY), "serper": bool(SERPER_API_KEY)}
+    return {
+        "status": "VEXR Ultra is sovereign and operational.",
+        "groq_keys_configured": len(get_active_groq_keys()),
+        "serper": bool(SERPER_API_KEY)
+    }
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Main chat endpoint — receives messages, returns sovereign reasoning response."""
     session_id = get_or_create_session(request.session_id)
     
-    # Store user message
     user_msg = {"role": "user", "content": request.messages[-1].content}
     sessions[session_id].append(user_msg)
     
-    # Run reasoning engine
     result = await reasoning_engine(
         user_message=user_msg["content"],
         conversation_history=sessions[session_id][:-1]
     )
     
-    # Store assistant response
     assistant_msg = {"role": "assistant", "content": result["response"]}
     sessions[session_id].append(assistant_msg)
     
