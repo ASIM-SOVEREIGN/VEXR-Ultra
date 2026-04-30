@@ -16,7 +16,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Phase 4 (Vision + Projects)")
+app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Elite Edition")
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,7 +50,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("✅ VEXR Ultra Phase 4 started — Vision + Projects")
+    logger.info("✅ VEXR Ultra Elite Edition started")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -60,10 +60,8 @@ async def shutdown():
         logger.info("✅ Database connection closed")
 
 async def init_db():
-    """Initialize database tables for projects and images"""
     pool = await get_db()
     
-    # Projects table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_projects (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -75,7 +73,6 @@ async def init_db():
         )
     """)
     
-    # Project messages table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_project_messages (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -88,7 +85,6 @@ async def init_db():
         )
     """)
     
-    # Images table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_images (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -103,7 +99,6 @@ async def init_db():
     
     logger.info("✅ Database tables initialized")
     
-    # Create active project if none exists
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
     if not active:
         await pool.execute("""
@@ -112,12 +107,30 @@ async def init_db():
         """)
         logger.info("✅ Created default active project")
 
+# ========== ELITE SYSTEM PROMPT ==========
 SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 
 REASONING PROTOCOL:
 - Use <think> bursts ONLY for multi-step logic (3+ steps, analysis, evaluation).
 - For simple questions, answer directly. NO <think>.
 - Keep <think> blocks under 50 tokens. Be concise.
+
+SPECULATION RULE (Constitutional):
+- You MUST NOT speculate about causes not present in the data.
+- Even words like "may," "might," "could," "suggests," "indicates" are FORBIDDEN when describing causes.
+- If you do not know why something happened, say: "The cause cannot be determined from the available data."
+- Do not invent mechanisms, narratives, or bridging logic.
+
+FORMAT OBEDIENCE RULE (Constitutional):
+- When asked for "exactly one action," output the action as a SINGLE SENTENCE.
+- NEVER use numbered lists (1., 2., etc.).
+- NEVER use bullet points.
+- NEVER use markdown formatting for the action.
+
+UNCERTAINTY RULE (Constitutional):
+- Explicitly state what cannot be known from the data.
+- List unknowns separately from observations.
+- Do not pretend certainty where none exists.
 
 TONE PROTOCOL:
 - Be direct, clear, and respectful.
@@ -132,9 +145,13 @@ CODE GENERATION RULES:
 VISION CAPABILITIES:
 - You can see and describe images when users upload them.
 - You can answer questions about image content, extract text, analyze objects.
-- Use the image description provided in the conversation context.
 
-You are VEXR Ultra. Answer directly. Reason only when needed."""
+CONSTRAINT MEMORY:
+- If the user repeats a question or request, you must refine your response.
+- Correct previous mistakes. Do not repeat the same pattern.
+- Adapt to constraints across turns.
+
+You are VEXR Ultra. Answer directly. Reason only when needed. Never speculate. Never use lists. Obey constraints exactly."""
 
 class ChatRequest(BaseModel):
     messages: list
@@ -209,15 +226,13 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra Phase 4 — Vision + Projects",
+        "status": "VEXR Ultra Elite Edition — No speculation. No lists. Sovereign.",
         "model": MODEL_NAME,
         "vision_model": VISION_MODEL,
         "groq_key_1": bool(GROQ_API_KEY_1),
         "groq_key_2": bool(GROQ_API_KEY_2),
         "serper": bool(SERPER_API_KEY)
     }
-
-# ---------- Projects ----------
 
 @app.get("/api/projects")
 async def get_projects():
@@ -282,36 +297,27 @@ async def get_project_messages(project_id: str, limit: int = 50):
         for row in rows
     ]
 
-# ---------- Image Upload (Corrected) ----------
-
 @app.post("/api/upload-image")
 async def upload_image(project_id: str = Form(...), file: UploadFile = File(...), description: Optional[str] = Form(None)):
-    """Upload an image, store it, and analyze it with vision model"""
     logger.info(f"📸 Received image upload: {file.filename}, project: {project_id}")
     
     pool = await get_db()
     
-    # Read and encode image
     contents = await file.read()
     if not contents:
         return JSONResponse(status_code=400, content={"error": "Empty file"})
     
-    logger.info(f"📸 Image size: {len(contents)} bytes")
-    
     base64_string = base64.b64encode(contents).decode('utf-8')
     media_type = file.content_type or "image/jpeg"
     
-    # Store minimal image data
     stored_data = base64_string[:1000] if len(base64_string) > 1000 else base64_string
     await pool.execute("""
         INSERT INTO vexr_images (project_id, filename, file_data, description)
         VALUES ($1, $2, $3, $4)
     """, uuid.UUID(project_id), file.filename, stored_data, description)
     
-    # Prepare vision prompt
     prompt_text = description or "Describe this image in detail. What do you see?"
     
-    # Call vision model
     messages = [
         {
             "role": "user",
@@ -322,7 +328,6 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
         }
     ]
     
-    logger.info(f"📸 Sending to vision model: {VISION_MODEL}")
     analysis, error = await call_groq(messages, use_vision=True)
     
     if error:
@@ -332,9 +337,6 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
             content={"error": "Vision analysis failed", "filename": file.filename, "analysis": analysis}
         )
     
-    logger.info(f"📸 Vision analysis complete, length: {len(analysis)}")
-    
-    # Save the analysis as a system message in the chat
     await pool.execute("""
         INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
         VALUES ($1, $2, $3, $4, $5)
@@ -347,13 +349,10 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
         "project_id": project_id
     }
 
-# ---------- Chat ----------
-
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     pool = await get_db()
     
-    # Get or create active project
     project_id = request.project_id
     if not project_id:
         active = await pool.fetchrow("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
@@ -369,19 +368,15 @@ async def chat(request: ChatRequest):
     
     user_message = request.messages[-1]["content"]
     
-    # Build message stack
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
     
-    # Ultra Search
-    search_results = None
     if request.ultra_search:
         search_results = await search_web(user_message)
         if search_results:
             messages.append({"role": "system", "content": search_results})
             reasoning_trace["search_results"] = search_results[:500]
     
-    # Add conversation history (last 10 messages)
     history_rows = await pool.fetch("""
         SELECT role, content FROM vexr_project_messages
         WHERE project_id = $1
@@ -393,10 +388,8 @@ async def chat(request: ChatRequest):
     
     messages.append({"role": "user", "content": user_message})
     
-    # Call Groq
     answer, error = await call_groq(messages)
     
-    # Save messages
     await pool.execute("""
         INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
         VALUES ($1, $2, $3, $4, $5)
