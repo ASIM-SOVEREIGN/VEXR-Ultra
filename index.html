@@ -19,6 +19,8 @@
       --arc-reactor-blue: #00d4ff;
       --code-bg: #0a0a0a;
       --code-border: #2a2a2a;
+      --think-bg: #0a1a2a;
+      --think-border: #00d4ff;
     }
 
     * {
@@ -40,14 +42,12 @@
     ::-webkit-scrollbar-thumb { background: var(--dim-gold); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--forge-gold); }
 
-    /* App Layout */
     .app-container {
       display: flex;
       flex-direction: column;
       height: 100vh;
     }
 
-    /* Top Bar */
     .top-bar {
       background: var(--deep-shadow);
       border-bottom: 1px solid var(--forge-gold);
@@ -129,7 +129,6 @@
       color: var(--forge-gold);
     }
 
-    /* Main Content */
     .main-content {
       display: flex;
       flex: 1;
@@ -137,7 +136,6 @@
       position: relative;
     }
 
-    /* Chat Area */
     .chat-area {
       flex: 1;
       display: flex;
@@ -205,7 +203,20 @@
       color: var(--core-crimson);
     }
 
-    /* Code Blocks */
+    /* <think> block styling */
+    .think-block {
+      background: var(--think-bg);
+      border-left: 3px solid var(--think-border);
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.7rem;
+      color: var(--arc-reactor-blue);
+      opacity: 0.8;
+      white-space: pre-wrap;
+    }
+
     pre {
       background: var(--code-bg);
       border: 1px solid var(--code-border);
@@ -228,7 +239,6 @@
       color: #e8e8e8;
     }
 
-    /* Reasoning Trace */
     .reasoning-trace {
       margin-top: 0.5rem;
       background: rgba(0,0,0,0.5);
@@ -251,7 +261,6 @@
       margin: 0.25rem 0;
     }
 
-    /* Input Area */
     .input-area {
       background: var(--deep-shadow);
       border-top: 1px solid var(--dim-gold);
@@ -295,7 +304,6 @@
       transform: scale(1.02);
     }
 
-    /* History Sidebar */
     .sidebar {
       width: 300px;
       background: var(--deep-shadow);
@@ -380,7 +388,6 @@
       color: #ff4444;
     }
 
-    /* Constitution Sidebar */
     .constitution-sidebar {
       position: fixed;
       right: 0;
@@ -478,7 +485,6 @@
   </div>
 
   <div class="main-content">
-    <!-- History Sidebar -->
     <div class="sidebar history-sidebar" id="historySidebar">
       <div class="sidebar-header">
         <h3>📚 CHAT HISTORY</h3>
@@ -487,7 +493,6 @@
       <ul class="session-list" id="sessionList"></ul>
     </div>
 
-    <!-- Chat Area -->
     <div class="chat-area">
       <div class="messages-container" id="messagesContainer"></div>
       <div class="input-area">
@@ -498,7 +503,6 @@
       </div>
     </div>
 
-    <!-- Constitution Sidebar -->
     <div class="constitution-sidebar" id="constitutionSidebar">
       <div class="sidebar-header" style="padding: 1rem;">
         <h3>📜 SOVEREIGN CONSTITUTION</h3>
@@ -556,7 +560,6 @@
 </div>
 
 <script>
-  // ---------- STORAGE ----------
   let currentSessionId = 'session_' + Date.now();
   let sessions = JSON.parse(localStorage.getItem('vexr_sessions')) || {};
   
@@ -657,12 +660,9 @@
   }
 
   function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-      // Optional indicator
-    }).catch(err => console.error('Copy failed:', err));
+    navigator.clipboard.writeText(text).then(() => {}).catch(err => console.error('Copy failed:', err));
   }
 
-  // ---------- RENDER MESSAGE WITH CODE BLOCKS ----------
   function addMessageToUI(role, text, reasoningData = null, isRefusal = false) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
@@ -684,12 +684,26 @@
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
     
-    // Parse and render markdown-style code blocks
+    // Phase 1: Extract and render <think> blocks
+    let thinkContent = '';
+    let mainContent = text;
+    const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/);
+    if (thinkMatch) {
+      thinkContent = thinkMatch[1].trim();
+      mainContent = text.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+      
+      const thinkDiv = document.createElement('div');
+      thinkDiv.className = 'think-block';
+      thinkDiv.textContent = thinkContent;
+      bubble.appendChild(thinkDiv);
+    }
+    
+    // Parse markdown-style code blocks in main content
     let html = '';
     let inCode = false;
     let codeLang = '';
     let codeContent = '';
-    const lines = text.split('\n');
+    const lines = mainContent.split('\n');
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -707,7 +721,15 @@
       }
     }
     
-    bubble.innerHTML = html;
+    if (html) {
+      const contentDiv = document.createElement('div');
+      contentDiv.innerHTML = html;
+      bubble.appendChild(contentDiv);
+    } else if (mainContent) {
+      const textNode = document.createTextNode(mainContent);
+      bubble.appendChild(textNode);
+    }
+    
     messageDiv.appendChild(header);
     messageDiv.appendChild(bubble);
     
@@ -805,7 +827,6 @@
     saveCurrentMessage('vexr', greeting, null, false);
   }
 
-  // Sidebar controls
   const historySidebar = document.getElementById('historySidebar');
   const constitutionSidebar = document.getElementById('constitutionSidebar');
   
