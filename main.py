@@ -24,7 +24,7 @@ app.add_middleware(
 GROQ_KEY_1 = os.environ.get("GROQ_KEY_1")
 GROQ_KEY_2 = os.environ.get("GROQ_KEY_2")
 SERPER_KEY = os.environ.get("SERPER_KEY_1")
-GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 class ChatRequest(BaseModel):
     messages: list
