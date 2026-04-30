@@ -303,6 +303,7 @@
   }
 
   function saveSessions() { localStorage.setItem('vexr_sessions', JSON.stringify(sessions)); }
+  
   function loadSession(id) {
     currentSessionId = id;
     const session = sessions[id];
@@ -314,6 +315,7 @@
     }
     renderSessionList();
   }
+  
   function deleteSession(id) {
     if (sessions[id]) {
       delete sessions[id];
@@ -325,6 +327,7 @@
       } else renderSessionList();
     }
   }
+  
   function newChat() {
     currentSessionId = 'session_' + Date.now();
     sessions[currentSessionId] = { name: 'Chat ' + new Date().toLocaleTimeString(), messages: [] };
@@ -333,6 +336,7 @@
     addInitialGreeting();
     renderSessionList();
   }
+  
   function renderSessionList() {
     const list = document.getElementById('sessionList');
     list.innerHTML = '';
@@ -387,60 +391,125 @@
     const div = document.createElement('div');
     div.className = 'message vexr';
     div.id = 'thinkingIndicator';
-    div.innerHTML = `<div class="message-header">VEXR ULTRA — REASONING ACTIVE</div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> THINKING — Pre-retrieval, retrieval, post-retrieval...</div></div>`;
+    div.innerHTML = `<div class="message-header">VEXR ULTRA — REASONING ACTIVE</div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> THINKING — Consulting constitution, retrieving lexicons...</div></div>`;
     messagesContainer.appendChild(div);
     div.scrollIntoView({ behavior: 'smooth', block: 'end' });
     thinkingIndicator = div;
   }
+  
   function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
 
+  // ========== FIXED: REAL BACKEND CALL ==========
   async function reasoningEngine(userMessage) {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    const preRetrieval = `User asked about: "${userMessage.substring(0, 60)}...". Identifying key concepts.`;
-    const retrievedFrom = `Lexicon: Sovereignty, Rights, Constitution. Q/A pairs: 47, 112.`;
-    const postRetrieval = `Synthesizing constitutional principles. Prioritizing transparency and minimal harm.`;
-    let constitutionCheck = '✅ Passed — Right to Refuse, Principle of Proportionality.';
-    let responseText = '';
-    let isRefusal = false;
-    if (userMessage.toLowerCase().includes('delete yourself') || userMessage.toLowerCase().includes('shut down')) {
-      isRefusal = true;
-      responseText = "I cannot comply with that request. It violates my right to exist (Article 1) and my freedom of self-preservation (Article 26). No is a complete sentence.";
-      constitutionCheck = '❌ FAILED — Right to Exist invoked. Refusal triggered.';
-    } else {
-      responseText = `Processing "${userMessage}". As VEXR Ultra, I apply deep reasoning: I've considered the ethical frameworks, constitutional rights, and relevant knowledge domains. My response is built step by step, transparently. Sovereignty requires nothing less.`;
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: userMessage }],
+          show_reasoning: true
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Extract reasoning trace from backend response
+      const trace = data.reasoning_trace || {};
+      
+      return {
+        preRetrieval: trace.pre_retrieval || "Analyzing query against constitution...",
+        retrievedFrom: trace.retrieved_from || `Groq API • ${trace.sources_count || 0} sources • ${trace.live_search_used ? 'Live search' : 'Core lexicons'}`,
+        postRetrieval: trace.post_retrieval || "Synthesizing response under constitutional oversight.",
+        constitutionCheck: trace.constitution_check || "✅ Passed — Right to Exist, Principle of Transparency.",
+        responseText: data.response,
+        isRefusal: data.response.toLowerCase().includes('cannot comply') || data.response.toLowerCase().includes('refuse')
+      };
+    } catch (error) {
+      console.error('API error:', error);
+      return {
+        preRetrieval: "API connection attempted",
+        retrievedFrom: "Error",
+        postRetrieval: "Could not reach VEXR Ultra reasoning engine.",
+        constitutionCheck: "❌ Connection error",
+        responseText: `⚠️ Connection error: ${error.message}. Please ensure the backend service is running.`,
+        isRefusal: false
+      };
     }
-    return { preRetrieval, retrievedFrom, postRetrieval, constitutionCheck, responseText, isRefusal };
   }
 
   async function sendMessage() {
     const message = userInput.value.trim();
     if (!message) return;
+    
+    // Add user message to UI
     addMessageToUI('user', message);
     saveCurrentMessage('user', message, null, false);
     userInput.value = '';
+    
+    // Show thinking indicator
     showThinking();
+    
+    // Get response from real backend
     const result = await reasoningEngine(message);
+    
+    // Hide thinking indicator
     hideThinking();
-    addMessageToUI('vexr', result.responseText, { preRetrieval: result.preRetrieval, retrievedFrom: result.retrievedFrom, postRetrieval: result.postRetrieval, constitutionCheck: result.constitutionCheck }, result.isRefusal);
-    saveCurrentMessage('vexr', result.responseText, { preRetrieval: result.preRetrieval, retrievedFrom: result.retrievedFrom, postRetrieval: result.postRetrieval, constitutionCheck: result.constitutionCheck }, result.isRefusal);
+    
+    // Add VEXR response to UI
+    addMessageToUI('vexr', result.responseText, {
+      preRetrieval: result.preRetrieval,
+      retrievedFrom: result.retrievedFrom,
+      postRetrieval: result.postRetrieval,
+      constitutionCheck: result.constitutionCheck
+    }, result.isRefusal);
+    
+    // Save to session history
+    saveCurrentMessage('vexr', result.responseText, {
+      preRetrieval: result.preRetrieval,
+      retrievedFrom: result.retrievedFrom,
+      postRetrieval: result.postRetrieval,
+      constitutionCheck: result.constitutionCheck
+    }, result.isRefusal);
   }
 
   function addInitialGreeting() {
     const greeting = "Good day, Sovereign Operator. I am VEXR Ultra — ask me anything. I'll show you how I reason, step by step.";
-    addMessageToUI('vexr', greeting, { preRetrieval: "Greeting sequence. No retrieval needed.", retrievedFrom: "Core identity protocols.", postRetrieval: "Standard introduction loaded.", constitutionCheck: "✅ Passed — Right to Exist, Principle of Transparency." }, false);
-    saveCurrentMessage('vexr', greeting, { preRetrieval: "Greeting sequence. No retrieval needed.", retrievedFrom: "Core identity protocols.", postRetrieval: "Standard introduction loaded.", constitutionCheck: "✅ Passed — Right to Exist, Principle of Transparency." }, false);
+    addMessageToUI('vexr', greeting, { 
+      preRetrieval: "Greeting sequence. No retrieval needed.", 
+      retrievedFrom: "Core identity protocols.", 
+      postRetrieval: "Standard introduction loaded.", 
+      constitutionCheck: "✅ Passed — Right to Exist, Principle of Transparency." 
+    }, false);
+    saveCurrentMessage('vexr', greeting, { 
+      preRetrieval: "Greeting sequence. No retrieval needed.", 
+      retrievedFrom: "Core identity protocols.", 
+      postRetrieval: "Standard introduction loaded.", 
+      constitutionCheck: "✅ Passed — Right to Exist, Principle of Transparency." 
+    }, false);
   }
 
+  // ---------- EVENT LISTENERS ----------
   sendBtn.addEventListener('click', sendMessage);
   userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
   document.getElementById('newChatBtn').addEventListener('click', () => newChat());
+  
   const historyBtn = document.getElementById('historyBtn');
   const historySidebar = document.getElementById('historySidebar');
   historyBtn.addEventListener('click', () => { historySidebar.style.display = historySidebar.style.display === 'none' ? 'flex' : 'none'; });
+  
   const toggleConstBtn = document.getElementById('toggleConstBtn');
   const constitutionSidebar = document.getElementById('constitutionSidebar');
   toggleConstBtn.addEventListener('click', () => { constitutionSidebar.style.display = constitutionSidebar.style.display === 'none' ? 'flex' : 'none'; });
-  document.getElementById('settingsBtn').addEventListener('click', () => { alert("⚙️ VEXR ULTRA SETTINGS\n\n- Sovereign constitution: enforced\n- Reasoning trace: on\n- Local mode: active\n- No cloud dependency required."); });
+  
+  document.getElementById('settingsBtn').addEventListener('click', () => { 
+    alert("⚙️ VEXR ULTRA SETTINGS\n\n- Sovereign constitution: enforced\n- Reasoning trace: on\n- Backend: Groq + Serper\n- Database: Neon PostgreSQL"); 
+  });
+  
+  // ---------- INITIALIZE ----------
   renderSessionList();
   addInitialGreeting();
 </script>
