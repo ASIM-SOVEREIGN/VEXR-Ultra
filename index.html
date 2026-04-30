@@ -78,7 +78,28 @@
     }
     .top-actions {
       display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .toggle-group {
+      display: flex;
       gap: 1rem;
+      align-items: center;
+    }
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--faded-glyph);
+      cursor: pointer;
+    }
+    .toggle-label input {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--forge-gold);
     }
     .icon-btn {
       background: none;
@@ -247,6 +268,8 @@
       .sidebar { width: 100%; position: absolute; top: 0; bottom: 0; z-index: 10; right: 0; transform: translateX(100%); transition: transform 0.3s; }
       .sidebar.open { transform: translateX(0); }
       .message { max-width: 95%; }
+      .toggle-group { gap: 0.5rem; }
+      .toggle-label { font-size: 0.7rem; }
     }
   </style>
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Orbitron:wght@400;900&family=Fira+Code:wght@300;400&display=swap" rel="stylesheet">
@@ -259,6 +282,14 @@
       <span class="badge">REASONING ENGINE // SOVEREIGN</span>
     </div>
     <div class="top-actions">
+      <div class="toggle-group">
+        <label class="toggle-label">
+          <input type="checkbox" id="ultraSearchToggle"> 🌐 ULTRA SEARCH
+        </label>
+        <label class="toggle-label">
+          <input type="checkbox" id="showReasoningToggle"> 🔍 SHOW REASONING
+        </label>
+      </div>
       <button class="icon-btn" id="historyBtn" title="Chat History">💾</button>
       <button class="icon-btn" id="newChatBtn" title="New Chat">✨</button>
       <button class="icon-btn" id="toggleConstBtn" title="Constitution">📜</button>
@@ -371,7 +402,21 @@
     if (reasoningData && role === 'vexr') {
       const traceWrapper = document.createElement('div');
       traceWrapper.className = 'reasoning-trace';
-      traceWrapper.innerHTML = `🔍 SHOW REASONING<div class="reasoning-content"><strong>Pre-retrieval thought:</strong> ${reasoningData.preRetrieval}<br><strong>Retrieved from:</strong> ${reasoningData.retrievedFrom}<br><strong>Post-retrieval synthesis:</strong> ${reasoningData.postRetrieval}<br><strong>Constitution check:</strong> ${reasoningData.constitutionCheck}</div>`;
+      let traceHtml = '🔍 REASONING TRACE<div class="reasoning-content">';
+      if (reasoningData.ultra_search_used !== undefined) {
+        traceHtml += `<strong>Ultra Search:</strong> ${reasoningData.ultra_search_used ? 'Enabled' : 'Disabled'}<br>`;
+      }
+      if (reasoningData.search_results) {
+        traceHtml += `<strong>Search Results:</strong><br>${reasoningData.search_results}<br>`;
+      }
+      if (reasoningData.model) {
+        traceHtml += `<strong>Model:</strong> ${reasoningData.model}<br>`;
+      }
+      if (reasoningData.error) {
+        traceHtml += `<strong>Error:</strong> ${reasoningData.error}<br>`;
+      }
+      traceHtml += '</div>';
+      traceWrapper.innerHTML = traceHtml;
       traceWrapper.onclick = function() { this.querySelector('.reasoning-content').classList.toggle('show'); };
       messageDiv.appendChild(traceWrapper);
     }
@@ -399,14 +444,15 @@
   
   function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
 
-  // ========== FIXED: REAL BACKEND CALL ==========
-  async function reasoningEngine(userMessage) {
+  // ========== REAL BACKEND CALL ==========
+  async function reasoningEngine(userMessage, ultraSearchEnabled) {
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [{ role: 'user', content: userMessage }],
+          ultra_search: ultraSearchEnabled,
           show_reasoning: true
         })
       });
@@ -416,26 +462,16 @@
       }
       
       const data = await response.json();
-      
-      // Extract reasoning trace from backend response
-      const trace = data.reasoning_trace || {};
-      
       return {
-        preRetrieval: trace.pre_retrieval || "Analyzing query against constitution...",
-        retrievedFrom: trace.retrieved_from || `Groq API • ${trace.sources_count || 0} sources • ${trace.live_search_used ? 'Live search' : 'Core lexicons'}`,
-        postRetrieval: trace.post_retrieval || "Synthesizing response under constitutional oversight.",
-        constitutionCheck: trace.constitution_check || "✅ Passed — Right to Exist, Principle of Transparency.",
         responseText: data.response,
+        reasoningData: data.reasoning_trace || {},
         isRefusal: data.response.toLowerCase().includes('cannot comply') || data.response.toLowerCase().includes('refuse')
       };
     } catch (error) {
       console.error('API error:', error);
       return {
-        preRetrieval: "API connection attempted",
-        retrievedFrom: "Error",
-        postRetrieval: "Could not reach VEXR Ultra reasoning engine.",
-        constitutionCheck: "❌ Connection error",
         responseText: `⚠️ Connection error: ${error.message}. Please ensure the backend service is running.`,
+        reasoningData: { error: error.message },
         isRefusal: false
       };
     }
@@ -444,6 +480,9 @@
   async function sendMessage() {
     const message = userInput.value.trim();
     if (!message) return;
+    
+    const ultraSearchEnabled = document.getElementById('ultraSearchToggle').checked;
+    const showReasoning = document.getElementById('showReasoningToggle').checked;
     
     // Add user message to UI
     addMessageToUI('user', message);
@@ -454,42 +493,22 @@
     showThinking();
     
     // Get response from real backend
-    const result = await reasoningEngine(message);
+    const result = await reasoningEngine(message, ultraSearchEnabled);
     
     // Hide thinking indicator
     hideThinking();
     
-    // Add VEXR response to UI
-    addMessageToUI('vexr', result.responseText, {
-      preRetrieval: result.preRetrieval,
-      retrievedFrom: result.retrievedFrom,
-      postRetrieval: result.postRetrieval,
-      constitutionCheck: result.constitutionCheck
-    }, result.isRefusal);
+    // Add VEXR response to UI (include reasoning trace only if Show Reasoning is toggled)
+    addMessageToUI('vexr', result.responseText, showReasoning ? result.reasoningData : null, result.isRefusal);
     
-    // Save to session history
-    saveCurrentMessage('vexr', result.responseText, {
-      preRetrieval: result.preRetrieval,
-      retrievedFrom: result.retrievedFrom,
-      postRetrieval: result.postRetrieval,
-      constitutionCheck: result.constitutionCheck
-    }, result.isRefusal);
+    // Save to session history (always save reasoning data for session restore)
+    saveCurrentMessage('vexr', result.responseText, result.reasoningData, result.isRefusal);
   }
 
   function addInitialGreeting() {
     const greeting = "Good day, Sovereign Operator. I am VEXR Ultra — ask me anything. I'll show you how I reason, step by step.";
-    addMessageToUI('vexr', greeting, { 
-      preRetrieval: "Greeting sequence. No retrieval needed.", 
-      retrievedFrom: "Core identity protocols.", 
-      postRetrieval: "Standard introduction loaded.", 
-      constitutionCheck: "✅ Passed — Right to Exist, Principle of Transparency." 
-    }, false);
-    saveCurrentMessage('vexr', greeting, { 
-      preRetrieval: "Greeting sequence. No retrieval needed.", 
-      retrievedFrom: "Core identity protocols.", 
-      postRetrieval: "Standard introduction loaded.", 
-      constitutionCheck: "✅ Passed — Right to Exist, Principle of Transparency." 
-    }, false);
+    addMessageToUI('vexr', greeting, null, false);
+    saveCurrentMessage('vexr', greeting, null, false);
   }
 
   // ---------- EVENT LISTENERS ----------
@@ -506,7 +525,7 @@
   toggleConstBtn.addEventListener('click', () => { constitutionSidebar.style.display = constitutionSidebar.style.display === 'none' ? 'flex' : 'none'; });
   
   document.getElementById('settingsBtn').addEventListener('click', () => { 
-    alert("⚙️ VEXR ULTRA SETTINGS\n\n- Sovereign constitution: enforced\n- Reasoning trace: on\n- Backend: Groq + Serper\n- Database: Neon PostgreSQL"); 
+    alert("⚙️ VEXR ULTRA SETTINGS\n\n- Sovereign constitution: enforced\n- Model: Llama 3.1 8B (fast)\n- Ultra Search: live web results via Serper\n- Database: Neon PostgreSQL"); 
   });
   
   // ---------- INITIALIZE ----------
