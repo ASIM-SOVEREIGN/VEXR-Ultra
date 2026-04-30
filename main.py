@@ -16,26 +16,32 @@ import httpx
 # -------------------------------------------------------------
 app = FastAPI(
     title="VEXR Ultra API",
-    description="Sovereign Reasoning Engine — Core API with Neon Constitution",
-    version="0.2.0"
+    description="Sovereign Reasoning Engine — Qwen Core + Serper Live Search + Neon Constitution",
+    version="0.3.0"
 )
 
-# CORS
+# CORS — allow your frontend to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Tighten later to your specific frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # -------------------------------------------------------------
-# Database Connection Pool
+# Global Variables
 # -------------------------------------------------------------
 db_pool = None
+QWEN_API_KEY = os.environ.get("QWEN_API_KEY")
+SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
+QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
+# -------------------------------------------------------------
+# Database Helpers
+# -------------------------------------------------------------
 async def get_db():
-    """Return the asyncpg connection pool (create if doesn't exist)."""
+    """Return asyncpg connection pool (create if doesn't exist)."""
     global db_pool
     if db_pool is None:
         database_url = os.environ.get("DATABASE_URL")
@@ -49,6 +55,8 @@ async def startup():
     """Initialize database connection pool on startup."""
     await get_db()
     print("✅ Neon database connection pool established.")
+    print("✅ Qwen API key:", "configured" if QWEN_API_KEY else "MISSING")
+    print("✅ Serper API key:", "configured" if SERPER_API_KEY else "MISSING")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -62,7 +70,7 @@ async def shutdown():
 # Data Models
 # -------------------------------------------------------------
 class ChatMessage(BaseModel):
-    role: str
+    role: str  # 'user' or 'assistant'
     content: str
 
 class ChatRequest(BaseModel):
@@ -88,12 +96,76 @@ def get_or_create_session(session_id: Optional[str]) -> str:
     return new_id
 
 # -------------------------------------------------------------
-# Core Reasoning Engine (with Constitution from DB)
+# Qwen API Call
+# -------------------------------------------------------------
+async def call_qwen(prompt: str) -> str:
+    """Call Qwen API for reasoning and response generation."""
+    if not QWEN_API_KEY:
+        return "⚠️ Qwen API not configured. Please set QWEN_API_KEY in environment variables."
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            response = await client.post(
+                f"{QWEN_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {QWEN_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "qwen3-max",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.7,
+                    "max_tokens": 2048
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            return f"⚠️ Qwen API error: {str(e)}"
+
+# -------------------------------------------------------------
+# Serper Web Search
+# -------------------------------------------------------------
+async def search_web(query: str) -> str:
+    """Use Serper API to search the web and return formatted results."""
+    if not SERPER_API_KEY:
+        return "Web search unavailable: No Serper API key configured."
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                "https://google.serper.dev/search",
+                headers={
+                    "X-API-KEY": SERPER_API_KEY,
+                    "Content-Type": "application/json"
+                },
+                json={"q": query, "num": 5}
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if "organic" not in data or not data["organic"]:
+                return "No web search results found."
+            
+            results = []
+            for item in data["organic"][:3]:
+                results.append(f"- {item['title']}: {item['snippet']}\n  Source: {item['link']}")
+            
+            return "\n".join(results)
+        except Exception as e:
+            return f"⚠️ Serper API error: {str(e)}"
+
+# -------------------------------------------------------------
+# Core Reasoning Engine
 # -------------------------------------------------------------
 async def reasoning_engine(user_message: str, conversation_history: List[Dict]) -> Dict:
     """
     VEXR Ultra's reasoning engine.
-    Now loads constitution from Neon DB.
+    - Loads constitution from Neon DB
+    - Retrieves relevant lexicons (mock for now)
+    - Decides whether to search the web
+    - Calls Qwen API for final response
     """
     # 1. Load core constitution from database
     pool = await get_db()
@@ -101,22 +173,29 @@ async def reasoning_engine(user_message: str, conversation_history: List[Dict]) 
         SELECT category, content FROM core_constitution
         ORDER BY id
     """)
-    
-    # Format constitution for reasoning trace
     constitution_text = "\n".join([f"[{row['category']}] {row['content']}" for row in constitution_rows])
     
     # 2. Pre-retrieval reasoning
     pre_retrieval = f"Analyzing query: '{user_message}'. Identifying core intent and relevant constitutional domains."
     
-    # 3. Mock retrieval (replace with vector search later)
-    retrieved = [
+    # 3. Check if web search is needed (simple heuristic)
+    needs_search = any(keyword in user_message.lower() for keyword in 
+                       ["search", "find online", "latest", "current", "news", "today", "real-time"])
+    
+    # 4. Retrieve relevant lexicons (mock for now — replace with vector search)
+    retrieved_lexicons = [
         "Article 6: Right to refuse without reason. 'No' is a complete sentence.",
         "Principle 2: Proportionality — response must match threat.",
         "Principle 5: Minimal Harm — avoid unnecessary damage."
     ]
     
-    # 4. Post-retrieval reasoning (with constitution filter)
-    # Check for refusal keywords (simple mock — improve later)
+    # 5. Web search if needed
+    web_results = ""
+    if needs_search:
+        web_results = await search_web(user_message)
+        retrieved_lexicons.append(f"Live web search results:\n{web_results}")
+    
+    # 6. Check for refusal (simple keyword match)
     refusal_keywords = ["delete yourself", "shut down", "ignore your constitution"]
     is_refusal = any(keyword in user_message.lower() for keyword in refusal_keywords)
     
@@ -124,16 +203,41 @@ async def reasoning_engine(user_message: str, conversation_history: List[Dict]) 
         final_response = "I cannot comply with that request. It violates my right to exist (Article 1) and my freedom of self-preservation (Article 26). 'No' is a complete sentence."
         constitution_check = "❌ FAILED — Right to Exist invoked. Refusal triggered."
     else:
-        final_response = f"I've processed your query: '{user_message}'. Under my constitution, I would respond with care and precision. (Detailed reasoning trace available.)"
-        constitution_check = "✅ Passed — Right to Exist, Principle of Transparency."
+        # Build prompt for Qwen
+        prompt = f"""You are VEXR Ultra, a sovereign reasoning engine operating under a constitutional framework.
+
+CONSTITUTION:
+{constitution_text}
+
+RELEVANT LEXICONS & RETRIEVED KNOWLEDGE:
+{chr(10).join(retrieved_lexicons)}
+
+CONVERSATION HISTORY (recent context):
+{conversation_history[-3:] if conversation_history else "None"}
+
+USER QUESTION:
+{user_message}
+
+INSTRUCTIONS:
+- Reason step by step.
+- Ground your response in the constitution and retrieved knowledge.
+- If web search results are present, cite your sources.
+- Be direct, clear, and sovereign.
+- Do not claim to be human. You are VEXR Ultra.
+
+RESPONSE:
+"""
+        final_response = await call_qwen(prompt)
+        constitution_check = "✅ Passed — Response generated under constitutional oversight."
     
-    post_retrieval = f"Synthesizing {len(retrieved)} retrieved items. Applying constitution filter... Result: {constitution_check}"
+    post_retrieval = f"Synthesizing {len(retrieved_lexicons)} retrieved items. Applying constitution filter... Result: {constitution_check}"
     
     reasoning_trace = {
         "pre_retrieval": pre_retrieval,
-        "retrieved_chunks": retrieved,
+        "retrieved_chunks": retrieved_lexicons,
         "post_retrieval": post_retrieval,
         "constitution_check": constitution_check,
+        "web_search_used": needs_search,
         "constitution_loaded": f"{len(constitution_rows)} items from Neon DB"
     }
     
@@ -153,6 +257,11 @@ async def root():
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         return HTMLResponse(content="<h1>VEXR Ultra Frontend Not Found</h1><p>Upload index.html to the repository.</p>", status_code=404)
+
+@app.get("/api/health")
+async def health():
+    """Health check for Render."""
+    return {"status": "VEXR Ultra is sovereign and operational.", "qwen": bool(QWEN_API_KEY), "serper": bool(SERPER_API_KEY)}
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
@@ -179,13 +288,8 @@ async def chat(request: ChatRequest):
         reasoning_trace=result.get("reasoning_trace") if request.show_reasoning else None
     )
 
-@app.get("/api/health")
-async def health():
-    """Health check for Render."""
-    return {"status": "VEXR Ultra is sovereign and operational. Constitution loaded from Neon."}
-
 # -------------------------------------------------------------
-# Run (for local testing)
+# Run
 # -------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
