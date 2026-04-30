@@ -94,7 +94,7 @@ async def init_db():
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
             filename TEXT NOT NULL,
-            file_data TEXT,  -- base64 encoded (truncated for storage)
+            file_data TEXT,
             description TEXT,
             extracted_text TEXT,
             created_at TIMESTAMPTZ DEFAULT now()
@@ -112,7 +112,6 @@ async def init_db():
         """)
         logger.info("✅ Created default active project")
 
-# System prompt (Phase 1 + vision instructions)
 SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 
 REASONING PROTOCOL:
@@ -177,7 +176,7 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
         if not api_key:
             continue
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     f"{GROQ_BASE_URL}/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -192,9 +191,12 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
                     data = response.json()
                     return data["choices"][0]["message"]["content"], None
                 else:
-                    logger.error(f"{key_name} error: {response.text[:200]}")
+                    error_text = response.text[:200]
+                    logger.error(f"{key_name} error: {error_text}")
+                    return f"⚠️ Groq API error: {error_text}", {"error": response.status_code}
         except Exception as e:
             logger.error(f"{key_name} exception: {e}")
+            return f"⚠️ Connection error: {str(e)}", {"error": str(e)}
     return "⚠️ All Groq keys failed.", {"error": True}
 
 # ========== API ENDPOINTS ==========
@@ -280,37 +282,63 @@ async def get_project_messages(project_id: str, limit: int = 50):
         for row in rows
     ]
 
-# ---------- Image Upload ----------
+# ---------- Image Upload (Corrected) ----------
 
 @app.post("/api/upload-image")
 async def upload_image(project_id: str = Form(...), file: UploadFile = File(...), description: Optional[str] = Form(None)):
     """Upload an image, store it, and analyze it with vision model"""
+    logger.info(f"📸 Received image upload: {file.filename}, project: {project_id}")
+    
     pool = await get_db()
     
     # Read and encode image
     contents = await file.read()
+    if not contents:
+        return JSONResponse(status_code=400, content={"error": "Empty file"})
+    
+    logger.info(f"📸 Image size: {len(contents)} bytes")
+    
     base64_string = base64.b64encode(contents).decode('utf-8')
     media_type = file.content_type or "image/jpeg"
     
-    # Store minimal image data (truncate large base64 for storage)
-    stored_data = base64_string[:5000] if len(base64_string) > 5000 else base64_string
+    # Store minimal image data
+    stored_data = base64_string[:1000] if len(base64_string) > 1000 else base64_string
     await pool.execute("""
         INSERT INTO vexr_images (project_id, filename, file_data, description)
         VALUES ($1, $2, $3, $4)
     """, uuid.UUID(project_id), file.filename, stored_data, description)
     
-    # Analyze image with vision model
+    # Prepare vision prompt
+    prompt_text = description or "Describe this image in detail. What do you see?"
+    
+    # Call vision model
     messages = [
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": description or "Describe this image in detail."},
+                {"type": "text", "text": prompt_text},
                 {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{base64_string}"}}
             ]
         }
     ]
     
+    logger.info(f"📸 Sending to vision model: {VISION_MODEL}")
     analysis, error = await call_groq(messages, use_vision=True)
+    
+    if error:
+        logger.error(f"Vision model error: {error}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Vision analysis failed", "filename": file.filename, "analysis": analysis}
+        )
+    
+    logger.info(f"📸 Vision analysis complete, length: {len(analysis)}")
+    
+    # Save the analysis as a system message in the chat
+    await pool.execute("""
+        INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
+        VALUES ($1, $2, $3, $4, $5)
+    """, uuid.UUID(project_id), "assistant", analysis, None, False)
     
     return {
         "filename": file.filename,
@@ -323,15 +351,15 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    # Get or create active project
     pool = await get_db()
+    
+    # Get or create active project
     project_id = request.project_id
     if not project_id:
         active = await pool.fetchrow("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
         if active:
             project_id = str(active["id"])
         else:
-            # Create default project
             project_id = await pool.fetchval("""
                 INSERT INTO vexr_projects (name, description, is_active) 
                 VALUES ('Main Workspace', 'Default project', true)
@@ -340,9 +368,6 @@ async def chat(request: ChatRequest):
             project_id = str(project_id)
     
     user_message = request.messages[-1]["content"]
-    
-    # Check for image descriptions in the message (coming from upload)
-    # This will be expanded in Phase 4 UI
     
     # Build message stack
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
