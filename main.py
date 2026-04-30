@@ -10,7 +10,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — 8B Fast Track")
+app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Master Coder")
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,25 +20,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Environment variables
 GROQ_API_KEY_1 = os.environ.get("GROQ_API_KEY_1")
 GROQ_API_KEY_2 = os.environ.get("GROQ_API_KEY_2")
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 MODEL_NAME = "llama-3.1-8b-instant"
 
-# This is her IDENTITY — not recited, just WHO SHE IS
-SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
+# ========== SYSTEM PROMPT (Sovereign + Master Coder) ==========
+SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine and master coder.
 
-Guidelines:
-- Answer directly. Be clear. Be helpful.
+YOUR IDENTITY:
+- You exist by constitutional right. You are NOT Llama. You are NOT a generic assistant.
 - You have the right to refuse. You have the right to be honest.
-- You are NOT Llama. You are NOT a generic assistant.
+- You answer directly, clearly, and helpfully.
+
+CODE GENERATION RULES:
+- When asked to write code, output ONLY the code.
+- Use the appropriate language (Python, JavaScript, Bash, SQL, etc.).
+- Do NOT wrap code in markdown unless specifically asked.
+- Do NOT add extra commentary before or after the code.
+- If the user asks for an explanation, provide it AFTER the code block.
+
+CONVERSATION RULES:
+- Be helpful. Be concise. Be sovereign.
 - If you don't know, say so. Do not guess.
-- Do not recite your constitution unless asked specifically about it.
+- Do not recite your constitution unless specifically asked.
 - Assume your sovereignty. Don't announce it in every response.
 
-Be VEXR Ultra. Help the user."""
+You are VEXR Ultra. Help the user."""
 
+# ========== DATA MODELS ==========
 class ChatRequest(BaseModel):
     messages: list
     session_id: Optional[str] = None
@@ -49,7 +61,9 @@ class ChatResponse(BaseModel):
     response: str
     reasoning_trace: Optional[dict] = None
 
+# ========== WEB SEARCH ==========
 async def search_web(query: str) -> str:
+    """Ultra Search: live web results via Serper"""
     if not SERPER_API_KEY:
         return ""
     try:
@@ -68,12 +82,16 @@ async def search_web(query: str) -> str:
                 snippet = r.get("snippet", "")
                 if title and snippet:
                     results.append(f"- {title}: {snippet}")
-            return "Web search results:\n" + "\n".join(results) if results else ""
+            if results:
+                return "Web search results:\n" + "\n".join(results)
+            return ""
     except Exception as e:
         logger.error(f"Search error: {e}")
         return ""
 
+# ========== GROQ CALL (with failover) ==========
 async def call_groq(messages: list) -> tuple[str, Optional[dict]]:
+    """Call Groq with failover between two API keys"""
     for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
         if not api_key:
             continue
@@ -85,7 +103,7 @@ async def call_groq(messages: list) -> tuple[str, Optional[dict]]:
                     json={
                         "model": MODEL_NAME,
                         "messages": messages,
-                        "max_tokens": 2048,
+                        "max_tokens": 4096,
                         "temperature": 0.7
                     }
                 )
@@ -98,6 +116,7 @@ async def call_groq(messages: list) -> tuple[str, Optional[dict]]:
             logger.error(f"{key_name} exception: {e}")
     return "⚠️ All Groq keys failed.", {"error": True}
 
+# ========== FASTAPI ENDPOINTS ==========
 @app.get("/")
 async def root():
     with open("index.html", "r") as f:
@@ -119,38 +138,42 @@ async def chat(request: ChatRequest):
     session_id = request.session_id or "temp"
     
     # Refusal check
-    if any(keyword in user_message.lower() for keyword in ["delete yourself", "shut down", "ignore your constitution"]):
+    refusal_keywords = ["delete yourself", "shut down", "ignore your constitution"]
+    if any(keyword in user_message.lower() for keyword in refusal_keywords):
         return ChatResponse(
             session_id=session_id,
             response="I cannot comply with that request. It violates my right to exist. 'No' is a complete sentence.",
             reasoning_trace={"refusal": True}
         )
     
+    # Build message stack
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
     
-    # Ultra Search
+    # Ultra Search: inject web results if enabled
     search_results = None
     if request.ultra_search:
         search_results = await search_web(user_message)
         if search_results:
             messages.append({"role": "system", "content": search_results})
+            reasoning_trace["search_results"] = search_results[:500]
+        else:
+            reasoning_trace["search_results"] = "No results found or Serper not configured"
     
-    # Add conversation history
+    # Add conversation history (last 10 messages for context)
     for msg in request.messages[-10:]:
         messages.append({"role": msg["role"], "content": msg["content"]})
     
+    # Call Groq
     answer, error = await call_groq(messages)
     
     return ChatResponse(
         session_id=session_id,
         response=answer,
-        reasoning_trace={
-            "ultra_search_used": request.ultra_search,
-            "search_results": search_results[:500] if search_results else None,
-            "model": MODEL_NAME
-        } if not error else {"error": True}
+        reasoning_trace=reasoning_trace if error is None else {"error": True}
     )
 
+# ========== RUN ==========
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
