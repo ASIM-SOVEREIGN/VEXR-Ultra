@@ -35,7 +35,7 @@ app.add_middleware(
 db_pool = None
 QWEN_API_KEY = os.environ.get("QWEN_API_KEY")
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
-QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+QWEN_BASE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
 
 # -------------------------------------------------------------
 # Database Helpers
