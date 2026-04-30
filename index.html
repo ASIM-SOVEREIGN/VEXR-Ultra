@@ -313,7 +313,7 @@
         }
         .reasoning-content.show { display: block; }
 
-        /* Input Area with Image Upload */
+        /* Input Area */
         .input-area {
             background: var(--deep-shadow);
             border-top: 1px solid var(--dim-gold);
@@ -350,6 +350,7 @@
             cursor: pointer;
             color: var(--faded-glyph);
             font-size: 0.8rem;
+            transition: all 0.2s;
         }
         .file-label:hover {
             border-color: var(--forge-gold);
@@ -659,22 +660,42 @@
         }
     }
     
+    async function uploadAndAnalyzeImage(file, caption) {
+        const formData = new FormData();
+        formData.append('project_id', currentProjectId);
+        formData.append('file', file);
+        formData.append('description', caption || 'Describe this image in detail');
+        
+        const response = await fetch('/api/upload-image', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Upload failed');
+        }
+        
+        return await response.json();
+    }
+    
     async function sendMessage(message, imageFile = null) {
         if (imageFile) {
-            // Upload and analyze image
-            const formData = new FormData();
-            formData.append('project_id', currentProjectId);
-            formData.append('file', imageFile);
-            formData.append('description', message || 'Describe this image');
-            
-            const uploadResponse = await fetch('/api/upload-image', { method: 'POST', body: formData });
-            const uploadResult = await uploadResponse.json();
-            
+            // Show user message with image info
             addMessageToUI('user', `📷 Uploaded: ${imageFile.name}${message ? '\n\n' + message : ''}`);
-            addMessageToUI('vexr', uploadResult.analysis);
             
-            // Refresh messages
-            await loadMessages(currentProjectId);
+            // Show thinking indicator
+            showThinking();
+            
+            try {
+                const result = await uploadAndAnalyzeImage(imageFile, message);
+                hideThinking();
+                addMessageToUI('vexr', result.analysis);
+                await loadMessages(currentProjectId);
+            } catch (error) {
+                hideThinking();
+                addMessageToUI('vexr', `⚠️ Image upload failed: ${error.message}`);
+            }
             return;
         }
         
@@ -697,8 +718,12 @@
         await loadMessages(currentProjectId);
     }
     
+    // --- Event Listeners ---
     document.getElementById('newProjectBtn').onclick = createProject;
-    document.getElementById('newChatBtn').onclick = () => { document.getElementById('messagesContainer').innerHTML = ''; addMessageToUI('vexr', "New chat started. How can I assist you?"); };
+    document.getElementById('newChatBtn').onclick = () => { 
+        document.getElementById('messagesContainer').innerHTML = ''; 
+        addMessageToUI('vexr', "New chat started. How can I assist you?"); 
+    };
     
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
@@ -732,7 +757,7 @@
         }
     });
     
-    // Initialize
+    // --- Initialize ---
     loadProjects();
 </script>
 </body>
