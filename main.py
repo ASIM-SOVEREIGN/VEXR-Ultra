@@ -415,7 +415,7 @@ async def chat(request: ChatRequest, authorization: str = Header(None)):
         user_id = user['id']
         project_id = request.project_id
         if not project_id:
-            row = await conn.fetchrow("SELECT id FROM vexr_projects WHERE user_id = $1 AND is_active = true LIMIT 1", int(user_id)
+            row = await conn.fetchrow("SELECT id FROM vexr_projects WHERE user_id = $1 AND is_active = true LIMIT 1", int(user_id))
             if row:
                 project_id = str(row['id'])
             else:
