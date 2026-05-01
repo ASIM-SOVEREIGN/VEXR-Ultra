@@ -1,64 +1,141 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>VEXR ULTRA</title>
-    <style>
-        body { background: #050505; color: #f0f0f0; font-family: monospace; padding: 2rem; }
-        #chat { height: 400px; overflow-y: auto; border: 1px solid #d4af37; padding: 1rem; margin-bottom: 1rem; }
-        .user { color: #d4af37; }
-        .assistant { color: #00d4ff; }
-        input, button { background: #0f0f0f; color: #d4af37; border: 1px solid #d4af37; padding: 0.5rem; }
-        input { width: 80%; }
-    </style>
-</head>
-<body>
-    <h1>⚡ VEXR ULTRA</h1>
-    <div id="chat"></div>
-    <input type="text" id="message" placeholder="Ask me anything...">
-    <button id="send">SEND</button>
+import os
+import hashlib
+import secrets
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+import asyncpg
+import httpx
 
-    <script>
-        let token = localStorage.getItem('token');
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+db_pool = None
+
+async def get_db():
+    global db_pool
+    if db_pool is None:
+        db_pool = await asyncpg.create_pool(DATABASE_URL)
+    return db_pool
+
+def hash_password(password: str, salt: str = None):
+    if not salt:
+        salt = secrets.token_hex(16)
+    hashed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+    return salt, hashed.hex()
+
+def verify_password(password: str, salt: str, hashed: str):
+    _, new_hash = hash_password(password, salt)
+    return new_hash == hashed
+
+def generate_token():
+    return secrets.token_urlsafe(32)
+
+class SignupRequest(BaseModel):
+    email: str
+    username: str
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+@app.on_event("startup")
+async def startup():
+    pool = await get_db()
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            username TEXT UNIQUE NOT NULL,
+            password_salt TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            token TEXT UNIQUE,
+            token_created_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    print("✅ Database ready")
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    with open("index.html", "r") as f:
+        return HTMLResponse(content=f.read())
+
+@app.post("/api/auth/signup")
+async def signup(request: SignupRequest):
+    async with (await get_db()).acquire() as conn:
+        existing = await conn.fetchrow("SELECT id FROM vexr_users WHERE email = $1 OR username = $2", 
+                                       request.email, request.username)
+        if existing:
+            raise HTTPException(status_code=400, detail="Email or username already exists")
         
-        async function login() {
-            const email = prompt('Email:');
-            const password = prompt('Password:');
-            const res = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-            const data = await res.json();
-            if (data.access_token) {
-                token = data.access_token;
-                localStorage.setItem('token', token);
-                document.getElementById('chat').innerHTML += '<div>✅ Logged in!</div>';
-            } else {
-                document.getElementById('chat').innerHTML += '<div>❌ Login failed</div>';
-            }
-        }
+        salt, hashed = hash_password(request.password)
+        token = generate_token()
         
-        async function send() {
-            const message = document.getElementById('message').value;
-            if (!message) return;
-            document.getElementById('chat').innerHTML += `<div class="user">You: ${message}</div>`;
-            document.getElementById('message').value = '';
-            
-            const res = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
-            });
-            const data = await res.json();
-            document.getElementById('chat').innerHTML += `<div class="assistant">VEXR: ${data.response}</div>`;
-        }
+        user_id = await conn.fetchval("""
+            INSERT INTO vexr_users (email, username, password_salt, password_hash, token, token_created_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+        """, request.email, request.username, salt, hashed, token, datetime.now())
         
-        if (!token) {
-            login();
-        }
+        return {"access_token": token, "token_type": "bearer", "user_id": user_id}
+
+@app.post("/api/auth/login")
+async def login(request: LoginRequest):
+    async with (await get_db()).acquire() as conn:
+        user = await conn.fetchrow("SELECT id, password_salt, password_hash, token FROM vexr_users WHERE email = $1", request.email)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not verify_password(request.password, user['password_salt'], user['password_hash']):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        return {"access_token": user['token'], "token_type": "bearer", "user_id": user['id']}
+
+GROQ_KEYS = [os.environ.get("GROQ_KEY_1"), os.environ.get("GROQ_KEY_2")]
+GROQ_KEYS = [k for k in GROQ_KEYS if k]
+groq_rotator = None
+if GROQ_KEYS:
+    from itertools import cycle
+    groq_rotator = cycle(GROQ_KEYS)
+
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+
+@app.post("/api/chat")
+async def chat(authorization: str = Header(None), message: str = None):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing token")
+    token = authorization.replace("Bearer ", "")
+    async with (await get_db()).acquire() as conn:
+        user = await conn.fetchrow("SELECT id FROM vexr_users WHERE token = $1", token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid token")
         
-        document.getElementById('send').onclick = send;
-        document.getElementById('message').onkeypress = (e) => { if (e.key === 'Enter') send(); };
-    </script>
-</body>
-</html>
+        if not message:
+            message = "Hello"
+        
+        groq_response = "No Groq keys configured"
+        if groq_rotator:
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    groq_key = next(groq_rotator)
+                    response = await client.post(
+                        f"{GROQ_BASE_URL}/chat/completions",
+                        headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": "llama-3.1-8b-instant",
+                            "messages": [{"role": "user", "content": message}],
+                            "max_tokens": 500
+                        }
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        groq_response = data["choices"][0]["message"]["content"]
+                    else:
+                        groq_response = f"Groq error: {response.status_code}"
+            except Exception as e:
+                groq_response = f"Error: {str(e)}"
+        
+        return {"response": groq_response}
