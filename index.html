@@ -46,7 +46,6 @@
             height: 100vh;
         }
 
-        /* Top Bar */
         .top-bar {
             background: var(--deep-shadow);
             border-bottom: 1px solid var(--forge-gold);
@@ -149,7 +148,6 @@
             overflow: hidden;
         }
 
-        /* Projects Sidebar */
         .projects-sidebar {
             width: 280px;
             background: var(--deep-shadow);
@@ -215,7 +213,6 @@
             font-size: 0.7rem;
         }
 
-        /* Chat Area */
         .chat-area {
             flex: 1;
             display: flex;
@@ -333,7 +330,6 @@
         }
         .reasoning-content.show { display: block; }
 
-        /* Input Area */
         .input-area {
             background: var(--deep-shadow);
             border-top: 1px solid var(--dim-gold);
@@ -389,13 +385,6 @@
             background: var(--ember-glow);
         }
 
-        .image-preview {
-            max-width: 200px;
-            max-height: 150px;
-            margin-top: 0.5rem;
-            border-radius: 8px;
-        }
-
         .thinking-indicator {
             display: flex;
             align-items: center;
@@ -419,7 +408,6 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Login Modal */
         .modal {
             position: fixed;
             top: 0;
@@ -466,7 +454,7 @@
             cursor: pointer;
             margin-bottom: 0.5rem;
         }
-        .modal-content .switch-mode {
+        .switch-mode {
             text-align: center;
             margin-top: 1rem;
             color: var(--faded-glyph);
@@ -488,13 +476,12 @@
 </head>
 <body>
 
-<!-- Login Modal -->
 <div id="loginModal" class="modal">
     <div class="modal-content">
         <h2 id="modalTitle">Login to VEXR Ultra</h2>
         <div id="modalError" class="error-message" style="display: none;"></div>
-        <input type="email" id="loginEmail" placeholder="Email">
-        <input type="password" id="loginPassword" placeholder="Password">
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+        <input type="password" id="loginPassword" placeholder="Password (min 6 characters)" autocomplete="current-password">
         <button id="modalActionBtn">Login</button>
         <div class="switch-mode" id="switchMode">Don't have an account? Sign up</div>
     </div>
@@ -569,12 +556,11 @@
     const loginEmail = document.getElementById('loginEmail');
     const loginPassword = document.getElementById('loginPassword');
     const modalActionBtn = document.getElementById('modalActionBtn');
-    const switchMode = document.getElementById('switchMode');
+    const switchModeBtn = document.getElementById('switchMode');
     const userEmailSpan = document.getElementById('userEmail');
-
-    // Toggle UI
     const ultraSearchToggle = document.getElementById('ultraSearchToggle');
     const showReasoningToggle = document.getElementById('showReasoningToggle');
+
     if (ultraSearchToggle) ultraSearchToggle.checked = ultraSearchEnabled;
     if (showReasoningToggle) showReasoningToggle.checked = showReasoningEnabled;
 
@@ -597,11 +583,21 @@
             body: formData
         });
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Signup failed');
+        const text = await response.text();
+        console.log('Signup response:', text);
+        
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            throw new Error(`Server error: ${text.substring(0, 100)}`);
         }
-        return await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || 'Signup failed');
+        }
+        
+        return data;
     }
 
     async function login(email, password) {
@@ -614,11 +610,21 @@
             body: formData
         });
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Login failed');
+        const text = await response.text();
+        console.log('Login response:', text);
+        
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            throw new Error(`Server error: ${text.substring(0, 100)}`);
         }
-        return await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || 'Login failed');
+        }
+        
+        return data;
     }
 
     async function handleAuth() {
@@ -627,6 +633,11 @@
         
         if (!email || !password) {
             showError('Please enter email and password');
+            return;
+        }
+        
+        if (password.length < 6) {
+            showError('Password must be at least 6 characters');
             return;
         }
         
@@ -642,13 +653,13 @@
             }
             
             authToken = result.access_token;
-            currentUser = { email: result.email || email, user_id: result.user_id };
+            currentUser = { email: email, user_id: result.user_id };
             localStorage.setItem('vexr_auth_token', authToken);
-            localStorage.setItem('vexr_user_email', currentUser.email);
+            localStorage.setItem('vexr_user_email', email);
             
             loginModal.style.display = 'none';
             appContainer.style.display = 'flex';
-            userEmailSpan.textContent = currentUser.email;
+            userEmailSpan.textContent = email;
             
             await loadProjects();
             await loadMessages();
@@ -672,7 +683,7 @@
     }
 
     // ============================================================
-    // API HELPERS (with auth token)
+    // API HELPERS
     // ============================================================
     async function fetchWithAuth(url, options = {}) {
         const headers = {
@@ -811,7 +822,6 @@
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
         
-        // Extract <think> blocks
         let thinkContent = '';
         let mainContent = content;
         const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
@@ -824,7 +834,6 @@
             bubble.appendChild(thinkDiv);
         }
         
-        // Code blocks
         let html = '';
         let inCode = false;
         let codeLang = '';
@@ -991,17 +1000,16 @@
     document.getElementById('logoutBtn')?.addEventListener('click', logout);
     
     // ============================================================
-    // MODAL AUTH
+    // MODAL AUTH INIT
     // ============================================================
-    switchMode.addEventListener('click', () => {
+    switchModeBtn.addEventListener('click', () => {
         isLoginMode = !isLoginMode;
         modalTitle.textContent = isLoginMode ? 'Login to VEXR Ultra' : 'Sign Up for VEXR Ultra';
         modalActionBtn.textContent = isLoginMode ? 'Login' : 'Sign Up';
-        switchMode.textContent = isLoginMode ? "Don't have an account? Sign up" : "Already have an account? Login";
+        switchModeBtn.textContent = isLoginMode ? "Don't have an account? Sign up" : "Already have an account? Login";
     });
     
     modalActionBtn.addEventListener('click', handleAuth);
-    
     loginEmail.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAuth(); });
     loginPassword.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAuth(); });
     
