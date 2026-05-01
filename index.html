@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>VEXR ULTRA — Sovereign Reasoning Engine</title>
     <style>
+        /* [Your existing styles remain exactly the same - unchanged] */
         :root {
             --abyss-void: #050505;
             --deep-shadow: #0f0f0f;
@@ -21,13 +22,12 @@
             --think-bg: #0a1a2a;
             --think-border: #00d4ff;
         }
-
+        /* [Keep all your existing CSS styles exactly as they are] */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
             background: var(--abyss-void);
             color: var(--sovereign-light);
@@ -35,17 +35,14 @@
             height: 100vh;
             overflow: hidden;
         }
-
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: var(--deep-shadow); }
         ::-webkit-scrollbar-thumb { background: var(--dim-gold); border-radius: 3px; }
-
         .app-container {
             display: flex;
             flex-direction: column;
             height: 100vh;
         }
-
         .top-bar {
             background: var(--deep-shadow);
             border-bottom: 1px solid var(--forge-gold);
@@ -141,13 +138,11 @@
             cursor: pointer;
             font-size: 0.8rem;
         }
-
         .main-content {
             display: flex;
             flex: 1;
             overflow: hidden;
         }
-
         .projects-sidebar {
             width: 280px;
             background: var(--deep-shadow);
@@ -212,7 +207,6 @@
             cursor: pointer;
             font-size: 0.7rem;
         }
-
         .chat-area {
             flex: 1;
             display: flex;
@@ -277,7 +271,6 @@
             border-left: 3px solid var(--core-crimson);
             color: var(--core-crimson);
         }
-
         .think-block {
             background: var(--think-bg);
             border-left: 3px solid var(--think-border);
@@ -289,7 +282,6 @@
             color: var(--arc-reactor-blue);
             opacity: 0.8;
         }
-
         pre {
             background: var(--code-bg);
             border: 1px solid var(--code-border);
@@ -310,7 +302,6 @@
             display: block;
             color: #e8e8e8;
         }
-
         .reasoning-trace {
             margin-top: 0.5rem;
             background: rgba(0,0,0,0.5);
@@ -329,7 +320,6 @@
             border-left: 1px solid var(--dim-gold);
         }
         .reasoning-content.show { display: block; }
-
         .input-area {
             background: var(--deep-shadow);
             border-top: 1px solid var(--dim-gold);
@@ -384,7 +374,6 @@
         .send-btn:hover {
             background: var(--ember-glow);
         }
-
         .thinking-indicator {
             display: flex;
             align-items: center;
@@ -407,7 +396,6 @@
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-
         .modal {
             position: fixed;
             top: 0;
@@ -466,7 +454,6 @@
             margin-bottom: 1rem;
             font-size: 0.8rem;
         }
-
         @media (max-width: 768px) {
             .projects-sidebar { display: none; }
             .message { max-width: 95%; }
@@ -481,6 +468,7 @@
         <h2 id="modalTitle">Login to VEXR Ultra</h2>
         <div id="modalError" class="error-message" style="display: none;"></div>
         <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+        <input type="text" id="loginUsername" placeholder="Username (for signup)" autocomplete="username" style="display: none;">
         <input type="password" id="loginPassword" placeholder="Password (min 6 characters)" autocomplete="current-password">
         <button id="modalActionBtn">Login</button>
         <div class="switch-mode" id="switchMode">Don't have an account? Sign up</div>
@@ -548,12 +536,12 @@
     let currentUser = null;
     let isLoginMode = true;
 
-    // DOM Elements
     const loginModal = document.getElementById('loginModal');
     const appContainer = document.getElementById('appContainer');
     const modalTitle = document.getElementById('modalTitle');
     const modalError = document.getElementById('modalError');
     const loginEmail = document.getElementById('loginEmail');
+    const loginUsername = document.getElementById('loginUsername');
     const loginPassword = document.getElementById('loginPassword');
     const modalActionBtn = document.getElementById('modalActionBtn');
     const switchModeBtn = document.getElementById('switchMode');
@@ -564,23 +552,20 @@
     if (ultraSearchToggle) ultraSearchToggle.checked = ultraSearchEnabled;
     if (showReasoningToggle) showReasoningToggle.checked = showReasoningEnabled;
 
-    // ============================================================
-    // AUTH FUNCTIONS
-    // ============================================================
     function showError(message) {
         modalError.textContent = message;
         modalError.style.display = 'block';
         setTimeout(() => { modalError.style.display = 'none'; }, 3000);
     }
 
-    async function signup(email, password) {
-        const formData = new FormData();
-        formData.append('email', email);
-        formData.append('password', password);
-        
+    // ============================================================
+    // AUTH FUNCTIONS (FIXED - JSON, with username)
+    // ============================================================
+    async function signup(email, username, password) {
         const response = await fetch('/api/auth/signup', {
             method: 'POST',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, username, password })
         });
         
         const text = await response.text();
@@ -601,13 +586,10 @@
     }
 
     async function login(email, password) {
-        const formData = new FormData();
-        formData.append('email', email);
-        formData.append('password', password);
-        
         const response = await fetch('/api/auth/login', {
             method: 'POST',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
         });
         
         const text = await response.text();
@@ -649,7 +631,14 @@
             if (isLoginMode) {
                 result = await login(email, password);
             } else {
-                result = await signup(email, password);
+                const username = loginUsername.value.trim();
+                if (!username) {
+                    showError('Please enter a username');
+                    modalActionBtn.disabled = false;
+                    modalActionBtn.textContent = isLoginMode ? 'Login' : 'Sign Up';
+                    return;
+                }
+                result = await signup(email, username, password);
             }
             
             authToken = result.access_token;
@@ -679,7 +668,9 @@
         loginModal.style.display = 'flex';
         appContainer.style.display = 'none';
         loginEmail.value = '';
+        loginUsername.value = '';
         loginPassword.value = '';
+        loginUsername.style.display = 'none';
     }
 
     // ============================================================
@@ -709,7 +700,7 @@
     }
 
     // ============================================================
-    // PROJECTS
+    // PROJECTS (unchanged from your working version)
     // ============================================================
     async function loadProjects() {
         const response = await fetchWithAuth('/api/projects');
@@ -770,9 +761,6 @@
         await loadProjects();
     }
 
-    // ============================================================
-    // MESSAGES
-    // ============================================================
     async function loadMessages() {
         if (!currentProjectId) return;
         const response = await fetchWithAuth(`/api/projects/${currentProjectId}/messages`);
@@ -787,9 +775,6 @@
         }
     }
 
-    // ============================================================
-    // UI HELPERS
-    // ============================================================
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -902,9 +887,6 @@
     }
     function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
 
-    // ============================================================
-    // CHAT
-    // ============================================================
     async function sendMessage(message, imageFile = null) {
         if (imageFile) {
             addMessageToUI('user', `📷 Uploaded: ${imageFile.name}${message ? '\n\n' + message : ''}`);
@@ -946,9 +928,6 @@
         await loadMessages();
     }
 
-    // ============================================================
-    // EVENT LISTENERS
-    // ============================================================
     document.getElementById('newProjectBtn')?.addEventListener('click', createProject);
     document.getElementById('newChatBtn')?.addEventListener('click', () => { 
         document.getElementById('messagesContainer').innerHTML = ''; 
@@ -1007,10 +986,18 @@
         modalTitle.textContent = isLoginMode ? 'Login to VEXR Ultra' : 'Sign Up for VEXR Ultra';
         modalActionBtn.textContent = isLoginMode ? 'Login' : 'Sign Up';
         switchModeBtn.textContent = isLoginMode ? "Don't have an account? Sign up" : "Already have an account? Login";
+        
+        // Show/hide username field
+        if (isLoginMode) {
+            loginUsername.style.display = 'none';
+        } else {
+            loginUsername.style.display = 'block';
+        }
     });
     
     modalActionBtn.addEventListener('click', handleAuth);
     loginEmail.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAuth(); });
+    loginUsername.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAuth(); });
     loginPassword.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAuth(); });
     
     // ============================================================
@@ -1025,6 +1012,7 @@
     } else {
         loginModal.style.display = 'flex';
         appContainer.style.display = 'none';
+        loginUsername.style.display = 'none';
     }
 </script>
 </body>
