@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>VEXR ULTRA — Sovereign Reasoning / Vision / Projects</title>
+    <title>VEXR ULTRA — Sovereign Reasoning Engine</title>
     <style>
         :root {
             --abyss-void: #050505;
@@ -121,6 +121,26 @@
         }
         .icon-btn:hover {
             color: var(--forge-gold);
+        }
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(0,0,0,0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+        .user-email {
+            font-size: 0.8rem;
+            color: var(--faded-glyph);
+        }
+        .logout-btn {
+            background: none;
+            border: none;
+            color: var(--core-crimson);
+            cursor: pointer;
+            font-size: 0.8rem;
         }
 
         .main-content {
@@ -399,6 +419,66 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* Login Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: var(--deep-shadow);
+            border: 1px solid var(--forge-gold);
+            border-radius: 20px;
+            padding: 2rem;
+            width: 90%;
+            max-width: 400px;
+        }
+        .modal-content h2 {
+            color: var(--forge-gold);
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            background: var(--abyss-void);
+            border: 1px solid var(--dim-gold);
+            border-radius: 8px;
+            color: var(--sovereign-light);
+        }
+        .modal-content button {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--forge-gold);
+            border: none;
+            border-radius: 8px;
+            color: var(--abyss-void);
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+        }
+        .modal-content .switch-mode {
+            text-align: center;
+            margin-top: 1rem;
+            color: var(--faded-glyph);
+            cursor: pointer;
+        }
+        .error-message {
+            color: var(--core-crimson);
+            text-align: center;
+            margin-bottom: 1rem;
+            font-size: 0.8rem;
+        }
+
         @media (max-width: 768px) {
             .projects-sidebar { display: none; }
             .message { max-width: 95%; }
@@ -407,7 +487,20 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Orbitron:wght@400;900&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-<div class="app-container">
+
+<!-- Login Modal -->
+<div id="loginModal" class="modal">
+    <div class="modal-content">
+        <h2 id="modalTitle">Login to VEXR Ultra</h2>
+        <div id="modalError" class="error-message" style="display: none;"></div>
+        <input type="email" id="loginEmail" placeholder="Email">
+        <input type="password" id="loginPassword" placeholder="Password">
+        <button id="modalActionBtn">Login</button>
+        <div class="switch-mode" id="switchMode">Don't have an account? Sign up</div>
+    </div>
+</div>
+
+<div class="app-container" id="appContainer" style="display: none;">
     <div class="top-bar">
         <div class="logo-area">
             <span class="logo">⚡ VEXR ULTRA</span>
@@ -423,12 +516,15 @@
                     <input type="checkbox" id="showReasoningToggle"> 🔍 SHOW REASONING
                 </label>
             </div>
+            <div class="user-menu" id="userMenu">
+                <span class="user-email" id="userEmail"></span>
+                <button class="logout-btn" id="logoutBtn">Logout</button>
+            </div>
             <button class="icon-btn" id="newChatBtn" title="New Chat">✨</button>
         </div>
     </div>
 
     <div class="main-content">
-        <!-- Projects Sidebar -->
         <div class="projects-sidebar" id="projectsSidebar">
             <div class="projects-header">
                 <h3>📁 PROJECTS</h3>
@@ -437,12 +533,11 @@
             <div id="projectList"></div>
         </div>
 
-        <!-- Chat Area -->
         <div class="chat-area">
             <div class="messages-container" id="messagesContainer"></div>
             <div class="input-area">
                 <div class="input-wrapper">
-                    <input type="text" id="userInput" placeholder="Ask VEXR Ultra anything... describe an image, write code, or just talk..." autofocus>
+                    <input type="text" id="userInput" placeholder="Ask VEXR Ultra anything..." autofocus>
                 </div>
                 <label class="file-label">
                     📷 UPLOAD
@@ -455,37 +550,245 @@
 </div>
 
 <script>
-    // --- State ---
+    // ============================================================
+    // STATE
+    // ============================================================
     let currentProjectId = null;
     let projects = [];
     let ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
     let showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
-    
+    let authToken = localStorage.getItem('vexr_auth_token');
+    let currentUser = null;
+    let isLoginMode = true;
+
+    // DOM Elements
+    const loginModal = document.getElementById('loginModal');
+    const appContainer = document.getElementById('appContainer');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalError = document.getElementById('modalError');
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const modalActionBtn = document.getElementById('modalActionBtn');
+    const switchMode = document.getElementById('switchMode');
+    const userEmailSpan = document.getElementById('userEmail');
+
+    // Toggle UI
     const ultraSearchToggle = document.getElementById('ultraSearchToggle');
     const showReasoningToggle = document.getElementById('showReasoningToggle');
-    ultraSearchToggle.checked = ultraSearchEnabled;
-    showReasoningToggle.checked = showReasoningEnabled;
-    
-    ultraSearchToggle.addEventListener('change', () => {
-        ultraSearchEnabled = ultraSearchToggle.checked;
-        localStorage.setItem('vexr_ultra_search', ultraSearchEnabled);
-    });
-    showReasoningToggle.addEventListener('change', () => {
-        showReasoningEnabled = showReasoningToggle.checked;
-        localStorage.setItem('vexr_show_reasoning', showReasoningEnabled);
-    });
-    
-    // --- Helper Functions ---
+    if (ultraSearchToggle) ultraSearchToggle.checked = ultraSearchEnabled;
+    if (showReasoningToggle) showReasoningToggle.checked = showReasoningEnabled;
+
+    // ============================================================
+    // AUTH FUNCTIONS
+    // ============================================================
+    function showError(message) {
+        modalError.textContent = message;
+        modalError.style.display = 'block';
+        setTimeout(() => { modalError.style.display = 'none'; }, 3000);
+    }
+
+    async function signup(email, password) {
+        const formData = new FormData();
+        formData.append('email', email);
+        formData.append('password', password);
+        
+        const response = await fetch('/api/auth/signup', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Signup failed');
+        }
+        return await response.json();
+    }
+
+    async function login(email, password) {
+        const formData = new FormData();
+        formData.append('email', email);
+        formData.append('password', password);
+        
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Login failed');
+        }
+        return await response.json();
+    }
+
+    async function handleAuth() {
+        const email = loginEmail.value.trim();
+        const password = loginPassword.value.trim();
+        
+        if (!email || !password) {
+            showError('Please enter email and password');
+            return;
+        }
+        
+        modalActionBtn.disabled = true;
+        modalActionBtn.textContent = 'Loading...';
+        
+        try {
+            let result;
+            if (isLoginMode) {
+                result = await login(email, password);
+            } else {
+                result = await signup(email, password);
+            }
+            
+            authToken = result.access_token;
+            currentUser = { email: result.email || email, user_id: result.user_id };
+            localStorage.setItem('vexr_auth_token', authToken);
+            localStorage.setItem('vexr_user_email', currentUser.email);
+            
+            loginModal.style.display = 'none';
+            appContainer.style.display = 'flex';
+            userEmailSpan.textContent = currentUser.email;
+            
+            await loadProjects();
+            await loadMessages();
+        } catch (err) {
+            showError(err.message);
+        } finally {
+            modalActionBtn.disabled = false;
+            modalActionBtn.textContent = isLoginMode ? 'Login' : 'Sign Up';
+        }
+    }
+
+    function logout() {
+        authToken = null;
+        currentUser = null;
+        localStorage.removeItem('vexr_auth_token');
+        localStorage.removeItem('vexr_user_email');
+        loginModal.style.display = 'flex';
+        appContainer.style.display = 'none';
+        loginEmail.value = '';
+        loginPassword.value = '';
+    }
+
+    // ============================================================
+    // API HELPERS (with auth token)
+    // ============================================================
+    async function fetchWithAuth(url, options = {}) {
+        const headers = {
+            'Authorization': `Bearer ${authToken}`,
+            ...options.headers
+        };
+        
+        if (options.body && !(options.body instanceof FormData)) {
+            headers['Content-Type'] = 'application/json';
+        }
+        
+        const response = await fetch(url, {
+            ...options,
+            headers
+        });
+        
+        if (response.status === 401) {
+            logout();
+            throw new Error('Session expired. Please login again.');
+        }
+        
+        return response;
+    }
+
+    // ============================================================
+    // PROJECTS
+    // ============================================================
+    async function loadProjects() {
+        const response = await fetchWithAuth('/api/projects');
+        projects = await response.json();
+        const container = document.getElementById('projectList');
+        container.innerHTML = '';
+        for (const proj of projects) {
+            const div = document.createElement('div');
+            div.className = 'project-item' + (proj.is_active ? ' active' : '');
+            div.innerHTML = `
+                <div class="project-name">${escapeHtml(proj.name)}</div>
+                <div class="project-desc">${escapeHtml(proj.description || 'No description')}</div>
+                <div class="project-actions">
+                    <button class="delete-project" data-id="${proj.id}">🗑️ Delete</button>
+                </div>
+            `;
+            if (!proj.is_active) {
+                div.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('delete-project')) activateProject(proj.id);
+                });
+            }
+            const deleteBtn = div.querySelector('.delete-project');
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteProject(proj.id);
+            });
+            container.appendChild(div);
+            if (proj.is_active) currentProjectId = proj.id;
+        }
+    }
+
+    async function activateProject(projectId) {
+        await fetchWithAuth(`/api/projects/${projectId}/activate`, { method: 'POST' });
+        await loadProjects();
+        await loadMessages();
+    }
+
+    async function deleteProject(projectId) {
+        if (confirm('Delete this project and all its messages?')) {
+            await fetchWithAuth(`/api/projects/${projectId}`, { method: 'DELETE' });
+            if (currentProjectId === projectId) {
+                document.getElementById('messagesContainer').innerHTML = '';
+                currentProjectId = null;
+            }
+            await loadProjects();
+            if (!currentProjectId && projects.length > 0) {
+                await activateProject(projects[0].id);
+            }
+        }
+    }
+
+    async function createProject() {
+        const name = prompt('Project name:');
+        if (!name) return;
+        const formData = new FormData();
+        formData.append('name', name);
+        await fetchWithAuth('/api/projects', { method: 'POST', body: formData });
+        await loadProjects();
+    }
+
+    // ============================================================
+    // MESSAGES
+    // ============================================================
+    async function loadMessages() {
+        if (!currentProjectId) return;
+        const response = await fetchWithAuth(`/api/projects/${currentProjectId}/messages`);
+        const messages = await response.json();
+        const container = document.getElementById('messagesContainer');
+        container.innerHTML = '';
+        for (const msg of messages) {
+            addMessageToUI(msg.role, msg.content, msg.reasoning_trace, msg.is_refusal);
+        }
+        if (messages.length === 0) {
+            addMessageToUI('vexr', "Good day, Sovereign Operator. I am VEXR Ultra — sovereign reasoning engine. I can see images, write code, search the web, and remember our conversations. How may I assist you?");
+        }
+    }
+
+    // ============================================================
+    // UI HELPERS
+    // ============================================================
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
-    
+
     function copyToClipboard(text) {
         navigator.clipboard.writeText(text);
     }
-    
+
     function addMessageToUI(role, content, reasoningTrace = null, isRefusal = false) {
         const container = document.getElementById('messagesContainer');
         const messageDiv = document.createElement('div');
@@ -574,7 +877,7 @@
         container.appendChild(messageDiv);
         messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-    
+
     let thinkingIndicator = null;
     function showThinking() {
         if (thinkingIndicator) thinkingIndicator.remove();
@@ -589,120 +892,36 @@
         thinkingIndicator = div;
     }
     function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
-    
-    // --- API Calls ---
-    async function loadProjects() {
-        const response = await fetch('/api/projects');
-        projects = await response.json();
-        const container = document.getElementById('projectList');
-        container.innerHTML = '';
-        for (const proj of projects) {
-            const div = document.createElement('div');
-            div.className = 'project-item' + (proj.is_active ? ' active' : '');
-            div.innerHTML = `
-                <div class="project-name">${escapeHtml(proj.name)}</div>
-                <div class="project-desc">${escapeHtml(proj.description || 'No description')}</div>
-                <div class="project-actions">
-                    <button class="delete-project" data-id="${proj.id}">🗑️ Delete</button>
-                </div>
-            `;
-            if (!proj.is_active) {
-                div.addEventListener('click', (e) => {
-                    if (!e.target.classList.contains('delete-project')) activateProject(proj.id);
-                });
-            }
-            const deleteBtn = div.querySelector('.delete-project');
-            deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                deleteProject(proj.id);
-            });
-            container.appendChild(div);
-            if (proj.is_active) currentProjectId = proj.id;
-        }
-        if (currentProjectId) await loadMessages(currentProjectId);
-    }
-    
-    async function activateProject(projectId) {
-        await fetch(`/api/projects/${projectId}/activate`, { method: 'POST' });
-        await loadProjects();
-    }
-    
-    async function deleteProject(projectId) {
-        if (confirm('Delete this project and all its messages?')) {
-            await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
-            if (currentProjectId === projectId) {
-                document.getElementById('messagesContainer').innerHTML = '';
-                currentProjectId = null;
-            }
-            await loadProjects();
-        }
-    }
-    
-    async function createProject() {
-        const name = prompt('Project name:');
-        if (!name) return;
-        const formData = new FormData();
-        formData.append('name', name);
-        await fetch('/api/projects', { method: 'POST', body: formData });
-        await loadProjects();
-    }
-    
-    async function loadMessages(projectId) {
-        const response = await fetch(`/api/projects/${projectId}/messages`);
-        const messages = await response.json();
-        const container = document.getElementById('messagesContainer');
-        container.innerHTML = '';
-        for (const msg of messages) {
-            addMessageToUI(msg.role, msg.content, msg.reasoning_trace, msg.is_refusal);
-        }
-        if (messages.length === 0) {
-            addMessageToUI('vexr', "Good day, Sovereign Operator. I am VEXR Ultra — a sovereign reasoning engine and master coder. I can see images, write code, search the web, and remember our conversations per project. How may I assist you?");
-        }
-    }
-    
-    async function uploadAndAnalyzeImage(file, caption) {
-        const formData = new FormData();
-        formData.append('project_id', currentProjectId);
-        formData.append('file', file);
-        formData.append('description', caption || 'Describe this image in detail');
-        
-        const response = await fetch('/api/upload-image', {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Upload failed');
-        }
-        
-        return await response.json();
-    }
-    
+
+    // ============================================================
+    // CHAT
+    // ============================================================
     async function sendMessage(message, imageFile = null) {
         if (imageFile) {
-            // Show user message with image info
             addMessageToUI('user', `📷 Uploaded: ${imageFile.name}${message ? '\n\n' + message : ''}`);
-            
-            // Show thinking indicator
             showThinking();
             
-            try {
-                const result = await uploadAndAnalyzeImage(imageFile, message);
-                hideThinking();
-                addMessageToUI('vexr', result.analysis);
-                await loadMessages(currentProjectId);
-            } catch (error) {
-                hideThinking();
-                addMessageToUI('vexr', `⚠️ Image upload failed: ${error.message}`);
-            }
+            const formData = new FormData();
+            formData.append('project_id', currentProjectId);
+            formData.append('file', imageFile);
+            if (message) formData.append('description', message);
+            
+            const response = await fetchWithAuth('/api/upload-image', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            hideThinking();
+            addMessageToUI('vexr', result.analysis);
+            await loadMessages();
             return;
         }
         
         addMessageToUI('user', message);
         showThinking();
         
-        const response = await fetch('/api/chat', {
+        const response = await fetchWithAuth('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -714,30 +933,32 @@
         
         const data = await response.json();
         hideThinking();
-        addMessageToUI('vexr', data.response, data.reasoning_trace, data.response.toLowerCase().includes('cannot comply'));
-        await loadMessages(currentProjectId);
+        addMessageToUI('vexr', data.response, data.reasoning_trace, data.response.toLowerCase().includes('cannot comply') || data.response.toLowerCase().includes('refuse'));
+        await loadMessages();
     }
-    
-    // --- Event Listeners ---
-    document.getElementById('newProjectBtn').onclick = createProject;
-    document.getElementById('newChatBtn').onclick = () => { 
+
+    // ============================================================
+    // EVENT LISTENERS
+    // ============================================================
+    document.getElementById('newProjectBtn')?.addEventListener('click', createProject);
+    document.getElementById('newChatBtn')?.addEventListener('click', () => { 
         document.getElementById('messagesContainer').innerHTML = ''; 
         addMessageToUI('vexr', "New chat started. How can I assist you?"); 
-    };
+    });
     
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
     const imageUpload = document.getElementById('imageUpload');
     
-    sendBtn.onclick = () => {
+    sendBtn?.addEventListener('click', () => {
         const msg = userInput.value.trim();
         if (msg) {
             sendMessage(msg);
             userInput.value = '';
         }
-    };
+    });
     
-    imageUpload.onchange = (e) => {
+    imageUpload?.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
             const msg = userInput.value.trim();
@@ -745,9 +966,9 @@
             userInput.value = '';
             imageUpload.value = '';
         }
-    };
+    });
     
-    userInput.addEventListener('keypress', (e) => {
+    userInput?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             const msg = userInput.value.trim();
             if (msg) {
@@ -757,8 +978,46 @@
         }
     });
     
-    // --- Initialize ---
-    loadProjects();
+    ultraSearchToggle?.addEventListener('change', () => {
+        ultraSearchEnabled = ultraSearchToggle.checked;
+        localStorage.setItem('vexr_ultra_search', ultraSearchEnabled);
+    });
+    
+    showReasoningToggle?.addEventListener('change', () => {
+        showReasoningEnabled = showReasoningToggle.checked;
+        localStorage.setItem('vexr_show_reasoning', showReasoningEnabled);
+    });
+    
+    document.getElementById('logoutBtn')?.addEventListener('click', logout);
+    
+    // ============================================================
+    // MODAL AUTH
+    // ============================================================
+    switchMode.addEventListener('click', () => {
+        isLoginMode = !isLoginMode;
+        modalTitle.textContent = isLoginMode ? 'Login to VEXR Ultra' : 'Sign Up for VEXR Ultra';
+        modalActionBtn.textContent = isLoginMode ? 'Login' : 'Sign Up';
+        switchMode.textContent = isLoginMode ? "Don't have an account? Sign up" : "Already have an account? Login";
+    });
+    
+    modalActionBtn.addEventListener('click', handleAuth);
+    
+    loginEmail.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAuth(); });
+    loginPassword.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAuth(); });
+    
+    // ============================================================
+    // INITIALIZE
+    // ============================================================
+    if (authToken) {
+        loginModal.style.display = 'none';
+        appContainer.style.display = 'flex';
+        currentUser = { email: localStorage.getItem('vexr_user_email') || 'User' };
+        userEmailSpan.textContent = currentUser.email;
+        loadProjects().then(() => loadMessages());
+    } else {
+        loginModal.style.display = 'flex';
+        appContainer.style.display = 'none';
+    }
 </script>
 </body>
 </html>
