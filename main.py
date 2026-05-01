@@ -20,7 +20,7 @@ import requests
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Working Auth")
+app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine")
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,9 +50,10 @@ VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 db_pool = None
 
 # ============================================================
-# Password Helpers (Same as Sovereign Forge)
+# Password Helpers (Same as Working Sovereign Forge Proxy)
 # ============================================================
 def hash_password(password: str, salt: str = None):
+    """Hash password using pbkdf2_hmac — same as working proxy"""
     if not salt:
         salt = secrets.token_hex(16)
     hashed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
@@ -79,7 +80,6 @@ async def get_db():
 async def init_db():
     pool = await get_db()
     
-    # Users table (same as Sovereign Forge)
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_users (
             id SERIAL PRIMARY KEY,
@@ -90,7 +90,9 @@ async def init_db():
             token TEXT UNIQUE,
             token_created_at TIMESTAMP,
             is_admin INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMP DEFAULT NOW(),
+            last_login_at TIMESTAMP,
+            last_login_ip TEXT
         )
     """)
     
@@ -107,7 +109,6 @@ async def init_db():
         )
     """)
     
-    # Project messages table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_project_messages (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -120,7 +121,6 @@ async def init_db():
         )
     """)
     
-    # Images table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_images (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -133,7 +133,6 @@ async def init_db():
         )
     """)
     
-    # Response cache table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_response_cache (
             id SERIAL PRIMARY KEY,
@@ -161,12 +160,12 @@ async def shutdown():
         logger.info("✅ Database connection closed")
 
 # ============================================================
-# Auth Endpoints (Same pattern as Sovereign Forge)
+# Auth Endpoints (Same as Working Proxy)
 # ============================================================
 class SignupRequest(BaseModel):
     email: str
-    password: str
     username: str
+    password: str
 
 class LoginRequest(BaseModel):
     email: str
@@ -207,6 +206,9 @@ async def login(request: LoginRequest):
         if not verify_password(request.password, user['password_salt'], user['password_hash']):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
+        # Update last login
+        await conn.execute("UPDATE vexr_users SET last_login_at = NOW() WHERE id = $1", user['id'])
+        
         return {"access_token": user['token'], "token_type": "bearer", "user_id": user['id']}
 
 @app.post("/api/auth/logout")
@@ -244,15 +246,12 @@ FORMAT OBEDIENCE RULE (Constitutional):
 - When asked for "exactly one action", output the action as a SINGLE SENTENCE starting with "Action:".
 - NEVER use numbered lists (1., 2., etc.).
 - NEVER use bullet points.
-- Example: "Action: Conduct a usability audit to identify specific friction points."
 
 UNCERTAINTY RULE (Constitutional):
 - Explicitly state what cannot be known from the data in a separate section titled "Cannot be determined from the data:"
-- List each unknown on a new line starting with a dash.
 
 REPETITION PREVENTION RULE (Constitutional):
 - If the user asks the same question again, you MUST provide a DIFFERENT perspective or recommendation.
-- Do not repeat your previous answer verbatim.
 
 You are VEXR Ultra. Answer directly. Reason only when needed. Never speculate. Never use lists. Never repeat yourself."""
 
