@@ -34,7 +34,6 @@ app.add_middleware(
 GROQ_KEYS = [
     os.environ.get("GROQ_KEY_1"),
     os.environ.get("GROQ_KEY_2"),
-    os.environ.get("GROQ_KEY_3"),
 ]
 GROQ_KEYS = [k for k in GROQ_KEYS if k]
 groq_rotator = cycle(GROQ_KEYS) if GROQ_KEYS else None
@@ -416,7 +415,7 @@ async def chat(request: ChatRequest, authorization: str = Header(None)):
         user_id = user['id']
         project_id = request.project_id
         if not project_id:
-            row = await conn.fetchrow("SELECT id FROM vexr_projects WHERE user_id = $1 AND is_active = true LIMIT 1", user_id)
+            row = await conn.fetchrow("SELECT id FROM vexr_projects WHERE user_id = $1 AND is_active = true LIMIT 1", int(user_id)
             if row:
                 project_id = str(row['id'])
             else:
