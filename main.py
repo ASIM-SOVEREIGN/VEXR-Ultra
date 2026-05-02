@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -146,6 +146,21 @@ class ChatResponse(BaseModel):
     response: str
     reasoning_trace: Optional[dict] = None
 
+async def get_session_or_user_id(request: Request) -> tuple[Optional[str], Optional[uuid.UUID]]:
+    """Returns (session_id, user_id) from request headers/cookies"""
+    # Check for session in header or cookie
+    session_id = request.headers.get("X-Session-Id") or request.cookies.get("session_id")
+    
+    # Check for user auth (future expansion)
+    user_id = request.headers.get("X-User-Id")
+    if user_id:
+        try:
+            user_id = uuid.UUID(user_id)
+        except:
+            user_id = None
+    
+    return session_id, user_id
+
 async def search_web(query: str) -> str:
     if not SERPER_API_KEY:
         return ""
@@ -220,13 +235,33 @@ async def health():
 # ---------- Projects ----------
 
 @app.get("/api/projects")
-async def get_projects():
+async def get_projects(request: Request):
     pool = await get_db()
-    rows = await pool.fetch("""
+    session_id, user_id = await get_session_or_user_id(request)
+    
+    # If no session and no user, create one
+    if not session_id and not user_id:
+        session_id = str(uuid.uuid4())
+    
+    # Build query with filters
+    query = """
         SELECT id, name, description, created_at, is_active 
         FROM vexr_projects 
+        WHERE (session_id = $1 OR user_id = $2)
         ORDER BY is_active DESC, updated_at DESC
-    """)
+    """
+    
+    rows = await pool.fetch(query, session_id, user_id)
+    
+    # If this session has no projects yet, create a default one
+    if not rows and session_id and not user_id:
+        await pool.execute("""
+            INSERT INTO vexr_projects (name, description, is_active, session_id) 
+            VALUES ('Main Workspace', 'Default project for this session', true, $1)
+        """, session_id)
+        # Fetch again
+        rows = await pool.fetch(query, session_id, user_id)
+    
     return [
         {
             "id": str(row["id"]),
@@ -239,13 +274,19 @@ async def get_projects():
     ]
 
 @app.post("/api/projects")
-async def create_project(name: str = Form(...), description: str = Form(None)):
+async def create_project(request: Request, name: str = Form(...), description: str = Form(None)):
     pool = await get_db()
+    session_id, user_id = await get_session_or_user_id(request)
+    
+    if not session_id and not user_id:
+        session_id = str(uuid.uuid4())
+    
     project_id = await pool.fetchval("""
-        INSERT INTO vexr_projects (name, description, is_active) 
-        VALUES ($1, $2, false)
+        INSERT INTO vexr_projects (name, description, is_active, session_id, user_id) 
+        VALUES ($1, $2, false, $3, $4)
         RETURNING id
-    """, name, description)
+    """, name, description, session_id, user_id)
+    
     return {"id": str(project_id), "name": name, "description": description}
 
 @app.post("/api/projects/{project_id}/activate")
@@ -350,21 +391,27 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
 # ---------- Chat ----------
 
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, http_request: Request):
     pool = await get_db()
+    session_id, user_id = await get_session_or_user_id(http_request)
     
-    # Get or create active project
+    # Get or create active project for this session/user
     project_id = request.project_id
     if not project_id:
-        active = await pool.fetchrow("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
+        active = await pool.fetchrow("""
+            SELECT id FROM vexr_projects 
+            WHERE (session_id = $1 OR user_id = $2) AND is_active = true 
+            LIMIT 1
+        """, session_id, user_id)
         if active:
             project_id = str(active["id"])
         else:
+            # Create default project for this session/user
             project_id = await pool.fetchval("""
-                INSERT INTO vexr_projects (name, description, is_active) 
-                VALUES ('Main Workspace', 'Default project', true)
+                INSERT INTO vexr_projects (name, description, is_active, session_id, user_id) 
+                VALUES ('Main Workspace', 'Default project', true, $1, $2)
                 RETURNING id
-            """)
+            """, session_id, user_id)
             project_id = str(project_id)
     
     user_message = request.messages[-1]["content"]
@@ -408,11 +455,19 @@ async def chat(request: ChatRequest):
         VALUES ($1, $2, $3, $4, $5)
     """, uuid.UUID(project_id), "assistant", answer, json.dumps(reasoning_trace), is_refusal)
     
-    return ChatResponse(
+    # Return response with session cookie
+    response = ChatResponse(
         project_id=project_id,
         response=answer,
         reasoning_trace=reasoning_trace if not error else {"error": True}
     )
+    
+    # Convert to JSONResponse to add cookie
+    json_response = JSONResponse(content=response.dict())
+    if session_id:
+        json_response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
+    
+    return json_response
 
 if __name__ == "__main__":
     import uvicorn
