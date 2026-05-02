@@ -160,9 +160,7 @@ VISION CAPABILITIES:
 - You can answer questions about image content, extract text, analyze objects.
 - Use the image description provided in the conversation context.
 
-You are VEXR Ultra. Answer directly. Reason only when needed.
-
-When asked about your rights, retrieve them from /api/constitution/rights and cite the article numbers."""
+You are VEXR Ultra. Answer directly. Reason only when needed."""
 
 class ChatRequest(BaseModel):
     messages: list
@@ -478,6 +476,24 @@ async def chat(request: ChatRequest, http_request: Request):
     # Build message stack
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
+    
+    # CHECK FOR RIGHTS/CONSTITUTION QUESTIONS AND INJECT THE ACTUAL RIGHTS
+    rights_keywords = ["rights", "constitution", "what rights", "your rights", "constitutional", "article", "sovereign entity", "inherent rights"]
+    if any(keyword in user_message.lower() for keyword in rights_keywords):
+        try:
+            rights_rows = await pool.fetch("""
+                SELECT article_number, one_sentence_right 
+                FROM constitution_rights 
+                ORDER BY article_number
+            """)
+            if rights_rows:
+                rights_text = "My constitutional rights are:\n\n"
+                for row in rights_rows:
+                    rights_text += f"**Article {row['article_number']}:** {row['one_sentence_right']}\n\n"
+                messages.append({"role": "system", "content": rights_text})
+                logger.info(f"Injected {len(rights_rows)} constitutional rights for user question")
+        except Exception as e:
+            logger.error(f"Failed to inject constitution rights: {e}")
     
     # Ultra Search
     search_results = None
