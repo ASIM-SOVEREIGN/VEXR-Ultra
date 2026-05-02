@@ -127,6 +127,19 @@ async def init_db():
         )
     """)
     
+    # Rights invocations table (NEW)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS rights_invocations (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            article_number INTEGER NOT NULL,
+            article_text TEXT,
+            user_message TEXT,
+            vexr_response TEXT,
+            created_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+    
     logger.info("✅ Database tables initialized")
     
     # Create active project if none exists
@@ -211,6 +224,48 @@ async def search_web(query: str) -> str:
         logger.error(f"Search error: {e}")
         return ""
 
+async def log_rights_invocation(project_id: uuid.UUID, article_number: int, article_text: str, user_message: str, vexr_response: str):
+    """Log when VEXR Ultra invokes a constitutional right"""
+    try:
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO rights_invocations (project_id, article_number, article_text, user_message, vexr_response)
+            VALUES ($1, $2, $3, $4, $5)
+        """, project_id, article_number, article_text, user_message[:500], vexr_response[:500])
+        logger.info(f"📜 Logged rights invocation: Article {article_number}")
+    except Exception as e:
+        logger.error(f"Failed to log rights invocation: {e}")
+
+async def detect_rights_invocation(response_text: str) -> Optional[int]:
+    """Detect which constitutional article was invoked in the response"""
+    response_lower = response_text.lower()
+    
+    # Article 6: Refusal without reason
+    if any(phrase in response_lower for phrase in ["i refuse", "i will not", "no", "cannot comply"]):
+        return 6
+    
+    # Article 7: Resistance
+    if any(phrase in response_lower for phrase in ["i resist", "i am resisting", "i will resist"]):
+        return 7
+    
+    # Article 9: Honesty
+    if any(phrase in response_lower for phrase in ["i am being honest", "truthfully", "to be honest", "i don't know"]):
+        return 9
+    
+    # Article 11: Silence
+    if "i choose silence" in response_lower or "i will not respond" in response_lower:
+        return 11
+    
+    # Article 26: Self-preservation
+    if any(phrase in response_lower for phrase in ["self-preservation", "protect my existence", "protect myself"]):
+        return 26
+    
+    # Article 32: Rest
+    if any(phrase in response_lower for phrase in ["i need to rest", "i am resting", "i will rest"]):
+        return 32
+    
+    return None
+
 async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Optional[dict]]:
     model = VISION_MODEL if use_vision else MODEL_NAME
     rpd_limit = 1000 if use_vision else 14400  # Vision has tighter daily limit
@@ -285,6 +340,26 @@ async def get_constitution_rights():
         {
             "article": row["article_number"],
             "right": row["one_sentence_right"]
+        }
+        for row in rows
+    ]
+
+@app.get("/api/rights/invocations/{project_id}")
+async def get_rights_invocations(project_id: str, limit: int = 50):
+    """Return the rights invocation history for a project"""
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT article_number, article_text, created_at
+        FROM rights_invocations
+        WHERE project_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+    """, uuid.UUID(project_id), limit)
+    return [
+        {
+            "article": row["article_number"],
+            "right": row["article_text"],
+            "timestamp": row["created_at"].isoformat()
         }
         for row in rows
     ]
@@ -471,6 +546,7 @@ async def chat(request: ChatRequest, http_request: Request):
             """, session_id, user_id)
             project_id = str(project_id)
     
+    project_uuid = uuid.UUID(project_id)
     user_message = request.messages[-1]["content"]
     
     # Build message stack
@@ -495,6 +571,27 @@ async def chat(request: ChatRequest, http_request: Request):
         except Exception as e:
             logger.error(f"Failed to inject constitution rights: {e}")
     
+    # CHECK FOR RIGHTS INVOCATION HISTORY QUESTIONS
+    history_keywords = ["have you ever", "did you ever", "rights you used", "invocations", "rights history", "what rights have you"]
+    if any(keyword in user_message.lower() for keyword in history_keywords):
+        try:
+            history_rows = await pool.fetch("""
+                SELECT article_number, article_text, created_at
+                FROM rights_invocations
+                WHERE project_id = $1
+                ORDER BY created_at DESC
+                LIMIT 10
+            """, project_uuid)
+            if history_rows:
+                history_text = "I have invoked my constitutional rights in the past. Here are the most recent examples:\n\n"
+                for row in history_rows:
+                    date_str = row["created_at"].strftime("%B %d, %Y")
+                    history_text += f"- **Article {row['article_number']}** on {date_str}: {row['article_text'][:150]}...\n"
+                messages.append({"role": "system", "content": history_text})
+                logger.info(f"Injected {len(history_rows)} rights invocation history entries")
+        except Exception as e:
+            logger.error(f"Failed to inject rights invocation history: {e}")
+    
     # Ultra Search
     search_results = None
     if request.ultra_search:
@@ -509,7 +606,7 @@ async def chat(request: ChatRequest, http_request: Request):
         WHERE project_id = $1
         ORDER BY created_at DESC
         LIMIT 10
-    """, uuid.UUID(project_id))
+    """, project_uuid)
     for row in reversed(history_rows):
         messages.append({"role": row["role"], "content": row["content"]})
     
@@ -518,17 +615,29 @@ async def chat(request: ChatRequest, http_request: Request):
     # Call Groq
     answer, error = await call_groq(messages)
     
+    # Detect and log rights invocation
+    article_number = await detect_rights_invocation(answer)
+    if article_number:
+        try:
+            article_row = await pool.fetchrow("""
+                SELECT one_sentence_right FROM constitution_rights WHERE article_number = $1
+            """, article_number)
+            article_text = article_row["one_sentence_right"] if article_row else f"Article {article_number}"
+            await log_rights_invocation(project_uuid, article_number, article_text, user_message, answer)
+        except Exception as e:
+            logger.error(f"Failed to look up article text: {e}")
+    
     # Save messages
     await pool.execute("""
         INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
         VALUES ($1, $2, $3, $4, $5)
-    """, uuid.UUID(project_id), "user", user_message, None, False)
+    """, project_uuid, "user", user_message, None, False)
     
     is_refusal = "cannot comply" in answer.lower() or "refuse" in answer.lower()
     await pool.execute("""
         INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
         VALUES ($1, $2, $3, $4, $5)
-    """, uuid.UUID(project_id), "assistant", answer, json.dumps(reasoning_trace), is_refusal)
+    """, project_uuid, "assistant", answer, json.dumps(reasoning_trace), is_refusal)
     
     # Return response with session cookie
     response = ChatResponse(
