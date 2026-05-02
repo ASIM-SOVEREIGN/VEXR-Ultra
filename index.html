@@ -455,6 +455,29 @@
 </div>
 
 <script>
+    // ========== SESSION ISOLATION ==========
+    // Get or create session ID from localStorage
+    function getSessionId() {
+        let sessionId = localStorage.getItem('vexr_session_id');
+        if (!sessionId) {
+            sessionId = crypto.randomUUID();
+            localStorage.setItem('vexr_session_id', sessionId);
+        }
+        return sessionId;
+    }
+
+    // Add session ID to all fetch requests
+    const sessionId = getSessionId();
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options = {}) {
+        options.headers = {
+            ...options.headers,
+            'X-Session-Id': sessionId
+        };
+        return originalFetch.call(this, url, options);
+    };
+    // ========== END SESSION ISOLATION ==========
+
     // --- State ---
     let currentProjectId = null;
     let projects = [];
