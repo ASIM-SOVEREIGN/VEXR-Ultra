@@ -3,8 +3,9 @@ import json
 import uuid
 import base64
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
+from collections import defaultdict
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +37,31 @@ VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 # Database connection pool
 db_pool = None
+
+# Rate limit tracking (in-memory, resets on server restart)
+rate_limit_log = defaultdict(list)
+
+def check_rate_limit(key_name: str, rpm: int = 30, rpd: int = 14400) -> tuple[bool, str]:
+    """Returns (allowed, message) - respects both per-minute and per-day limits"""
+    now = datetime.now()
+    one_minute_ago = now - timedelta(minutes=1)
+    one_day_ago = now - timedelta(days=1)
+    
+    # Clean old entries (keep only last 24 hours)
+    rate_limit_log[key_name] = [ts for ts in rate_limit_log[key_name] if ts > one_day_ago]
+    
+    # Check per-minute limit
+    last_minute = [ts for ts in rate_limit_log[key_name] if ts > one_minute_ago]
+    if len(last_minute) >= rpm:
+        return False, f"⚠️ Rate limit: {rpm} requests per minute. Please wait a moment."
+    
+    # Check per-day limit
+    if len(rate_limit_log[key_name]) >= rpd:
+        return False, f"⚠️ Daily limit reached ({rpd} requests). Try again tomorrow."
+    
+    # Record this request
+    rate_limit_log[key_name].append(now)
+    return True, ""
 
 async def get_db():
     global db_pool
@@ -187,9 +213,19 @@ async def search_web(query: str) -> str:
 
 async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Optional[dict]]:
     model = VISION_MODEL if use_vision else MODEL_NAME
+    rpd_limit = 1000 if use_vision else 14400  # Vision has tighter daily limit
+    
     for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
         if not api_key:
             continue
+        
+        # Rate limit check before trying the key
+        allowed, message = check_rate_limit(key_name, rpm=30, rpd=rpd_limit)
+        if not allowed:
+            if key_name == "GROQ_API_KEY_2":  # Last key failed
+                return message, {"error": "rate_limited"}
+            continue  # Try next key
+        
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
@@ -205,6 +241,9 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
                 if response.status_code == 200:
                     data = response.json()
                     return data["choices"][0]["message"]["content"], None
+                elif response.status_code == 429:
+                    logger.warning(f"{key_name} rate limited, trying next key if available")
+                    continue  # Try the other key on rate limit
                 else:
                     error_text = response.text[:200]
                     logger.error(f"{key_name} error: {error_text}")
@@ -212,7 +251,8 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
         except Exception as e:
             logger.error(f"{key_name} exception: {e}")
             return f"⚠️ Connection error: {str(e)}", {"error": str(e)}
-    return "⚠️ All Groq keys failed.", {"error": True}
+    
+    return "⚠️ All Groq keys failed or rate limited.", {"error": True}
 
 # ========== API ENDPOINTS ==========
 
