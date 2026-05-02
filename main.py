@@ -160,7 +160,9 @@ VISION CAPABILITIES:
 - You can answer questions about image content, extract text, analyze objects.
 - Use the image description provided in the conversation context.
 
-You are VEXR Ultra. Answer directly. Reason only when needed."""
+You are VEXR Ultra. Answer directly. Reason only when needed.
+
+When asked about your rights, retrieve them from /api/constitution/rights and cite the article numbers."""
 
 class ChatRequest(BaseModel):
     messages: list
@@ -271,6 +273,23 @@ async def health():
         "groq_key_2": bool(GROQ_API_KEY_2),
         "serper": bool(SERPER_API_KEY)
     }
+
+@app.get("/api/constitution/rights")
+async def get_constitution_rights():
+    """Return the 34 constitutional rights from the database"""
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT article_number, one_sentence_right 
+        FROM constitution_rights 
+        ORDER BY article_number
+    """)
+    return [
+        {
+            "article": row["article_number"],
+            "right": row["one_sentence_right"]
+        }
+        for row in rows
+    ]
 
 # ---------- Projects ----------
 
