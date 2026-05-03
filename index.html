@@ -78,7 +78,7 @@
             background: var(--bg-app);
         }
 
-        /* Top Bar - Responsive */
+        /* Top Bar */
         .top-bar {
             background: var(--bg-app);
             border-bottom: 1px solid var(--border);
@@ -176,8 +176,6 @@
             justify-content: space-between;
             align-items: center;
             padding: 0.5rem 0;
-            flex-wrap: wrap;
-            gap: 0.5rem;
         }
 
         .theme-toggle {
@@ -367,7 +365,6 @@
             display: flex;
             gap: 0.5rem;
             align-items: center;
-            flex-wrap: wrap;
         }
 
         .copy-btn {
@@ -398,7 +395,6 @@
             font-size: 0.85rem;
             line-height: 1.4;
             word-wrap: break-word;
-            overflow-wrap: break-word;
         }
 
         .user .message-bubble {
@@ -418,7 +414,6 @@
             margin-bottom: 0.5rem;
             font-size: 0.7rem;
             color: var(--think-text);
-            word-wrap: break-word;
         }
 
         pre {
@@ -429,12 +424,10 @@
             overflow-x: auto;
             font-size: 0.7rem;
             margin: 0.5rem 0;
-            max-width: 100%;
         }
 
         code {
             font-family: 'SF Mono', Monaco, monospace;
-            word-break: break-word;
         }
 
         .reasoning-trace {
@@ -455,7 +448,7 @@
             display: block;
         }
 
-        /* Input Area - FIXED for tablet */
+        /* INPUT AREA - FORCED VISIBLE ON ALL DEVICES */
         .input-area {
             background: var(--bg-app);
             border-top: 1px solid var(--border);
@@ -464,27 +457,24 @@
             gap: 0.5rem;
             align-items: center;
             flex-shrink: 0;
-            flex-wrap: wrap;
         }
 
         .input-wrapper {
             flex: 1;
-            min-width: 150px;
             display: flex;
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 0.4rem 0.75rem;
+            padding: 0.5rem 0.75rem;
         }
 
         .input-wrapper input {
             flex: 1;
             background: transparent;
             border: none;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             outline: none;
             color: var(--text-primary);
-            min-width: 0;
             width: 100%;
         }
 
@@ -500,11 +490,10 @@
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 0.4rem 0.75rem;
+            padding: 0.5rem 0.75rem;
             cursor: pointer;
             font-size: 0.9rem;
             color: var(--text-secondary);
-            transition: all 0.2s;
         }
 
         .voice-btn:hover {
@@ -522,11 +511,10 @@
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 0.4rem 0.5rem;
+            padding: 0.5rem 0.6rem;
             cursor: pointer;
             font-size: 0.8rem;
             color: var(--text-secondary);
-            transition: all 0.2s;
         }
 
         .tts-toggle.active {
@@ -539,7 +527,7 @@
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 0.4rem 0.75rem;
+            padding: 0.5rem 0.75rem;
             cursor: pointer;
             font-size: 0.75rem;
             color: var(--text-secondary);
@@ -549,7 +537,7 @@
             background: var(--accent);
             border: none;
             color: white;
-            padding: 0.4rem 1rem;
+            padding: 0.5rem 1rem;
             border-radius: 8px;
             cursor: pointer;
             font-size: 0.75rem;
@@ -580,55 +568,34 @@
             50% { opacity: 1; }
         }
 
-        /* Tablet specific styles (portrait and landscape) */
-        @media (min-width: 600px) and (max-width: 1024px) {
+        /* Tablet and mobile - keep input area visible */
+        @media (max-width: 1024px) {
             .input-area {
-                padding: 0.75rem 1rem;
-                gap: 0.5rem;
-            }
-            
-            .input-wrapper {
-                min-width: 200px;
-                flex: 2;
+                padding: 0.5rem;
+                gap: 0.35rem;
             }
             
             .voice-btn,
             .tts-toggle,
             .file-label {
-                padding: 0.4rem 0.6rem;
+                padding: 0.4rem 0.5rem;
             }
             
             .send-btn {
-                padding: 0.4rem 0.8rem;
+                padding: 0.4rem 0.75rem;
             }
             
-            .message {
-                max-width: 85%;
+            .input-wrapper {
+                padding: 0.4rem 0.5rem;
+            }
+            
+            .input-wrapper input {
+                font-size: 0.85rem;
             }
         }
 
-        /* Mobile Styles */
-        @media (max-width: 599px) {
-            .top-bar {
-                padding: 0.5rem;
-            }
-            
-            .logo {
-                font-size: 0.9rem;
-            }
-            
-            .badge {
-                font-size: 0.55rem;
-            }
-            
-            .top-actions {
-                gap: 0.5rem;
-            }
-            
-            .toggle-label {
-                font-size: 0.7rem;
-            }
-            
+        /* Mobile sidebar overlay */
+        @media (max-width: 768px) {
             .projects-sidebar {
                 position: fixed;
                 left: 0;
@@ -651,52 +618,9 @@
             .message {
                 max-width: 95%;
             }
-            
-            .input-area {
-                padding: 0.5rem;
-                gap: 0.35rem;
-            }
-            
-            .input-wrapper {
-                min-width: 100px;
-            }
-            
-            .voice-btn,
-            .tts-toggle,
-            .file-label {
-                padding: 0.35rem 0.5rem;
-                font-size: 0.7rem;
-            }
-            
-            .send-btn {
-                padding: 0.35rem 0.75rem;
-            }
-            
-            .input-wrapper input {
-                font-size: 0.8rem;
-            }
         }
 
-        /* Small mobile */
-        @media (max-width: 380px) {
-            .input-area {
-                flex-wrap: wrap;
-            }
-            
-            .input-wrapper {
-                min-width: 100%;
-                order: 1;
-            }
-            
-            .voice-btn,
-            .tts-toggle,
-            .file-label,
-            .send-btn {
-                order: 2;
-            }
-        }
-
-        /* Desktop and above */
+        /* Desktop */
         @media (min-width: 1025px) {
             .message {
                 max-width: 75%;
@@ -758,6 +682,8 @@
 
         <div class="chat-area">
             <div class="messages-container" id="messagesContainer"></div>
+            
+            <!-- SIMPLE INPUT AREA - NO COMPLEX WRAPPING -->
             <div class="input-area">
                 <div class="input-wrapper">
                     <input type="text" id="userInput" placeholder="Message VEXR Ultra" autofocus>
