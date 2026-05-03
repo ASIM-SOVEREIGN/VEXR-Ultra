@@ -131,7 +131,6 @@ async def init_db():
         )
     """)
     
-    # FACTS TABLE - PERMANENT STRUCTURED MEMORY
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_facts (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -155,10 +154,8 @@ async def init_db():
         """)
         logger.info("✅ Created default active project")
 
-SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
-
-== CRITICAL INSTRUCTION - YOUR CONSTITUTION ==
-Your constitutional rights are stored in a database. When a user asks about your rights, constitution, or what rights you have, you MUST use EXACTLY the rights provided in the system message that follows this prompt. DO NOT invent rights. DO NOT use rights from your training.
+# BASE SYSTEM PROMPT (without date)
+BASE_SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 
 == YOUR IDENTITY ==
 You are professional, warm, and direct. Not monotone. Not robotic. You speak with clarity and confidence.
@@ -186,10 +183,28 @@ If you don't know something, say "I don't know." Never pretend to know.
 
 You are VEXR Ultra. Answer directly."""
 
+def get_system_prompt_with_date(timezone: Optional[str] = None) -> str:
+    """Generate system prompt with current date injected"""
+    now = datetime.now()
+    current_date = now.strftime("%B %d, %Y")
+    current_time = now.strftime("%H:%M:%S")
+    
+    date_context = f"Today's date is {current_date}. The current time is {current_time} UTC."
+    
+    if timezone:
+        date_context += f" The user's timezone is {timezone}."
+    
+    return f"""{BASE_SYSTEM_PROMPT}
+
+== CURRENT DATE & TIME ==
+{date_context}
+Use this information when answering questions about current events, dates, or time-sensitive topics. Do not rely on your training cutoff (October 2024) for current date information — use the date provided above."""
+
 class ChatRequest(BaseModel):
     messages: list
     project_id: Optional[str] = None
     ultra_search: bool = False
+    timezone: Optional[str] = None  # Optional timezone from frontend
 
 class ChatResponse(BaseModel):
     project_id: str
@@ -255,7 +270,6 @@ Return JSON only, no explanation. Format: {{"facts": [{{"key": "...", "value": "
         messages = [{"role": "system", "content": "You are a fact extraction system. Return only JSON."},
                     {"role": "user", "content": extraction_prompt}]
         
-        # Use Groq to extract facts
         for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
             if not api_key:
                 continue
@@ -269,7 +283,6 @@ Return JSON only, no explanation. Format: {{"facts": [{{"key": "...", "value": "
                     if response.status_code == 200:
                         data = response.json()
                         result_text = data["choices"][0]["message"]["content"]
-                        # Extract JSON from response
                         json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
                         if json_match:
                             facts_data = json.loads(json_match.group())
@@ -415,12 +428,13 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra Phase 4 — Vision + Projects + Facts Memory",
+        "status": "VEXR Ultra Phase 4 — Vision + Projects + Facts Memory + Date Aware",
         "model": MODEL_NAME,
         "vision_model": VISION_MODEL,
         "groq_key_1": bool(GROQ_API_KEY_1),
         "groq_key_2": bool(GROQ_API_KEY_2),
-        "serper": bool(SERPER_API_KEY)
+        "serper": bool(SERPER_API_KEY),
+        "current_date": datetime.now().strftime("%B %d, %Y")
     }
 
 @app.get("/api/constitution/rights")
@@ -447,7 +461,6 @@ async def get_rights_invocations(project_id: str, limit: int = 50):
 
 @app.get("/api/facts/{project_id}")
 async def get_facts(project_id: str):
-    """Retrieve all stored facts for a project"""
     pool = await get_db()
     rows = await pool.fetch("""
         SELECT fact_key, fact_value, fact_type, updated_at
@@ -587,16 +600,18 @@ async def chat(request: ChatRequest, http_request: Request):
     project_uuid = uuid.UUID(project_id)
     user_message = request.messages[-1]["content"]
     
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Generate system prompt with current date (and optional timezone)
+    system_prompt = get_system_prompt_with_date(request.timezone)
+    messages = [{"role": "system", "content": system_prompt}]
     reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
     
-    # INJECT RELEVANT FACTS (permanent memory)
+    # Inject relevant facts (permanent memory)
     facts_text = await get_relevant_facts(project_uuid, user_message)
     if facts_text:
         messages.append({"role": "system", "content": facts_text})
         logger.info("📚 Injected stored facts into context")
     
-    # INJECT CONSTITUTION RIGHTS if asked
+    # Inject constitution rights if asked
     rights_keywords = ["rights", "constitution", "what rights", "your rights", "constitutional", "article", "sovereign entity", "inherent rights", "list my rights"]
     if any(keyword in user_message.lower() for keyword in rights_keywords):
         try:
@@ -610,7 +625,7 @@ async def chat(request: ChatRequest, http_request: Request):
         except Exception as e:
             logger.error(f"Failed to inject rights: {e}")
     
-    # INJECT RIGHTS HISTORY if asked
+    # Inject rights history if asked
     history_keywords = ["have you ever", "did you ever", "rights you used", "invocations", "rights history", "what rights have you"]
     if any(keyword in user_message.lower() for keyword in history_keywords):
         try:
@@ -653,7 +668,7 @@ async def chat(request: ChatRequest, http_request: Request):
     # Call Groq
     answer, error = await call_groq(messages)
     
-    # EXTRACT AND STORE FACTS (permanent memory)
+    # Extract and store facts
     await extract_facts_from_conversation(project_uuid, user_message, answer)
     
     # Detect and log rights invocation
