@@ -204,7 +204,7 @@ class ChatRequest(BaseModel):
     messages: list
     project_id: Optional[str] = None
     ultra_search: bool = False
-    timezone: Optional[str] = None  # Optional timezone from frontend
+    timezone: Optional[str] = None
 
 class ChatResponse(BaseModel):
     project_id: str
@@ -668,8 +668,13 @@ async def chat(request: ChatRequest, http_request: Request):
     # Call Groq
     answer, error = await call_groq(messages)
     
-    # Extract and store facts
-    await extract_facts_from_conversation(project_uuid, user_message, answer)
+    # OPTIMIZED: Only extract facts if user is sharing personal information
+    fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic", "my cat", "my dog", "my pet"]
+    if any(keyword in user_message.lower() for keyword in fact_keywords):
+        await extract_facts_from_conversation(project_uuid, user_message, answer)
+        logger.info("📝 Extracted facts from conversation")
+    else:
+        logger.info("⏭️ Skipping fact extraction - no personal keywords detected")
     
     # Detect and log rights invocation
     article_number = await detect_rights_invocation(answer)
