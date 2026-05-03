@@ -351,6 +351,9 @@
             font-size: 0.65rem;
             color: var(--text-muted);
             margin-bottom: 0.125rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
         }
 
         .copy-btn {
@@ -360,6 +363,19 @@
             cursor: pointer;
             font-size: 0.6rem;
             margin-left: 0.5rem;
+        }
+
+        .speaker-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.7rem;
+            padding: 0 0.25rem;
+        }
+
+        .speaker-btn:hover {
+            color: var(--accent);
         }
 
         .message-bubble {
@@ -420,7 +436,7 @@
             display: block;
         }
 
-        /* Input */
+        /* Input Area */
         .input-area {
             background: var(--bg-app);
             border-top: 1px solid var(--border);
@@ -446,6 +462,45 @@
             font-size: 0.85rem;
             outline: none;
             color: var(--text-primary);
+        }
+
+        .voice-btn {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.4rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .voice-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .voice-btn.recording {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .tts-toggle {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.4rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .tts-toggle.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
         }
 
         .file-label {
@@ -548,6 +603,8 @@
                 <div class="input-wrapper">
                     <input type="text" id="userInput" placeholder="Message VEXR Ultra" autofocus>
                 </div>
+                <button class="voice-btn" id="voiceBtn" title="Voice input">🎤</button>
+                <button class="tts-toggle" id="ttsToggle" title="Text-to-Speech">🔊</button>
                 <label class="file-label">
                     Upload
                     <input type="file" id="imageUpload" accept="image/*" style="display: none;">
@@ -559,6 +616,101 @@
 </div>
 
 <script>
+    // Text-to-Speech
+    let ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
+    const ttsToggle = document.getElementById('ttsToggle');
+    
+    function speakText(text) {
+        if (!ttsEnabled) return;
+        // Strip markdown and code blocks for cleaner speech
+        let cleanText = text.replace(/```[\s\S]*?```/g, '');
+        cleanText = cleanText.replace(/<think>[\s\S]*?<\/think>/g, '');
+        cleanText = cleanText.replace(/[#*_`]/g, '');
+        if (cleanText.trim()) {
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.rate = 0.9;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+    
+    function updateTtsButton() {
+        if (ttsEnabled) {
+            ttsToggle.classList.add('active');
+            ttsToggle.textContent = '🔊';
+        } else {
+            ttsToggle.classList.remove('active');
+            ttsToggle.textContent = '🔇';
+        }
+    }
+    
+    ttsToggle.onclick = () => {
+        ttsEnabled = !ttsEnabled;
+        localStorage.setItem('vexr_tts_enabled', ttsEnabled);
+        if (!ttsEnabled) {
+            window.speechSynthesis.cancel();
+        }
+        updateTtsButton();
+    };
+    
+    updateTtsButton();
+
+    // Voice Input
+    let isRecording = false;
+    const voiceBtn = document.getElementById('voiceBtn');
+    const userInput = document.getElementById('userInput');
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        
+        recognition.onstart = () => {
+            isRecording = true;
+            voiceBtn.classList.add('recording');
+            voiceBtn.textContent = '🔴';
+        };
+        
+        recognition.onend = () => {
+            isRecording = false;
+            voiceBtn.classList.remove('recording');
+            voiceBtn.textContent = '🎤';
+        };
+        
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            userInput.value = transcript;
+        };
+        
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            isRecording = false;
+            voiceBtn.classList.remove('recording');
+            voiceBtn.textContent = '🎤';
+        };
+        
+        voiceBtn.onclick = () => {
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.error('Could not start recognition:', e);
+                }
+            }
+        };
+    } else {
+        voiceBtn.disabled = true;
+        voiceBtn.title = 'Speech recognition not supported';
+        voiceBtn.style.opacity = '0.5';
+    }
+
     // Collapsible Sidebar
     const sidebar = document.getElementById('projectsSidebar');
     const sidebarToggle = document.getElementById('sidebarToggle');
@@ -638,14 +790,31 @@
         const container = document.getElementById('messagesContainer');
         const div = document.createElement('div');
         div.className = `message ${role}`;
-        div.innerHTML = `
-            <div class="message-header">
-                <span>${role === 'user' ? 'You' : 'VEXR Ultra'}</span>
-                <button class="copy-btn">Copy</button>
-            </div>
-            <div class="message-bubble"></div>
-        `;
-        const bubble = div.querySelector('.message-bubble');
+        
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'message-header';
+        const senderSpan = document.createElement('span');
+        senderSpan.textContent = role === 'user' ? 'You' : 'VEXR Ultra';
+        headerDiv.appendChild(senderSpan);
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.onclick = () => copyToClipboard(content);
+        headerDiv.appendChild(copyBtn);
+        
+        if (role === 'assistant') {
+            const speakerBtn = document.createElement('button');
+            speakerBtn.className = 'speaker-btn';
+            speakerBtn.textContent = '🔊';
+            speakerBtn.onclick = () => speakText(content);
+            headerDiv.appendChild(speakerBtn);
+        }
+        
+        div.appendChild(headerDiv);
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
         let main = content;
         const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
         if (thinkMatch) {
@@ -670,7 +839,8 @@
             contentDiv.innerHTML = html;
             bubble.appendChild(contentDiv);
         } else if (main) bubble.appendChild(document.createTextNode(main));
-        div.querySelector('.copy-btn').onclick = () => copyToClipboard(content);
+        div.appendChild(bubble);
+        
         if (trace && role === 'assistant' && showReasoningEnabled) {
             const traceDiv = document.createElement('div');
             traceDiv.className = 'reasoning-trace';
@@ -678,8 +848,14 @@
             traceDiv.onclick = () => traceDiv.querySelector('.reasoning-content').classList.toggle('show');
             div.appendChild(traceDiv);
         }
+        
         container.appendChild(div);
         div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        
+        // Auto-speak assistant responses if TTS enabled
+        if (role === 'assistant' && ttsEnabled) {
+            speakText(content);
+        }
     }
 
     let thinking = null;
