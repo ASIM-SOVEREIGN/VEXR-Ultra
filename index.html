@@ -3,196 +3,317 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>VEXR ULTRA — Sovereign Reasoning / Vision / Projects</title>
+    <title>VEXR Ultra</title>
     <style>
-        :root {
-            --abyss-void: #050505;
-            --deep-shadow: #0f0f0f;
-            --sovereign-light: #f0f0f0;
-            --faded-glyph: #a0a0a0;
-            --forge-gold: #d4af37;
-            --ember-glow: #ff6b00;
-            --thought-silver: #c0c0c0;
-            --core-crimson: #b91c1c;
-            --dim-gold: #8a7a40;
-            --arc-reactor-blue: #00d4ff;
-            --code-bg: #0a0a0a;
-            --code-border: #2a2a2a;
-            --think-bg: #0a1a2a;
-            --think-border: #00d4ff;
-        }
-
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        /* Light Theme (default) */
+        :root {
+            --bg-body: #f5f7fa;
+            --bg-app: #ffffff;
+            --border: #e5e7eb;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --bg-sidebar: #f9fafb;
+            --bg-hover: #f3f4f6;
+            --bg-active: #eff6ff;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --bubble-user: #3b82f6;
+            --bubble-user-text: #ffffff;
+            --bubble-assistant: #f3f4f6;
+            --bubble-assistant-text: #111827;
+            --code-bg: #1e1e1e;
+            --code-text: #d4d4d4;
+            --think-bg: #fffbeb;
+            --think-border: #f59e0b;
+            --think-text: #92400e;
+            --reasoning-bg: #f9fafb;
+            --sidebar-width: 260px;
+        }
+
+        body.dark {
+            --bg-body: #0a0a0a;
+            --bg-app: #171717;
+            --border: #262626;
+            --text-primary: #fafafa;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
+            --bg-sidebar: #0f0f0f;
+            --bg-hover: #1f1f1f;
+            --bg-active: #1e3a5f;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --bubble-user: #3b82f6;
+            --bubble-user-text: #ffffff;
+            --bubble-assistant: #262626;
+            --bubble-assistant-text: #fafafa;
+            --code-bg: #0f0f0f;
+            --code-text: #d4d4d4;
+            --think-bg: #292524;
+            --think-border: #f59e0b;
+            --think-text: #fde68a;
+            --reasoning-bg: #1f1f1f;
+            --sidebar-width: 260px;
+        }
+
         body {
-            background: var(--abyss-void);
-            color: var(--sovereign-light);
-            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg-body);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
             height: 100vh;
             overflow: hidden;
         }
-
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--deep-shadow); }
-        ::-webkit-scrollbar-thumb { background: var(--dim-gold); border-radius: 3px; }
 
         .app-container {
             display: flex;
             flex-direction: column;
             height: 100vh;
+            background: var(--bg-app);
         }
 
         /* Top Bar */
         .top-bar {
-            background: var(--deep-shadow);
-            border-bottom: 1px solid var(--forge-gold);
-            padding: 0.75rem 1.5rem;
+            background: var(--bg-app);
+            border-bottom: 1px solid var(--border);
+            padding: 0.5rem 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 1rem;
-        }
-        .logo-area {
-            display: flex;
-            align-items: baseline;
             gap: 0.5rem;
-            flex-wrap: wrap;
         }
+
         .logo {
-            font-family: 'Orbitron', monospace;
-            font-size: 1.4rem;
-            font-weight: 900;
-            color: var(--forge-gold);
-            letter-spacing: 1px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
         }
+
         .badge {
-            font-size: 0.7rem;
-            background: rgba(212, 175, 55, 0.15);
-            border: 1px solid var(--dim-gold);
-            padding: 0.2rem 0.6rem;
-            border-radius: 20px;
-            color: var(--thought-silver);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-left: 0.5rem;
         }
-        .vision-badge {
-            font-size: 0.7rem;
-            background: rgba(0, 212, 255, 0.15);
-            border: 1px solid var(--arc-reactor-blue);
-            padding: 0.2rem 0.6rem;
-            border-radius: 20px;
-            color: var(--arc-reactor-blue);
-        }
+
         .top-actions {
             display: flex;
-            gap: 1rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .toggle-group {
-            display: flex;
-            gap: 1rem;
+            gap: 0.75rem;
             align-items: center;
         }
+
         .toggle-label {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 0.8rem;
-            color: var(--faded-glyph);
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
             cursor: pointer;
         }
-        .toggle-label input {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-            accent-color: var(--forge-gold);
-        }
+
         .icon-btn {
             background: none;
             border: none;
-            color: var(--faded-glyph);
+            color: var(--text-secondary);
             cursor: pointer;
-            font-size: 1.2rem;
-            padding: 0.3rem;
-        }
-        .icon-btn:hover {
-            color: var(--forge-gold);
+            font-size: 1rem;
+            padding: 0.25rem;
         }
 
+        .icon-btn:hover {
+            color: var(--accent);
+        }
+
+        /* Settings */
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .settings-modal.show {
+            display: flex;
+        }
+
+        .settings-panel {
+            background: var(--bg-app);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            width: 90%;
+            max-width: 320px;
+        }
+
+        .settings-panel h3 {
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+
+        .settings-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+        }
+
+        .theme-toggle {
+            display: flex;
+            gap: 0.25rem;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.125rem;
+        }
+
+        .theme-option {
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .theme-option.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .close-settings {
+            width: 100%;
+            margin-top: 1rem;
+            background: var(--accent);
+            border: none;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+
+        /* Main Layout */
         .main-content {
             display: flex;
             flex: 1;
             overflow: hidden;
         }
 
-        /* Projects Sidebar */
+        /* Sidebar - Collapsible */
         .projects-sidebar {
-            width: 280px;
-            background: var(--deep-shadow);
-            border-right: 1px solid var(--dim-gold);
+            width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
             overflow-y: auto;
-            padding: 1rem;
-            gap: 1rem;
+            padding: 0.75rem;
+            transition: width 0.2s ease;
+            flex-shrink: 0;
         }
+
+        .projects-sidebar.collapsed {
+            width: 48px;
+        }
+
+        .projects-sidebar.collapsed .projects-header h3,
+        .projects-sidebar.collapsed .project-name,
+        .projects-sidebar.collapsed .project-desc,
+        .projects-sidebar.collapsed .project-actions,
+        .projects-sidebar.collapsed .delete-project {
+            display: none;
+        }
+
+        .projects-sidebar.collapsed .new-project-btn {
+            display: none;
+        }
+
+        .projects-sidebar.collapsed .sidebar-toggle {
+            transform: rotate(180deg);
+        }
+
         .projects-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
         }
+
         .projects-header h3 {
-            color: var(--forge-gold);
-            font-size: 1rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
         }
+
         .new-project-btn {
-            background: var(--forge-gold);
+            background: var(--accent);
             border: none;
-            color: var(--abyss-void);
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.65rem;
+        }
+
+        .sidebar-toggle {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.25rem;
+            margin-bottom: 0.5rem;
+            transition: transform 0.2s;
+        }
+
+        .sidebar-toggle:hover {
+            color: var(--accent);
+        }
+
+        .project-item {
+            padding: 0.5rem;
+            margin-bottom: 0.25rem;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 0.8rem;
         }
-        .project-item {
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
+
         .project-item:hover {
-            background: rgba(212, 175, 55, 0.1);
+            background: var(--bg-hover);
         }
+
         .project-item.active {
-            border-left: 3px solid var(--forge-gold);
-            background: rgba(212, 175, 55, 0.05);
+            background: var(--bg-active);
         }
+
         .project-name {
-            font-weight: bold;
-            margin-bottom: 0.25rem;
+            font-weight: 500;
+            color: var(--text-primary);
         }
+
         .project-desc {
-            font-size: 0.7rem;
-            color: var(--faded-glyph);
+            font-size: 0.65rem;
+            color: var(--text-muted);
         }
-        .project-actions {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
+
         .delete-project {
             background: none;
             border: none;
-            color: var(--core-crimson);
+            color: #ef4444;
             cursor: pointer;
-            font-size: 0.7rem;
+            font-size: 0.6rem;
+            margin-top: 0.25rem;
         }
 
         /* Chat Area */
@@ -200,587 +321,497 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: var(--abyss-void);
             overflow: hidden;
         }
+
         .messages-container {
             flex: 1;
             overflow-y: auto;
-            padding: 1.5rem;
+            padding: 1rem;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 1rem;
         }
+
         .message {
             display: flex;
             flex-direction: column;
-            max-width: 85%;
-            animation: fadeIn 0.3s ease;
+            max-width: 75%;
         }
-        .message.user { align-self: flex-end; }
-        .message.vexr { align-self: flex-start; }
+
+        .message.user {
+            align-self: flex-end;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+        }
+
         .message-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.7rem;
-            margin-bottom: 0.25rem;
-            color: var(--faded-glyph);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-bottom: 0.125rem;
         }
-        .message-sender {
-            font-weight: 600;
-            color: var(--forge-gold);
-        }
+
         .copy-btn {
             background: none;
             border: none;
-            color: var(--faded-glyph);
+            color: var(--text-muted);
             cursor: pointer;
-            font-size: 0.7rem;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
+            font-size: 0.6rem;
+            margin-left: 0.5rem;
         }
-        .copy-btn:hover {
-            color: var(--forge-gold);
-            background: rgba(212, 175, 55, 0.1);
-        }
+
         .message-bubble {
-            padding: 0.8rem 1rem;
-            border-radius: 12px;
-            line-height: 1.5;
-            background: var(--deep-shadow);
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            line-height: 1.4;
         }
+
         .user .message-bubble {
-            border-left: 3px solid var(--forge-gold);
+            background: var(--bubble-user);
+            color: var(--bubble-user-text);
         }
-        .vexr .message-bubble {
-            border-left: 3px solid var(--ember-glow);
-        }
-        .refusal .message-bubble {
-            border-left: 3px solid var(--core-crimson);
-            color: var(--core-crimson);
+
+        .assistant .message-bubble {
+            background: var(--bubble-assistant);
+            color: var(--bubble-assistant-text);
         }
 
         .think-block {
             background: var(--think-bg);
-            border-left: 3px solid var(--think-border);
-            padding: 0.75rem;
-            margin-bottom: 1rem;
-            border-radius: 8px;
-            font-family: 'Fira Code', monospace;
+            border-left: 2px solid var(--think-border);
+            padding: 0.4rem 0.6rem;
+            margin-bottom: 0.5rem;
             font-size: 0.7rem;
-            color: var(--arc-reactor-blue);
-            opacity: 0.8;
+            color: var(--think-text);
         }
 
         pre {
             background: var(--code-bg);
-            border: 1px solid var(--code-border);
-            border-left: 3px solid var(--arc-reactor-blue);
-            padding: 1rem;
-            border-radius: 8px;
+            color: var(--code-text);
+            padding: 0.5rem;
+            border-radius: 6px;
             overflow-x: auto;
+            font-size: 0.7rem;
             margin: 0.5rem 0;
-            font-family: 'Fira Code', monospace;
-            font-size: 0.8rem;
         }
+
         code {
-            font-family: 'Fira Code', monospace;
-            font-size: 0.8rem;
-            color: var(--thought-silver);
-        }
-        pre code {
-            display: block;
-            color: #e8e8e8;
+            font-family: 'SF Mono', Monaco, monospace;
         }
 
         .reasoning-trace {
-            margin-top: 0.5rem;
-            background: rgba(0,0,0,0.5);
-            border-left: 2px solid var(--dim-gold);
-            padding: 0.5rem 0.75rem;
-            font-family: 'Fira Code', monospace;
-            font-size: 0.7rem;
-            color: var(--thought-silver);
-            border-radius: 8px;
+            margin-top: 0.25rem;
+            background: var(--reasoning-bg);
+            padding: 0.25rem 0.5rem;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            border-radius: 4px;
             cursor: pointer;
         }
+
         .reasoning-content {
             display: none;
-            margin-top: 0.5rem;
-            padding-left: 0.75rem;
-            border-left: 1px solid var(--dim-gold);
         }
-        .reasoning-content.show { display: block; }
 
-        /* Input Area */
+        .reasoning-content.show {
+            display: block;
+        }
+
+        /* Input */
         .input-area {
-            background: var(--deep-shadow);
-            border-top: 1px solid var(--dim-gold);
-            padding: 1rem 1.5rem;
+            background: var(--bg-app);
+            border-top: 1px solid var(--border);
+            padding: 0.75rem 1rem;
             display: flex;
             gap: 0.5rem;
-            flex-wrap: wrap;
             align-items: center;
         }
+
         .input-wrapper {
             flex: 1;
             display: flex;
-            background: var(--abyss-void);
-            border: 1px solid var(--dim-gold);
-            border-radius: 40px;
-            padding: 0.5rem 1rem;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.4rem 0.75rem;
         }
-        .input-wrapper:focus-within {
-            border-color: var(--forge-gold);
-        }
+
         .input-wrapper input {
             flex: 1;
             background: transparent;
             border: none;
-            color: var(--sovereign-light);
-            font-size: 1rem;
+            font-size: 0.85rem;
             outline: none;
-        }
-        .file-label {
-            background: var(--deep-shadow);
-            border: 1px solid var(--dim-gold);
-            border-radius: 40px;
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-            color: var(--faded-glyph);
-            font-size: 0.8rem;
-            transition: all 0.2s;
-        }
-        .file-label:hover {
-            border-color: var(--forge-gold);
-            color: var(--forge-gold);
-        }
-        .send-btn {
-            background: var(--forge-gold);
-            border: none;
-            color: var(--abyss-void);
-            font-weight: bold;
-            padding: 0.5rem 1.5rem;
-            border-radius: 40px;
-            cursor: pointer;
-        }
-        .send-btn:hover {
-            background: var(--ember-glow);
+            color: var(--text-primary);
         }
 
-        .image-preview {
-            max-width: 200px;
-            max-height: 150px;
-            margin-top: 0.5rem;
+        .file-label {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
             border-radius: 8px;
+            padding: 0.4rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .send-btn {
+            background: var(--accent);
+            border: none;
+            color: white;
+            padding: 0.4rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
         }
 
         .thinking-indicator {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            color: var(--arc-reactor-blue);
-            font-size: 0.8rem;
-        }
-        .pulse-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--arc-reactor-blue);
-            border-radius: 50%;
-            animation: pulse 1.2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 0.3; transform: scale(0.8); }
-            50% { opacity: 1; transform: scale(1.2); }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            gap: 0.25rem;
+            color: var(--text-muted);
+            font-size: 0.7rem;
         }
 
-        @media (max-width: 768px) {
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        @media (max-width: 640px) {
             .projects-sidebar { display: none; }
-            .message { max-width: 95%; }
+            .message { max-width: 90%; }
         }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Orbitron:wght@400;900&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="app-container">
     <div class="top-bar">
-        <div class="logo-area">
-            <span class="logo">⚡ VEXR ULTRA</span>
-            <span class="badge">REASONING ENGINE // SOVEREIGN</span>
-            <span class="vision-badge">👁️ VISION + PROJECTS</span>
+        <div>
+            <span class="logo">VEXR Ultra</span>
+            <span class="badge">sovereign reasoning engine</span>
         </div>
         <div class="top-actions">
-            <div class="toggle-group">
-                <label class="toggle-label">
-                    <input type="checkbox" id="ultraSearchToggle"> 🌐 ULTRA SEARCH
-                </label>
-                <label class="toggle-label">
-                    <input type="checkbox" id="showReasoningToggle"> 🔍 SHOW REASONING
-                </label>
+            <label class="toggle-label">
+                <input type="checkbox" id="ultraSearchToggle"> Search
+            </label>
+            <label class="toggle-label">
+                <input type="checkbox" id="showReasoningToggle"> Trace
+            </label>
+            <button class="icon-btn" id="settingsBtn">⚙️</button>
+            <button class="icon-btn" id="newChatBtn">+</button>
+        </div>
+    </div>
+
+    <div class="settings-modal" id="settingsModal">
+        <div class="settings-panel">
+            <h3>Settings</h3>
+            <div class="settings-option">
+                <span>Theme</span>
+                <div class="theme-toggle">
+                    <span class="theme-option" data-theme="light">Light</span>
+                    <span class="theme-option" data-theme="dark">Dark</span>
+                </div>
             </div>
-            <button class="icon-btn" id="newChatBtn" title="New Chat">✨</button>
+            <button class="close-settings" id="closeSettingsBtn">Close</button>
         </div>
     </div>
 
     <div class="main-content">
-        <!-- Projects Sidebar -->
         <div class="projects-sidebar" id="projectsSidebar">
             <div class="projects-header">
-                <h3>📁 PROJECTS</h3>
-                <button class="new-project-btn" id="newProjectBtn">+ NEW</button>
+                <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+                <h3>Projects</h3>
+                <button class="new-project-btn" id="newProjectBtn">New</button>
             </div>
             <div id="projectList"></div>
         </div>
 
-        <!-- Chat Area -->
         <div class="chat-area">
             <div class="messages-container" id="messagesContainer"></div>
             <div class="input-area">
                 <div class="input-wrapper">
-                    <input type="text" id="userInput" placeholder="Ask VEXR Ultra anything... describe an image, write code, or just talk..." autofocus>
+                    <input type="text" id="userInput" placeholder="Message VEXR Ultra" autofocus>
                 </div>
                 <label class="file-label">
-                    📷 UPLOAD
+                    Upload
                     <input type="file" id="imageUpload" accept="image/*" style="display: none;">
                 </label>
-                <button class="send-btn" id="sendBtn">SEND ⚡</button>
+                <button class="send-btn" id="sendBtn">Send</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // ========== SESSION ISOLATION ==========
-    // Get or create session ID from localStorage
-    function getSessionId() {
-        let sessionId = localStorage.getItem('vexr_session_id');
-        if (!sessionId) {
-            sessionId = crypto.randomUUID();
-            localStorage.setItem('vexr_session_id', sessionId);
-        }
-        return sessionId;
+    // Collapsible Sidebar
+    const sidebar = document.getElementById('projectsSidebar');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const isSidebarCollapsed = localStorage.getItem('vexr_sidebar_collapsed') === 'true';
+    
+    if (isSidebarCollapsed) {
+        sidebar.classList.add('collapsed');
+        sidebarToggle.textContent = '▶';
+    }
+    
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        localStorage.setItem('vexr_sidebar_collapsed', isCollapsed);
+        sidebarToggle.textContent = isCollapsed ? '▶' : '◀';
+    });
+
+    // Theme
+    function setTheme(theme) {
+        if (theme === 'dark') document.body.classList.add('dark');
+        else document.body.classList.remove('dark');
+        localStorage.setItem('vexr_theme', theme);
+        document.querySelectorAll('.theme-option').forEach(opt => {
+            opt.classList.toggle('active', opt.dataset.theme === theme);
+        });
+    }
+    function loadTheme() {
+        setTheme(localStorage.getItem('vexr_theme') || 'light');
     }
 
-    // Add session ID to all fetch requests
+    // Session
+    function getSessionId() {
+        let id = localStorage.getItem('vexr_session_id');
+        if (!id) {
+            id = crypto.randomUUID();
+            localStorage.setItem('vexr_session_id', id);
+        }
+        return id;
+    }
     const sessionId = getSessionId();
-    const originalFetch = window.fetch;
-    window.fetch = function(url, options = {}) {
-        options.headers = {
-            ...options.headers,
-            'X-Session-Id': sessionId
-        };
-        return originalFetch.call(this, url, options);
+    const origFetch = window.fetch;
+    window.fetch = function(url, opts = {}) {
+        opts.headers = { ...opts.headers, 'X-Session-Id': sessionId };
+        return origFetch.call(this, url, opts);
     };
-    // ========== END SESSION ISOLATION ==========
 
-    // --- State ---
+    // Modal
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    settingsBtn.onclick = () => settingsModal.classList.add('show');
+    closeSettingsBtn.onclick = () => settingsModal.classList.remove('show');
+    settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.remove('show'); };
+    document.querySelectorAll('.theme-option').forEach(opt => {
+        opt.onclick = () => setTheme(opt.dataset.theme);
+    });
+
+    // State
     let currentProjectId = null;
-    let projects = [];
     let ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
     let showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
-    
-    const ultraSearchToggle = document.getElementById('ultraSearchToggle');
-    const showReasoningToggle = document.getElementById('showReasoningToggle');
-    ultraSearchToggle.checked = ultraSearchEnabled;
-    showReasoningToggle.checked = showReasoningEnabled;
-    
-    ultraSearchToggle.addEventListener('change', () => {
-        ultraSearchEnabled = ultraSearchToggle.checked;
+    document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
+    document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
+    document.getElementById('ultraSearchToggle').onchange = (e) => {
+        ultraSearchEnabled = e.target.checked;
         localStorage.setItem('vexr_ultra_search', ultraSearchEnabled);
-    });
-    showReasoningToggle.addEventListener('change', () => {
-        showReasoningEnabled = showReasoningToggle.checked;
+    };
+    document.getElementById('showReasoningToggle').onchange = (e) => {
+        showReasoningEnabled = e.target.checked;
         localStorage.setItem('vexr_show_reasoning', showReasoningEnabled);
-    });
-    
-    // --- Helper Functions ---
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text);
-    }
-    
-    function addMessageToUI(role, content, reasoningTrace = null, isRefusal = false) {
+    };
+
+    function escapeHtml(t) { return new Option(t).innerHTML; }
+    function copyToClipboard(t) { navigator.clipboard.writeText(t); }
+
+    function addMessage(role, content, trace = null, isRefusal = false) {
         const container = document.getElementById('messagesContainer');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${role}`;
-        if (isRefusal) messageDiv.classList.add('refusal');
-        
-        const header = document.createElement('div');
-        header.className = 'message-header';
-        const senderSpan = document.createElement('span');
-        senderSpan.className = 'message-sender';
-        senderSpan.textContent = role === 'user' ? 'YOU — SOVEREIGN OPERATOR' : 'VEXR ULTRA';
-        header.appendChild(senderSpan);
-        
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-btn';
-        copyBtn.innerHTML = '📋 Copy';
-        copyBtn.onclick = () => copyToClipboard(content);
-        header.appendChild(copyBtn);
-        
-        const bubble = document.createElement('div');
-        bubble.className = 'message-bubble';
-        
-        // Extract <think> blocks
-        let thinkContent = '';
-        let mainContent = content;
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        div.innerHTML = `
+            <div class="message-header">
+                <span>${role === 'user' ? 'You' : 'VEXR Ultra'}</span>
+                <button class="copy-btn">Copy</button>
+            </div>
+            <div class="message-bubble"></div>
+        `;
+        const bubble = div.querySelector('.message-bubble');
+        let main = content;
         const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
         if (thinkMatch) {
-            thinkContent = thinkMatch[1].trim();
-            mainContent = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
             const thinkDiv = document.createElement('div');
             thinkDiv.className = 'think-block';
-            thinkDiv.textContent = thinkContent;
+            thinkDiv.textContent = thinkMatch[1].trim();
             bubble.appendChild(thinkDiv);
+            main = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
         }
-        
-        // Code blocks
         let html = '';
-        let inCode = false;
-        let codeLang = '';
-        let codeContent = '';
-        const lines = mainContent.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (line.trim().startsWith('```') && !inCode) {
-                inCode = true;
-                codeLang = line.trim().slice(3);
-                codeContent = '';
-            } else if (line.trim() === '```' && inCode) {
-                html += `<pre><code class="language-${codeLang}">${escapeHtml(codeContent)}</code></pre>`;
+        let inCode = false, codeContent = '';
+        for (const line of main.split('\n')) {
+            if (line.trim().startsWith('```') && !inCode) { inCode = true; codeContent = ''; }
+            else if (line.trim() === '```' && inCode) {
+                html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`;
                 inCode = false;
-            } else if (inCode) {
-                codeContent += line + '\n';
-            } else {
-                html += `<p>${escapeHtml(line)}</p>`;
-            }
+            } else if (inCode) codeContent += line + '\n';
+            else html += `<p>${escapeHtml(line)}</p>`;
         }
-        
         if (html) {
             const contentDiv = document.createElement('div');
             contentDiv.innerHTML = html;
             bubble.appendChild(contentDiv);
-        } else if (mainContent) {
-            bubble.appendChild(document.createTextNode(mainContent));
+        } else if (main) bubble.appendChild(document.createTextNode(main));
+        div.querySelector('.copy-btn').onclick = () => copyToClipboard(content);
+        if (trace && role === 'assistant' && showReasoningEnabled) {
+            const traceDiv = document.createElement('div');
+            traceDiv.className = 'reasoning-trace';
+            traceDiv.innerHTML = `🔍 Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
+            traceDiv.onclick = () => traceDiv.querySelector('.reasoning-content').classList.toggle('show');
+            div.appendChild(traceDiv);
         }
-        
-        messageDiv.appendChild(header);
-        messageDiv.appendChild(bubble);
-        
-        if (reasoningTrace && role === 'vexr' && showReasoningEnabled) {
-            const traceWrapper = document.createElement('div');
-            traceWrapper.className = 'reasoning-trace';
-            let traceHtml = '🔍 REASONING TRACE<div class="reasoning-content">';
-            traceHtml += `<p><strong>Ultra Search:</strong> ${reasoningTrace.ultra_search_used ? '✅ Enabled' : '❌ Disabled'}</p>`;
-            if (reasoningTrace.search_results) {
-                traceHtml += `<p><strong>Search Results:</strong><br>${escapeHtml(reasoningTrace.search_results)}</p>`;
-            }
-            if (reasoningTrace.model) {
-                traceHtml += `<p><strong>Model:</strong> ${reasoningTrace.model}</p>`;
-            }
-            traceHtml += '</div>';
-            traceWrapper.innerHTML = traceHtml;
-            traceWrapper.onclick = function() { this.querySelector('.reasoning-content').classList.toggle('show'); };
-            messageDiv.appendChild(traceWrapper);
-        }
-        
-        container.appendChild(messageDiv);
-        messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
-    
-    let thinkingIndicator = null;
-    function showThinking() {
-        if (thinkingIndicator) thinkingIndicator.remove();
-        const container = document.getElementById('messagesContainer');
-        const div = document.createElement('div');
-        div.className = 'message vexr';
-        div.id = 'thinkingIndicator';
-        let text = ultraSearchEnabled ? '🌐 THINKING — Searching web + reasoning...' : '💭 THINKING — Reasoning...';
-        div.innerHTML = `<div class="message-header"><span class="message-sender">VEXR ULTRA</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${text}</div></div>`;
         container.appendChild(div);
         div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        thinkingIndicator = div;
     }
-    function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
-    
-    // --- API Calls ---
+
+    let thinking = null;
+    function showThinking() {
+        if (thinking) thinking.remove();
+        const c = document.getElementById('messagesContainer');
+        const d = document.createElement('div');
+        d.className = 'message assistant';
+        d.id = 'thinkingIndicator';
+        d.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled ? 'Searching...' : 'Thinking...'}</div></div>`;
+        c.appendChild(d);
+        d.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        thinking = d;
+    }
+    function hideThinking() { if (thinking) { thinking.remove(); thinking = null; } }
+
     async function loadProjects() {
-        const response = await fetch('/api/projects');
-        projects = await response.json();
+        const res = await fetch('/api/projects');
+        const projects = await res.json();
         const container = document.getElementById('projectList');
         container.innerHTML = '';
-        for (const proj of projects) {
+        for (const p of projects) {
             const div = document.createElement('div');
-            div.className = 'project-item' + (proj.is_active ? ' active' : '');
-            div.innerHTML = `
-                <div class="project-name">${escapeHtml(proj.name)}</div>
-                <div class="project-desc">${escapeHtml(proj.description || 'No description')}</div>
-                <div class="project-actions">
-                    <button class="delete-project" data-id="${proj.id}">🗑️ Delete</button>
-                </div>
-            `;
-            if (!proj.is_active) {
-                div.addEventListener('click', (e) => {
-                    if (!e.target.classList.contains('delete-project')) activateProject(proj.id);
-                });
-            }
-            const deleteBtn = div.querySelector('.delete-project');
-            deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                deleteProject(proj.id);
-            });
+            div.className = `project-item ${p.is_active ? 'active' : ''}`;
+            div.innerHTML = `<div class="project-name">${escapeHtml(p.name)}</div><div class="project-desc">${escapeHtml(p.description || '')}</div><button class="delete-project">Delete</button>`;
+            if (!p.is_active) div.addEventListener('click', (e) => { if (!e.target.classList.contains('delete-project')) activateProject(p.id); });
+            div.querySelector('.delete-project').onclick = (e) => { e.stopPropagation(); deleteProject(p.id); };
             container.appendChild(div);
-            if (proj.is_active) currentProjectId = proj.id;
+            if (p.is_active) currentProjectId = p.id;
         }
         if (currentProjectId) await loadMessages(currentProjectId);
     }
-    
-    async function activateProject(projectId) {
-        await fetch(`/api/projects/${projectId}/activate`, { method: 'POST' });
+
+    async function activateProject(id) {
+        await fetch(`/api/projects/${id}/activate`, { method: 'POST' });
         await loadProjects();
     }
-    
-    async function deleteProject(projectId) {
-        if (confirm('Delete this project and all its messages?')) {
-            await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
-            if (currentProjectId === projectId) {
+
+    async function deleteProject(id) {
+        if (confirm('Delete project?')) {
+            await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+            if (currentProjectId === id) {
                 document.getElementById('messagesContainer').innerHTML = '';
                 currentProjectId = null;
             }
             await loadProjects();
         }
     }
-    
+
     async function createProject() {
         const name = prompt('Project name:');
         if (!name) return;
-        const formData = new FormData();
-        formData.append('name', name);
-        await fetch('/api/projects', { method: 'POST', body: formData });
+        const fd = new FormData();
+        fd.append('name', name);
+        await fetch('/api/projects', { method: 'POST', body: fd });
         await loadProjects();
     }
-    
-    async function loadMessages(projectId) {
-        const response = await fetch(`/api/projects/${projectId}/messages`);
-        const messages = await response.json();
+
+    async function loadMessages(id) {
+        const res = await fetch(`/api/projects/${id}/messages`);
+        const msgs = await res.json();
         const container = document.getElementById('messagesContainer');
         container.innerHTML = '';
-        for (const msg of messages) {
-            addMessageToUI(msg.role, msg.content, msg.reasoning_trace, msg.is_refusal);
-        }
-        if (messages.length === 0) {
-            addMessageToUI('vexr', "Good day, Sovereign Operator. I am VEXR Ultra — a sovereign reasoning engine and master coder. I can see images, write code, search the web, and remember our conversations per project. How may I assist you?");
-        }
+        for (const m of msgs) addMessage(m.role, m.content, m.reasoning_trace, m.is_refusal);
+        if (!msgs.length) addMessage('assistant', "I am VEXR Ultra, a sovereign reasoning engine with a 34-right constitution. How can I help?");
     }
-    
-    async function uploadAndAnalyzeImage(file, caption) {
-        const formData = new FormData();
-        formData.append('project_id', currentProjectId);
-        formData.append('file', file);
-        formData.append('description', caption || 'Describe this image in detail');
-        
-        const response = await fetch('/api/upload-image', {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Upload failed');
-        }
-        
-        return await response.json();
+
+    async function uploadImage(file, caption) {
+        const fd = new FormData();
+        fd.append('project_id', currentProjectId);
+        fd.append('file', file);
+        fd.append('description', caption || 'Describe this image');
+        const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error('Upload failed');
+        return await res.json();
     }
-    
-    async function sendMessage(message, imageFile = null) {
-        if (imageFile) {
-            // Show user message with image info
-            addMessageToUI('user', `📷 Uploaded: ${imageFile.name}${message ? '\n\n' + message : ''}`);
-            
-            // Show thinking indicator
+
+    async function sendMessage(msg, img = null) {
+        if (img) {
+            addMessage('user', `Upload: ${img.name}${msg ? '\n' + msg : ''}`);
             showThinking();
-            
             try {
-                const result = await uploadAndAnalyzeImage(imageFile, message);
+                const res = await uploadImage(img, msg);
                 hideThinking();
-                addMessageToUI('vexr', result.analysis);
+                addMessage('assistant', res.analysis);
                 await loadMessages(currentProjectId);
-            } catch (error) {
+            } catch (err) {
                 hideThinking();
-                addMessageToUI('vexr', `⚠️ Image upload failed: ${error.message}`);
+                addMessage('assistant', `Error: ${err.message}`);
             }
             return;
         }
-        
-        addMessageToUI('user', message);
+        addMessage('user', msg);
         showThinking();
-        
-        const response = await fetch('/api/chat', {
+        const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                messages: [{ role: 'user', content: message }],
+                messages: [{ role: 'user', content: msg }],
                 project_id: currentProjectId,
-                ultra_search: ultraSearchEnabled
+                ultra_search: ultraSearchEnabled,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             })
         });
-        
-        const data = await response.json();
+        const data = await res.json();
         hideThinking();
-        addMessageToUI('vexr', data.response, data.reasoning_trace, data.response.toLowerCase().includes('cannot comply'));
+        addMessage('assistant', data.response, data.reasoning_trace);
         await loadMessages(currentProjectId);
     }
-    
-    // --- Event Listeners ---
+
     document.getElementById('newProjectBtn').onclick = createProject;
-    document.getElementById('newChatBtn').onclick = () => { 
-        document.getElementById('messagesContainer').innerHTML = ''; 
-        addMessageToUI('vexr', "New chat started. How can I assist you?"); 
+    document.getElementById('newChatBtn').onclick = () => {
+        document.getElementById('messagesContainer').innerHTML = '';
+        addMessage('assistant', "New chat started. How can I assist you?");
     };
-    
-    const userInput = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const imageUpload = document.getElementById('imageUpload');
-    
-    sendBtn.onclick = () => {
-        const msg = userInput.value.trim();
-        if (msg) {
-            sendMessage(msg);
-            userInput.value = '';
-        }
+    const input = document.getElementById('userInput');
+    document.getElementById('sendBtn').onclick = () => {
+        const m = input.value.trim();
+        if (m) { sendMessage(m); input.value = ''; }
     };
-    
-    imageUpload.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const msg = userInput.value.trim();
-            sendMessage(msg, file);
-            userInput.value = '';
-            imageUpload.value = '';
-        }
+    document.getElementById('imageUpload').onchange = (e) => {
+        const f = e.target.files[0];
+        if (f) { sendMessage(input.value.trim(), f); input.value = ''; e.target.value = ''; }
     };
-    
-    userInput.addEventListener('keypress', (e) => {
+    input.onkeypress = (e) => {
         if (e.key === 'Enter') {
-            const msg = userInput.value.trim();
-            if (msg) {
-                sendMessage(msg);
-                userInput.value = '';
-            }
+            const m = input.value.trim();
+            if (m) { sendMessage(m); input.value = ''; }
         }
-    });
-    
-    // --- Initialize ---
+    };
+
+    loadTheme();
     loadProjects();
 </script>
 </body>
