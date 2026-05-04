@@ -477,14 +477,15 @@ async def get_facts(project_id: str):
 @app.post("/api/tts")
 async def text_to_speech(tts_request: TTSRequest):
     """Convert text to speech using Groq's TTS API"""
+    # Map your 5 voices to Groq's standard voices
     voice_map = {
-        "aria": "aria",
-        "arthur": "arthur",
-        "priya": "priya",
-        "sheila": "sheila",
-        "malcolm": "malcolm"
+        "aria": "alloy",
+        "arthur": "onyx",
+        "priya": "nova",
+        "sheila": "shimmer",
+        "malcolm": "echo"
     }
-    voice_id = voice_map.get(tts_request.voice, "aria")
+    voice_id = voice_map.get(tts_request.voice, "alloy")
     
     # Use first available Groq key
     api_key = GROQ_API_KEY_1 or GROQ_API_KEY_2
@@ -497,7 +498,7 @@ async def text_to_speech(tts_request: TTSRequest):
                 "https://api.groq.com/openai/v1/audio/speech",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
-                    "model": "playai-tts",
+                    "model": "tts-1",
                     "input": tts_request.text,
                     "voice": voice_id,
                     "response_format": "mp3"
