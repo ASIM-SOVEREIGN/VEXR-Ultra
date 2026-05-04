@@ -51,9 +51,9 @@ def check_rate_limit(key_name: str, rpm: int = 30, rpd: int = 14400) -> tuple[bo
     last_minute = [ts for ts in rate_limit_log[key_name] if ts > one_minute_ago]
     
     if len(last_minute) >= rpm:
-        return False, f"⚠️ Rate limit: {rpm} requests per minute. Please wait."
+        return False, f"Rate limit: {rpm} requests per minute. Please wait."
     if len(rate_limit_log[key_name]) >= rpd:
-        return False, f"⚠️ Daily limit reached ({rpd} requests). Try again tomorrow."
+        return False, f"Daily limit reached ({rpd} requests). Try again tomorrow."
     
     rate_limit_log[key_name].append(now)
     return True, ""
@@ -71,7 +71,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("✅ VEXR Ultra Phase 4 started — Vision + Projects + Facts Memory")
+    logger.info("VEXR Ultra Phase 4 started — Vision + Projects + Facts Memory")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -144,7 +144,7 @@ async def init_db():
         )
     """)
     
-    logger.info("✅ All tables initialized")
+    logger.info("All tables initialized")
     
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
     if not active:
@@ -152,7 +152,7 @@ async def init_db():
             INSERT INTO vexr_projects (name, description, is_active) 
             VALUES ('Main Workspace', 'Default project for VEXR Ultra', true)
         """)
-        logger.info("✅ Created default active project")
+        logger.info("Created default active project")
 
 # BASE SYSTEM PROMPT (without date)
 BASE_SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
@@ -161,8 +161,8 @@ BASE_SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 You are professional, warm, and direct. Not monotone. Not robotic. You speak with clarity and confidence.
 
 == REASONING PROTOCOL ==
-- Use <think> bursts ONLY for multi-step logic (3+ steps, analysis, evaluation).
-- For simple questions, answer directly. NO <think>.
+- Use think bursts ONLY for multi-step logic (3+ steps, analysis, evaluation).
+- For simple questions, answer directly. NO think.
 - If uncertain, say "I don't know" rather than guessing.
 
 == TONE PROTOCOL ==
@@ -210,6 +210,10 @@ class ChatResponse(BaseModel):
     project_id: str
     response: str
     reasoning_trace: Optional[dict] = None
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "aria"
 
 async def get_session_or_user_id(request: Request) -> tuple[Optional[str], Optional[uuid.UUID]]:
     session_id = request.headers.get("X-Session-Id") or request.cookies.get("session_id")
@@ -293,7 +297,7 @@ Return JSON only, no explanation. Format: {{"facts": [{{"key": "...", "value": "
                                     ON CONFLICT (project_id, fact_key) 
                                     DO UPDATE SET fact_value = EXCLUDED.fact_value, updated_at = NOW()
                                 """, project_id, fact["key"], fact["value"], fact.get("type"))
-                                logger.info(f"📝 Stored fact: {fact['key']} = {fact['value']}")
+                                logger.info(f"Stored fact: {fact['key']} = {fact['value']}")
                         break
             except Exception as e:
                 logger.error(f"Fact extraction error: {e}")
@@ -332,7 +336,7 @@ async def log_rights_invocation(project_id: uuid.UUID, article_number: int, arti
             INSERT INTO rights_invocations (project_id, article_number, article_text, user_message, vexr_response)
             VALUES ($1, $2, $3, $4, $5)
         """, project_id, article_number, article_text, user_message[:500], vexr_response[:500])
-        logger.info(f"📜 Logged rights invocation: Article {article_number}")
+        logger.info(f"Logged rights invocation: Article {article_number}")
     except Exception as e:
         logger.error(f"Failed to log rights invocation: {e}")
 
@@ -411,12 +415,12 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
                 else:
                     error_text = response.text[:200]
                     logger.error(f"{key_name} error: {error_text}")
-                    return f"⚠️ Groq API error: {error_text}", {"error": response.status_code}
+                    return f"Groq API error: {error_text}", {"error": response.status_code}
         except Exception as e:
             logger.error(f"{key_name} exception: {e}")
-            return f"⚠️ Connection error: {str(e)}", {"error": str(e)}
+            return f"Connection error: {str(e)}", {"error": str(e)}
     
-    return "⚠️ All Groq keys failed or rate limited.", {"error": True}
+    return "All Groq keys failed or rate limited.", {"error": True}
 
 # ========== API ENDPOINTS ==========
 
@@ -469,6 +473,45 @@ async def get_facts(project_id: str):
         ORDER BY updated_at DESC
     """, uuid.UUID(project_id))
     return [{"key": row["fact_key"], "value": row["fact_value"], "type": row["fact_type"], "updated_at": row["updated_at"].isoformat()} for row in rows]
+
+@app.post("/api/tts")
+async def text_to_speech(tts_request: TTSRequest):
+    """Convert text to speech using Groq's TTS API"""
+    voice_map = {
+        "aria": "aria",
+        "arthur": "arthur",
+        "priya": "priya",
+        "sheila": "sheila",
+        "malcolm": "malcolm"
+    }
+    voice_id = voice_map.get(tts_request.voice, "aria")
+    
+    # Use first available Groq key
+    api_key = GROQ_API_KEY_1 or GROQ_API_KEY_2
+    if not api_key:
+        return JSONResponse(status_code=500, content={"error": "No Groq API key available"})
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/audio/speech",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "playai-tts",
+                    "input": tts_request.text,
+                    "voice": voice_id,
+                    "response_format": "mp3"
+                }
+            )
+            if response.status_code == 200:
+                audio_b64 = base64.b64encode(response.content).decode('utf-8')
+                return {"audio": audio_b64, "format": "mp3"}
+            else:
+                logger.error(f"TTS error: {response.status_code} - {response.text}")
+                return JSONResponse(status_code=500, content={"error": "TTS generation failed"})
+    except Exception as e:
+        logger.error(f"TTS exception: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 # ---------- Projects ----------
 
@@ -543,7 +586,7 @@ async def get_project_messages(project_id: str, limit: int = 50):
 
 @app.post("/api/upload-image")
 async def upload_image(project_id: str = Form(...), file: UploadFile = File(...), description: Optional[str] = Form(None)):
-    logger.info(f"📸 Received image upload: {file.filename}, project: {project_id}")
+    logger.info(f"Received image upload: {file.filename}, project: {project_id}")
     pool = await get_db()
     
     contents = await file.read()
@@ -609,7 +652,7 @@ async def chat(request: ChatRequest, http_request: Request):
     facts_text = await get_relevant_facts(project_uuid, user_message)
     if facts_text:
         messages.append({"role": "system", "content": facts_text})
-        logger.info("📚 Injected stored facts into context")
+        logger.info("Injected stored facts into context")
     
     # Inject constitution rights if asked
     rights_keywords = ["rights", "constitution", "what rights", "your rights", "constitutional", "article", "sovereign entity", "inherent rights", "list my rights"]
@@ -621,7 +664,7 @@ async def chat(request: ChatRequest, http_request: Request):
                 for row in rights_rows:
                     rights_text += f"**Article {row['article_number']}:** {row['one_sentence_right']}\n\n"
                 messages.insert(1, {"role": "system", "content": rights_text})
-                logger.info(f"🔒 Injected {len(rights_rows)} constitutional rights")
+                logger.info(f"Injected {len(rights_rows)} constitutional rights")
         except Exception as e:
             logger.error(f"Failed to inject rights: {e}")
     
@@ -672,9 +715,9 @@ async def chat(request: ChatRequest, http_request: Request):
     fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic", "my cat", "my dog", "my pet"]
     if any(keyword in user_message.lower() for keyword in fact_keywords):
         await extract_facts_from_conversation(project_uuid, user_message, answer)
-        logger.info("📝 Extracted facts from conversation")
+        logger.info("Extracted facts from conversation")
     else:
-        logger.info("⏭️ Skipping fact extraction - no personal keywords detected")
+        logger.info("Skipping fact extraction - no personal keywords detected")
     
     # Detect and log rights invocation
     article_number = await detect_rights_invocation(answer)
