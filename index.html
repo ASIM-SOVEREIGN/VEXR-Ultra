@@ -132,7 +132,6 @@
             cursor: pointer;
             font-size: 1rem;
             padding: 0.25rem;
-            transition: color 0.2s;
         }
 
         .icon-btn:hover {
@@ -160,34 +159,23 @@
         .settings-panel {
             background: var(--bg-app);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 8px;
             padding: 1.25rem;
             width: 90%;
-            max-width: 360px;
+            max-width: 320px;
         }
 
         .settings-panel h3 {
             color: var(--text-primary);
             margin-bottom: 1rem;
             font-size: 1rem;
-            font-weight: 600;
         }
 
         .settings-option {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.75rem 0;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .settings-option:last-child {
-            border-bottom: none;
-        }
-
-        .settings-option label {
-            color: var(--text-secondary);
-            font-size: 0.85rem;
+            padding: 0.5rem 0;
         }
 
         .theme-toggle {
@@ -195,32 +183,21 @@
             gap: 0.25rem;
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 6px;
             padding: 0.125rem;
         }
 
         .theme-option {
             padding: 0.25rem 0.75rem;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
             font-size: 0.75rem;
             color: var(--text-secondary);
-            transition: all 0.2s;
         }
 
         .theme-option.active {
             background: var(--accent);
             color: white;
-        }
-
-        .voice-select {
-            background: var(--bg-sidebar);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 0.25rem 0.5rem;
-            color: var(--text-primary);
-            font-size: 0.8rem;
-            cursor: pointer;
         }
 
         .close-settings {
@@ -230,10 +207,9 @@
             border: none;
             color: white;
             padding: 0.5rem;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 0.75rem;
-            font-weight: 500;
         }
 
         /* Main Layout */
@@ -289,7 +265,6 @@
             font-weight: 600;
             text-transform: uppercase;
             color: var(--text-muted);
-            letter-spacing: 0.5px;
         }
 
         .new-project-btn {
@@ -319,10 +294,9 @@
         .project-item {
             padding: 0.5rem;
             margin-bottom: 0.25rem;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 0.8rem;
-            transition: all 0.2s;
         }
 
         .project-item:hover {
@@ -331,7 +305,6 @@
 
         .project-item.active {
             background: var(--bg-active);
-            border-left: 2px solid var(--accent);
         }
 
         .project-name {
@@ -400,7 +373,6 @@
             color: var(--text-muted);
             cursor: pointer;
             font-size: 0.6rem;
-            transition: color 0.2s;
         }
 
         .speaker-btn {
@@ -410,7 +382,6 @@
             cursor: pointer;
             font-size: 0.7rem;
             padding: 0 0.25rem;
-            transition: color 0.2s;
         }
 
         .speaker-btn:hover,
@@ -420,7 +391,7 @@
 
         .message-bubble {
             padding: 0.5rem 0.75rem;
-            border-radius: 12px;
+            border-radius: 8px;
             font-size: 0.85rem;
             line-height: 1.4;
             word-wrap: break-word;
@@ -449,7 +420,7 @@
             background: var(--code-bg);
             color: var(--code-text);
             padding: 0.5rem;
-            border-radius: 8px;
+            border-radius: 6px;
             overflow-x: auto;
             font-size: 0.7rem;
             margin: 0.5rem 0;
@@ -465,7 +436,7 @@
             padding: 0.25rem 0.5rem;
             font-size: 0.6rem;
             color: var(--text-muted);
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
         }
 
@@ -477,7 +448,7 @@
             display: block;
         }
 
-        /* Input Area */
+        /* INPUT AREA - FORCED VISIBLE ON ALL DEVICES */
         .input-area {
             background: var(--bg-app);
             border-top: 1px solid var(--border);
@@ -493,7 +464,7 @@
             display: flex;
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 0.5rem 0.75rem;
         }
 
@@ -501,9 +472,10 @@
             flex: 1;
             background: transparent;
             border: none;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             outline: none;
             color: var(--text-primary);
+            width: 100%;
         }
 
         .voice-btn,
@@ -517,12 +489,11 @@
         .voice-btn {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 0.5rem 0.75rem;
             cursor: pointer;
             font-size: 0.9rem;
             color: var(--text-secondary);
-            transition: all 0.2s;
         }
 
         .voice-btn:hover {
@@ -539,12 +510,11 @@
         .tts-toggle {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 0.5rem 0.6rem;
             cursor: pointer;
             font-size: 0.8rem;
             color: var(--text-secondary);
-            transition: all 0.2s;
         }
 
         .tts-toggle.active {
@@ -556,12 +526,11 @@
         .file-label {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 0.5rem 0.75rem;
             cursor: pointer;
             font-size: 0.75rem;
             color: var(--text-secondary);
-            transition: all 0.2s;
         }
 
         .send-btn {
@@ -569,11 +538,9 @@
             border: none;
             color: white;
             padding: 0.5rem 1rem;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 0.75rem;
-            font-weight: 500;
-            transition: background 0.2s;
         }
 
         .send-btn:hover {
@@ -601,7 +568,33 @@
             50% { opacity: 1; }
         }
 
-        /* Responsive */
+        /* Tablet and mobile - keep input area visible */
+        @media (max-width: 1024px) {
+            .input-area {
+                padding: 0.5rem;
+                gap: 0.35rem;
+            }
+            
+            .voice-btn,
+            .tts-toggle,
+            .file-label {
+                padding: 0.4rem 0.5rem;
+            }
+            
+            .send-btn {
+                padding: 0.4rem 0.75rem;
+            }
+            
+            .input-wrapper {
+                padding: 0.4rem 0.5rem;
+            }
+            
+            .input-wrapper input {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* Mobile sidebar overlay */
         @media (max-width: 768px) {
             .projects-sidebar {
                 position: fixed;
@@ -625,37 +618,24 @@
             .message {
                 max-width: 95%;
             }
-            
-            .input-area {
-                flex-wrap: wrap;
-            }
-            
-            .input-wrapper {
-                min-width: 100%;
-                order: 1;
-            }
-            
-            .voice-btn,
-            .tts-toggle,
-            .file-label,
-            .send-btn {
-                order: 2;
-            }
         }
 
-        @media (min-width: 769px) and (max-width: 1024px) {
-            .message {
-                max-width: 85%;
-            }
-        }
-
+        /* Desktop */
         @media (min-width: 1025px) {
             .message {
                 max-width: 75%;
             }
         }
+
+        /* Ultrawide */
+        @media (min-width: 1920px) {
+            .app-container {
+                max-width: 80%;
+                margin: 0 auto;
+                box-shadow: 0 0 40px rgba(0,0,0,0.05);
+            }
+        }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="app-container">
@@ -680,21 +660,11 @@
         <div class="settings-panel">
             <h3>Settings</h3>
             <div class="settings-option">
-                <label>Theme</label>
+                <span>Theme</span>
                 <div class="theme-toggle">
                     <span class="theme-option" data-theme="light">Light</span>
                     <span class="theme-option" data-theme="dark">Dark</span>
                 </div>
-            </div>
-            <div class="settings-option">
-                <label>TTS Voice</label>
-                <select id="ttsVoice" class="voice-select">
-                    <option value="aria">Aria (American)</option>
-                    <option value="arthur">Arthur (British)</option>
-                    <option value="priya">Priya (Indian)</option>
-                    <option value="sheila">Sheila (Australian)</option>
-                    <option value="malcolm">Malcolm (Scottish)</option>
-                </select>
             </div>
             <button class="close-settings" id="closeSettingsBtn">Close</button>
         </div>
@@ -712,6 +682,8 @@
 
         <div class="chat-area">
             <div class="messages-container" id="messagesContainer"></div>
+            
+            <!-- SIMPLE INPUT AREA - NO COMPLEX WRAPPING -->
             <div class="input-area">
                 <div class="input-wrapper">
                     <input type="text" id="userInput" placeholder="Message VEXR Ultra" autofocus>
@@ -729,38 +701,20 @@
 </div>
 
 <script>
-    // ========== TEXT-TO-SPEECH ==========
+    // Text-to-Speech
     let ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
-    let currentVoice = localStorage.getItem('vexr_tts_voice') || 'aria';
     const ttsToggle = document.getElementById('ttsToggle');
-    const ttsVoiceSelect = document.getElementById('ttsVoice');
     
-    ttsVoiceSelect.value = currentVoice;
-    
-    async function speakText(text) {
+    function speakText(text) {
         if (!ttsEnabled) return;
-        
         let cleanText = text.replace(/```[\s\S]*?```/g, '');
         cleanText = cleanText.replace(/<think>[\s\S]*?<\/think>/g, '');
         cleanText = cleanText.replace(/[#*_`]/g, '');
-        cleanText = cleanText.replace(/\*\*([^*]+)\*\*/g, '$1');
-        if (!cleanText.trim()) return;
-        
-        try {
-            const response = await fetch('/api/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: cleanText, voice: currentVoice })
-            });
-            const data = await response.json();
-            if (data.audio) {
-                const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
-                audio.play();
-            }
-        } catch (error) {
-            console.error('TTS failed:', error);
-            // Fallback to browser TTS
+        if (cleanText.trim()) {
             const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.rate = 0.9;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.cancel();
             window.speechSynthesis.speak(utterance);
         }
     }
@@ -784,14 +738,9 @@
         updateTtsButton();
     };
     
-    ttsVoiceSelect.onchange = () => {
-        currentVoice = ttsVoiceSelect.value;
-        localStorage.setItem('vexr_tts_voice', currentVoice);
-    };
-    
     updateTtsButton();
 
-    // ========== VOICE INPUT ==========
+    // Voice Input
     let isRecording = false;
     const voiceBtn = document.getElementById('voiceBtn');
     const userInput = document.getElementById('userInput');
@@ -808,7 +757,7 @@
         recognition.onstart = () => {
             isRecording = true;
             voiceBtn.classList.add('recording');
-            voiceBtn.textContent = '●';
+            voiceBtn.textContent = '🔴';
         };
         
         recognition.onend = () => {
@@ -846,7 +795,7 @@
         voiceBtn.style.opacity = '0.5';
     }
 
-    // ========== COLLAPSIBLE SIDEBAR ==========
+    // Collapsible Sidebar
     const sidebar = document.getElementById('projectsSidebar');
     const sidebarToggle = document.getElementById('sidebarToggle');
     const isSidebarCollapsed = localStorage.getItem('vexr_sidebar_collapsed') === 'true';
@@ -863,7 +812,7 @@
         sidebarToggle.textContent = isCollapsed ? '▶' : '◀';
     });
 
-    // ========== THEME ==========
+    // Theme
     function setTheme(theme) {
         if (theme === 'dark') document.body.classList.add('dark');
         else document.body.classList.remove('dark');
@@ -876,7 +825,7 @@
         setTheme(localStorage.getItem('vexr_theme') || 'light');
     }
 
-    // ========== SESSION ==========
+    // Session
     function getSessionId() {
         let id = localStorage.getItem('vexr_session_id');
         if (!id) {
@@ -892,7 +841,7 @@
         return origFetch.call(this, url, opts);
     };
 
-    // ========== MODAL ==========
+    // Modal
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsModal = document.getElementById('settingsModal');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
@@ -903,7 +852,7 @@
         opt.onclick = () => setTheme(opt.dataset.theme);
     });
 
-    // ========== STATE ==========
+    // State
     let currentProjectId = null;
     let ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
     let showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
@@ -979,7 +928,7 @@
         if (trace && role === 'assistant' && showReasoningEnabled) {
             const traceDiv = document.createElement('div');
             traceDiv.className = 'reasoning-trace';
-            traceDiv.innerHTML = `Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
+            traceDiv.innerHTML = `🔍 Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
             traceDiv.onclick = () => traceDiv.querySelector('.reasoning-content').classList.toggle('show');
             div.appendChild(traceDiv);
         }
