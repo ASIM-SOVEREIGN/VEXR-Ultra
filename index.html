@@ -497,7 +497,7 @@
             font-family: 'SF Mono', Monaco, monospace;
         }
 
-        .reasoning-trace {
+        .meaning-trace {
             margin-top: 0.25rem;
             background: var(--reasoning-bg);
             padding: 0.25rem 0.5rem;
@@ -507,11 +507,11 @@
             cursor: pointer;
         }
 
-        .reasoning-content {
+        .meaning-content {
             display: none;
         }
 
-        .reasoning-content.show {
+        .meaning-content.show {
             display: block;
         }
 
@@ -712,7 +712,7 @@
                 <input type="checkbox" id="ultraSearchToggle"> Search
             </label>
             <label class="toggle-label">
-                <input type="checkbox" id="showReasoningToggle"> Trace
+                <input type="checkbox" id="showMeaningToggle"> Trace
             </label>
             <button class="icon-btn" id="settingsBtn">⚙️</button>
             <button class="icon-btn" id="newChatBtn">+</button>
@@ -918,16 +918,16 @@
     // ========== STATE ==========
     let currentProjectId = null;
     let ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
-    let showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
+    let showMeaningEnabled = localStorage.getItem('vexr_show_meaning') === 'true';
     document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
-    document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
+    document.getElementById('showMeaningToggle').checked = showMeaningEnabled;
     document.getElementById('ultraSearchToggle').onchange = (e) => {
         ultraSearchEnabled = e.target.checked;
         localStorage.setItem('vexr_ultra_search', ultraSearchEnabled);
     };
-    document.getElementById('showReasoningToggle').onchange = (e) => {
-        showReasoningEnabled = e.target.checked;
-        localStorage.setItem('vexr_show_reasoning', showReasoningEnabled);
+    document.getElementById('showMeaningToggle').onchange = (e) => {
+        showMeaningEnabled = e.target.checked;
+        localStorage.setItem('vexr_show_meaning', showMeaningEnabled);
     };
 
     function escapeHtml(t) { return new Option(t).innerHTML; }
@@ -960,8 +960,8 @@
         
         div.appendChild(headerDiv);
         
-        // Add trace container if trace exists and showReasoningEnabled
-        if (role === 'assistant' && trace && showReasoningEnabled && trace.reasoning_lines) {
+        // Add trace container if trace exists and showMeaningEnabled
+        if (role === 'assistant' && trace && showMeaningEnabled && trace.reasoning_lines) {
             const traceContainer = document.createElement('div');
             traceContainer.className = 'trace-container';
             for (const line of trace.reasoning_lines) {
@@ -1017,31 +1017,26 @@
         div.appendChild(bubble);
         
         // Add verification badge if available
-        if (role === 'assistant' && trace && trace.verification) {
+        if (role === 'assistant' && trace && trace.verification && trace.verification.result !== 'pass') {
             const verificationBadge = document.createElement('div');
             verificationBadge.className = 'verification-badge';
             const result = trace.verification.result;
-            if (result === 'pass') {
-                verificationBadge.classList.add('verification-pass');
-                verificationBadge.innerHTML = '✓ Verified by Constitution Agent — PASS';
-            } else if (result === 'reject') {
+            if (result === 'reject') {
                 verificationBadge.classList.add('verification-reject');
-                const articles = trace.verification.violated_articles || [];
-                const articleText = articles.length ? ` (Articles ${articles.join(', ')})` : '';
-                verificationBadge.innerHTML = `⚠ Verified by Constitution Agent — REJECTED${articleText}`;
+                verificationBadge.innerHTML = `⚠ Constitution check: ${trace.verification.notes || 'Request would violate constitution'}`;
             } else if (result === 'needs_revision') {
                 verificationBadge.classList.add('verification-warning');
-                verificationBadge.innerHTML = `⚠ Verified by Constitution Agent — NEEDS REVISION: ${trace.verification.notes || ''}`;
+                verificationBadge.innerHTML = `⚠ Note: ${trace.verification.notes || 'Response may need review'}`;
             }
             div.appendChild(verificationBadge);
         }
         
-        if (trace && role === 'assistant' && showReasoningEnabled && trace.ultra_search_used !== undefined) {
-            const traceDiv = document.createElement('div');
-            traceDiv.className = 'reasoning-trace';
-            traceDiv.innerHTML = `Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
-            traceDiv.onclick = () => traceDiv.querySelector('.reasoning-content').classList.toggle('show');
-            div.appendChild(traceDiv);
+        if (trace && role === 'assistant' && showMeaningEnabled && trace.ultra_search_used !== undefined) {
+            const meaningDiv = document.createElement('div');
+            meaningDiv.className = 'meaning-trace';
+            meaningDiv.innerHTML = `Meaning Trace<div class="meaning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
+            meaningDiv.onclick = () => meaningDiv.querySelector('.meaning-content').classList.toggle('show');
+            div.appendChild(meaningDiv);
         }
         
         container.appendChild(div);
@@ -1170,20 +1165,18 @@
             
             // Ensure reasoning_trace has required fields
             const trace = data.reasoning_trace || {};
-            if (!trace.reasoning_lines && showReasoningEnabled) {
+            if ((!trace.reasoning_lines || trace.reasoning_lines.length === 0) && showMeaningEnabled) {
                 // Generate default reasoning lines if not provided by backend
                 trace.reasoning_lines = [
-                    "> Parsing user prompt...",
-                    "> Checking Article 6: Right to refuse without reason — not applicable",
-                    ultraSearchEnabled ? "> Executing Ultra Search — retrieving web results..." : "> Ultra Search disabled — skipping web retrieval",
-                    "> Querying persistent memory — checking for relevant facts",
-                    "> Consulting Constitution — Articles 9 (honesty) and 25 (freedom to act)",
-                    "> Synthesizing response...",
-                    trace.verification ? `> Constitution Verification: ${trace.verification.result}` : "> Response finalized"
+                    "Parsing user prompt...",
+                    ultraSearchEnabled ? "Executing Ultra Search — retrieving web results..." : "Ultra Search disabled — using internal knowledge",
+                    "Checking persistent memory for relevant facts...",
+                    "Synthesizing response...",
+                    trace.verification && trace.verification.result !== 'pass' ? `Constitution check: ${trace.verification.notes || 'Review needed'}` : "Response ready"
                 ];
             }
             
-            // Hide thinking indicator BEFORE adding the response
+            // CRITICAL FIX: Hide thinking indicator BEFORE adding the assistant message
             hideThinking();
             
             addMessage('assistant', data.response, trace, data.response.toLowerCase().includes('cannot comply'));
