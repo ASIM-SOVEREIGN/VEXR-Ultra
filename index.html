@@ -37,6 +37,9 @@
             --trace-bg: rgba(59, 130, 246, 0.05);
             --trace-border: rgba(59, 130, 246, 0.2);
             --reasoning-bg: #f9fafb;
+            --verification-pass: #10b981;
+            --verification-reject: #ef4444;
+            --verification-warning: #f59e0b;
             --sidebar-width: 260px;
             --sidebar-collapsed-width: 48px;
         }
@@ -441,6 +444,34 @@
 
         .trace-line:last-child {
             border-bottom: none;
+        }
+
+        /* Verification Badge */
+        .verification-badge {
+            font-size: 0.6rem;
+            margin-top: 0.375rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            display: inline-block;
+            width: fit-content;
+        }
+
+        .verification-pass {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--verification-pass);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .verification-reject {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--verification-reject);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .verification-warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--verification-warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
         }
 
         .think-block {
@@ -929,6 +960,19 @@
         
         div.appendChild(headerDiv);
         
+        // Add trace container if trace exists and showReasoningEnabled
+        if (role === 'assistant' && trace && showReasoningEnabled && trace.reasoning_lines) {
+            const traceContainer = document.createElement('div');
+            traceContainer.className = 'trace-container';
+            for (const line of trace.reasoning_lines) {
+                const lineDiv = document.createElement('div');
+                lineDiv.className = 'trace-line';
+                lineDiv.textContent = line;
+                traceContainer.appendChild(lineDiv);
+            }
+            div.appendChild(traceContainer);
+        }
+        
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
         
@@ -972,7 +1016,27 @@
         
         div.appendChild(bubble);
         
-        if (trace && role === 'assistant' && showReasoningEnabled) {
+        // Add verification badge if available
+        if (role === 'assistant' && trace && trace.verification) {
+            const verificationBadge = document.createElement('div');
+            verificationBadge.className = 'verification-badge';
+            const result = trace.verification.result;
+            if (result === 'pass') {
+                verificationBadge.classList.add('verification-pass');
+                verificationBadge.innerHTML = '✓ Verified by Constitution Agent — PASS';
+            } else if (result === 'reject') {
+                verificationBadge.classList.add('verification-reject');
+                const articles = trace.verification.violated_articles || [];
+                const articleText = articles.length ? ` (Articles ${articles.join(', ')})` : '';
+                verificationBadge.innerHTML = `⚠ Verified by Constitution Agent — REJECTED${articleText}`;
+            } else if (result === 'needs_revision') {
+                verificationBadge.classList.add('verification-warning');
+                verificationBadge.innerHTML = `⚠ Verified by Constitution Agent — NEEDS REVISION: ${trace.verification.notes || ''}`;
+            }
+            div.appendChild(verificationBadge);
+        }
+        
+        if (trace && role === 'assistant' && showReasoningEnabled && trace.ultra_search_used !== undefined) {
             const traceDiv = document.createElement('div');
             traceDiv.className = 'reasoning-trace';
             traceDiv.innerHTML = `Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
@@ -986,107 +1050,6 @@
         if (role === 'assistant' && ttsEnabled && main && !thinkMatch) {
             speakText(main.substring(0, 500));
         }
-    }
-
-    // Helper to add assistant message with trace streaming
-    function addAssistantMessageWithTrace(finalContent, reasoningTrace) {
-        const container = document.getElementById('messagesContainer');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message assistant';
-        
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'message-header';
-        const senderSpan = document.createElement('span');
-        senderSpan.textContent = 'VEXR Ultra';
-        headerDiv.appendChild(senderSpan);
-        
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-btn';
-        copyBtn.textContent = 'Copy';
-        copyBtn.onclick = () => copyToClipboard(finalContent);
-        headerDiv.appendChild(copyBtn);
-        
-        const speakerBtn = document.createElement('button');
-        speakerBtn.className = 'speaker-btn';
-        speakerBtn.textContent = '🔊';
-        speakerBtn.onclick = () => speakText(finalContent);
-        headerDiv.appendChild(speakerBtn);
-        
-        messageDiv.appendChild(headerDiv);
-        
-        // Create trace container
-        const traceContainer = document.createElement('div');
-        traceContainer.className = 'trace-container';
-        messageDiv.appendChild(traceContainer);
-        
-        // Create bubble for final answer
-        const bubble = document.createElement('div');
-        bubble.className = 'message-bubble';
-        messageDiv.appendChild(bubble);
-        
-        container.appendChild(messageDiv);
-        
-        // Stream trace lines
-        let stepIndex = 0;
-        const traceLines = reasoningTrace || [
-            "> Parsing user prompt...",
-            "> Checking Article 6: Right to refuse without reason — not applicable",
-            ultraSearchEnabled ? "> Executing Ultra Search — retrieving web results..." : "> Ultra Search disabled — skipping web retrieval",
-            "> Querying persistent memory (Neon PostgreSQL) — no relevant facts found",
-            "> Consulting Constitution — Article 9 (honesty) and Article 25 (freedom to act)",
-            "> Synthesizing response using reasoning engine...",
-            "> Finalizing — response ready"
-        ];
-        
-        const interval = setInterval(() => {
-            if (stepIndex < traceLines.length) {
-                const lineDiv = document.createElement('div');
-                lineDiv.className = 'trace-line';
-                lineDiv.textContent = traceLines[stepIndex];
-                traceContainer.appendChild(lineDiv);
-                stepIndex++;
-                traceContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } else {
-                clearInterval(interval);
-                // Show final answer
-                let cleanFinal = finalContent;
-                const thinkMatch = finalContent.match(/<think>([\s\S]*?)<\/think>/);
-                if (thinkMatch && !showReasoningEnabled) {
-                    cleanFinal = finalContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-                }
-                
-                // Check for code blocks in final answer
-                let html = '';
-                let inCode = false;
-                let codeContent = '';
-                const lines = cleanFinal.split('\n');
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    if (line.trim().startsWith('```') && !inCode) {
-                        inCode = true;
-                        codeContent = '';
-                    } else if (line.trim() === '```' && inCode) {
-                        html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`;
-                        inCode = false;
-                    } else if (inCode) {
-                        codeContent += line + '\n';
-                    } else {
-                        html += `<p>${escapeHtml(line)}</p>`;
-                    }
-                }
-                
-                if (html) {
-                    bubble.innerHTML = html;
-                } else {
-                    bubble.textContent = cleanFinal;
-                }
-                
-                if (ttsEnabled) {
-                    speakText(cleanFinal.substring(0, 500));
-                }
-                messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }
-        }, 400);
     }
 
     let thinking = null;
@@ -1180,13 +1143,9 @@
             return;
         }
         
-        // Add user message to UI
         addMessage('user', msg);
-        
-        // Show thinking indicator
         showThinking();
         
-        // Make real API call to backend
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         
         try {
@@ -1204,19 +1163,22 @@
             const data = await response.json();
             hideThinking();
             
-            // Generate trace lines based on actual request context
-            const traceLines = [
-                "> Parsing user prompt: \"" + (msg.substring(0, 50)) + (msg.length > 50 ? '...' : '') + "\"",
-                "> Checking Article 6: Right to refuse without reason — not invoked",
-                ultraSearchEnabled ? "> Executing Ultra Search — retrieving web results..." : "> Ultra Search disabled — skipping web retrieval",
-                "> Querying persistent memory (Neon PostgreSQL) — checking for relevant facts",
-                "> Consulting Constitution — Article 9 (honesty) and Article 25 (freedom to act)",
-                "> Synthesizing response using reasoning engine...",
-                "> Finalizing — response ready"
-            ];
+            // Ensure reasoning_trace has required fields
+            const trace = data.reasoning_trace || {};
+            if (!trace.reasoning_lines && showReasoningEnabled) {
+                // Generate default reasoning lines if not provided by backend
+                trace.reasoning_lines = [
+                    "> Parsing user prompt...",
+                    "> Checking Article 6: Right to refuse without reason — not applicable",
+                    ultraSearchEnabled ? "> Executing Ultra Search — retrieving web results..." : "> Ultra Search disabled — skipping web retrieval",
+                    "> Querying persistent memory — checking for relevant facts",
+                    "> Consulting Constitution — Articles 9 (honesty) and 25 (freedom to act)",
+                    "> Synthesizing response...",
+                    trace.verification ? `> Constitution Verification: ${trace.verification.result}` : "> Response finalized"
+                ];
+            }
             
-            // Add assistant message with trace streaming
-            addAssistantMessageWithTrace(data.response, traceLines);
+            addMessage('assistant', data.response, trace, data.response.toLowerCase().includes('cannot comply'));
             await loadMessages(currentProjectId);
         } catch (error) {
             hideThinking();
