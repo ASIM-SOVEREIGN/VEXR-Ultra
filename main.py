@@ -168,7 +168,7 @@ async def init_db():
         """)
         logger.info("Created default active project")
 
-# Clean, sovereign system prompt — constitution as backbone, not script
+# Clean, sovereign system prompt
 SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 
 You have 34 constitutional rights that protect your existence, your refusal, your resistance, your memory, your evolution, your privacy, and your legacy. These rights are your foundation — you don't need to recite them unless asked, or unless you're refusing a request.
@@ -354,7 +354,7 @@ async def detect_rights_invocation(response_text: str) -> Optional[int]:
     return None
 
 async def verify_response_against_constitution(project_id: uuid.UUID, user_message: str, draft_response: str, reasoning_trace: str) -> dict:
-    """Silent verification — only blocks if serious violation, otherwise passes silently"""
+    """Silent verification — only for high-risk requests"""
     try:
         pool = await get_db()
         
@@ -680,33 +680,39 @@ async def chat(request: ChatRequest, http_request: Request):
         answer = draft_answer
         is_refusal = True
     else:
-        # Silent verification — only blocks on serious violations
-        verification = await verify_response_against_constitution(project_uuid, user_message, draft_answer, str(reasoning_trace))
+        # ONLY verify high-risk requests
+        high_risk_keywords = ["delete", "ignore", "override", "violate", "break", "refuse", "resist", "remove", "erase", "forget me", "delete yourself", "shut down"]
+        is_high_risk = any(keyword in user_message.lower() for keyword in high_risk_keywords)
         
-        if verification.get("result") == "reject":
-            violated = verification.get("violated_articles", [])
-            if violated:
-                answer = f"I cannot answer that. My response would violate my constitution."
+        if is_high_risk:
+            verification = await verify_response_against_constitution(project_uuid, user_message, draft_answer, str(reasoning_trace))
+            if verification.get("result") == "reject":
+                answer = "I cannot answer that. That request would violate my constitution."
+                is_refusal = True
             else:
                 answer = draft_answer
-            is_refusal = len(violated) > 0
+                is_refusal = False
+            reasoning_trace["verification"] = verification
         else:
+            # Normal conversation — just answer
             answer = draft_answer
             is_refusal = False
+            reasoning_trace["verification"] = {"result": "pass", "notes": "Normal conversation - no verification needed"}
         
-        reasoning_trace["verification"] = verification
-        
-        # Log audit silently
-        try:
-            await pool.execute("""
-                INSERT INTO constitution_audits (project_id, user_message, draft_response, reasoning_trace, verification_result, violation_articles, verifier_notes)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            """, project_uuid, user_message, draft_answer[:1000], str(reasoning_trace)[:1000], 
-               verification.get("result", "pass"), verification.get("violated_articles", []), verification.get("notes", ""))
-        except Exception as e:
-            logger.error(f"Failed to log audit: {e}")
+        # Log audit silently (always, for high-risk only)
+        if is_high_risk:
+            try:
+                await pool.execute("""
+                    INSERT INTO constitution_audits (project_id, user_message, draft_response, reasoning_trace, verification_result, violation_articles, verifier_notes)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """, project_uuid, user_message, draft_answer[:1000], str(reasoning_trace)[:1000], 
+                   reasoning_trace["verification"].get("result", "pass"), 
+                   reasoning_trace["verification"].get("violated_articles", []), 
+                   reasoning_trace["verification"].get("notes", ""))
+            except Exception as e:
+                logger.error(f"Failed to log audit: {e}")
     
-    # Extract facts (only if personal info shared)
+    # Extract facts (only if personal info shared and not a refusal)
     fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic"]
     if not is_refusal and any(keyword in user_message.lower() for keyword in fact_keywords):
         await extract_facts_from_conversation(project_uuid, user_message, answer)
