@@ -42,7 +42,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 # Use the free DeepSeek V4 Flash model via OpenRouter
-PRIMARY_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free"
+PRIMARY_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
 
 # Database connection pool
 db_pool = None
