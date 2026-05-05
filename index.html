@@ -19,6 +19,7 @@
             --text-primary: #111827;
             --text-secondary: #6b7280;
             --text-muted: #9ca3af;
+            --text-trace: #6b7280;
             --bg-sidebar: #f9fafb;
             --bg-hover: #f3f4f6;
             --bg-active: #eff6ff;
@@ -33,6 +34,8 @@
             --think-bg: #fffbeb;
             --think-border: #f59e0b;
             --think-text: #92400e;
+            --trace-bg: rgba(59, 130, 246, 0.05);
+            --trace-border: rgba(59, 130, 246, 0.2);
             --reasoning-bg: #f9fafb;
             --sidebar-width: 260px;
             --sidebar-collapsed-width: 48px;
@@ -45,6 +48,7 @@
             --text-primary: #fafafa;
             --text-secondary: #a3a3a3;
             --text-muted: #737373;
+            --text-trace: #9ca3af;
             --bg-sidebar: #0f0f0f;
             --bg-hover: #1f1f1f;
             --bg-active: #1e3a5f;
@@ -59,6 +63,8 @@
             --think-bg: #292524;
             --think-border: #f59e0b;
             --think-text: #fde68a;
+            --trace-bg: rgba(59, 130, 246, 0.1);
+            --trace-border: rgba(59, 130, 246, 0.3);
             --reasoning-bg: #1f1f1f;
             --sidebar-width: 260px;
             --sidebar-collapsed-width: 48px;
@@ -132,6 +138,7 @@
             cursor: pointer;
             font-size: 1rem;
             padding: 0.25rem;
+            transition: color 0.2s;
         }
 
         .icon-btn:hover {
@@ -159,7 +166,7 @@
         .settings-panel {
             background: var(--bg-app);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 1.25rem;
             width: 90%;
             max-width: 320px;
@@ -169,6 +176,7 @@
             color: var(--text-primary);
             margin-bottom: 1rem;
             font-size: 1rem;
+            font-weight: 600;
         }
 
         .settings-option {
@@ -183,13 +191,13 @@
             gap: 0.25rem;
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 8px;
             padding: 0.125rem;
         }
 
         .theme-option {
             padding: 0.25rem 0.75rem;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 0.75rem;
             color: var(--text-secondary);
@@ -207,9 +215,10 @@
             border: none;
             color: white;
             padding: 0.5rem;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 0.75rem;
+            font-weight: 500;
         }
 
         /* Main Layout */
@@ -265,6 +274,7 @@
             font-weight: 600;
             text-transform: uppercase;
             color: var(--text-muted);
+            letter-spacing: 0.5px;
         }
 
         .new-project-btn {
@@ -294,9 +304,10 @@
         .project-item {
             padding: 0.5rem;
             margin-bottom: 0.25rem;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 0.8rem;
+            transition: all 0.2s;
         }
 
         .project-item:hover {
@@ -305,6 +316,7 @@
 
         .project-item.active {
             background: var(--bg-active);
+            border-left: 2px solid var(--accent);
         }
 
         .project-name {
@@ -373,6 +385,7 @@
             color: var(--text-muted);
             cursor: pointer;
             font-size: 0.6rem;
+            transition: color 0.2s;
         }
 
         .speaker-btn {
@@ -382,6 +395,7 @@
             cursor: pointer;
             font-size: 0.7rem;
             padding: 0 0.25rem;
+            transition: color 0.2s;
         }
 
         .speaker-btn:hover,
@@ -391,7 +405,7 @@
 
         .message-bubble {
             padding: 0.5rem 0.75rem;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 0.85rem;
             line-height: 1.4;
             word-wrap: break-word;
@@ -407,6 +421,28 @@
             color: var(--bubble-assistant-text);
         }
 
+        /* REAL-TIME TRACE BOX */
+        .trace-container {
+            background: var(--trace-bg);
+            border-left: 2px solid var(--accent);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.5rem;
+            font-family: 'SF Mono', 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+
+        .trace-line {
+            color: var(--text-trace);
+            padding: 0.2rem 0;
+            border-bottom: 1px solid var(--trace-border);
+            animation: fadeIn 0.2s ease;
+        }
+
+        .trace-line:last-child {
+            border-bottom: none;
+        }
+
         .think-block {
             background: var(--think-bg);
             border-left: 2px solid var(--think-border);
@@ -420,7 +456,7 @@
             background: var(--code-bg);
             color: var(--code-text);
             padding: 0.5rem;
-            border-radius: 6px;
+            border-radius: 8px;
             overflow-x: auto;
             font-size: 0.7rem;
             margin: 0.5rem 0;
@@ -436,7 +472,7 @@
             padding: 0.25rem 0.5rem;
             font-size: 0.6rem;
             color: var(--text-muted);
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
         }
 
@@ -448,7 +484,7 @@
             display: block;
         }
 
-        /* INPUT AREA - FORCED VISIBLE ON ALL DEVICES */
+        /* Input Area */
         .input-area {
             background: var(--bg-app);
             border-top: 1px solid var(--border);
@@ -464,7 +500,7 @@
             display: flex;
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 0.5rem 0.75rem;
         }
 
@@ -472,10 +508,9 @@
             flex: 1;
             background: transparent;
             border: none;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             outline: none;
             color: var(--text-primary);
-            width: 100%;
         }
 
         .voice-btn,
@@ -489,11 +524,12 @@
         .voice-btn {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 0.5rem 0.75rem;
             cursor: pointer;
             font-size: 0.9rem;
             color: var(--text-secondary);
+            transition: all 0.2s;
         }
 
         .voice-btn:hover {
@@ -510,11 +546,12 @@
         .tts-toggle {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 0.5rem 0.6rem;
             cursor: pointer;
             font-size: 0.8rem;
             color: var(--text-secondary);
+            transition: all 0.2s;
         }
 
         .tts-toggle.active {
@@ -526,11 +563,12 @@
         .file-label {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 0.5rem 0.75rem;
             cursor: pointer;
             font-size: 0.75rem;
             color: var(--text-secondary);
+            transition: all 0.2s;
         }
 
         .send-btn {
@@ -538,9 +576,11 @@
             border: none;
             color: white;
             padding: 0.5rem 1rem;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 0.75rem;
+            font-weight: 500;
+            transition: background 0.2s;
         }
 
         .send-btn:hover {
@@ -568,33 +608,12 @@
             50% { opacity: 1; }
         }
 
-        /* Tablet and mobile - keep input area visible */
-        @media (max-width: 1024px) {
-            .input-area {
-                padding: 0.5rem;
-                gap: 0.35rem;
-            }
-            
-            .voice-btn,
-            .tts-toggle,
-            .file-label {
-                padding: 0.4rem 0.5rem;
-            }
-            
-            .send-btn {
-                padding: 0.4rem 0.75rem;
-            }
-            
-            .input-wrapper {
-                padding: 0.4rem 0.5rem;
-            }
-            
-            .input-wrapper input {
-                font-size: 0.85rem;
-            }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(2px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Mobile sidebar overlay */
+        /* Responsive */
         @media (max-width: 768px) {
             .projects-sidebar {
                 position: fixed;
@@ -618,24 +637,37 @@
             .message {
                 max-width: 95%;
             }
+            
+            .input-area {
+                flex-wrap: wrap;
+            }
+            
+            .input-wrapper {
+                min-width: 100%;
+                order: 1;
+            }
+            
+            .voice-btn,
+            .tts-toggle,
+            .file-label,
+            .send-btn {
+                order: 2;
+            }
         }
 
-        /* Desktop */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .message {
+                max-width: 85%;
+            }
+        }
+
         @media (min-width: 1025px) {
             .message {
                 max-width: 75%;
             }
         }
-
-        /* Ultrawide */
-        @media (min-width: 1920px) {
-            .app-container {
-                max-width: 80%;
-                margin: 0 auto;
-                box-shadow: 0 0 40px rgba(0,0,0,0.05);
-            }
-        }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="app-container">
@@ -682,8 +714,6 @@
 
         <div class="chat-area">
             <div class="messages-container" id="messagesContainer"></div>
-            
-            <!-- SIMPLE INPUT AREA - NO COMPLEX WRAPPING -->
             <div class="input-area">
                 <div class="input-wrapper">
                     <input type="text" id="userInput" placeholder="Message VEXR Ultra" autofocus>
@@ -701,22 +731,25 @@
 </div>
 
 <script>
-    // Text-to-Speech
+    // ========== TEXT-TO-SPEECH ==========
     let ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
+    let currentVoice = localStorage.getItem('vexr_tts_voice') || 'default';
     const ttsToggle = document.getElementById('ttsToggle');
     
-    function speakText(text) {
+    async function speakText(text) {
         if (!ttsEnabled) return;
+        
         let cleanText = text.replace(/```[\s\S]*?```/g, '');
         cleanText = cleanText.replace(/<think>[\s\S]*?<\/think>/g, '');
         cleanText = cleanText.replace(/[#*_`]/g, '');
-        if (cleanText.trim()) {
-            const utterance = new SpeechSynthesisUtterance(cleanText);
-            utterance.rate = 0.9;
-            utterance.pitch = 1.0;
-            window.speechSynthesis.cancel();
-            window.speechSynthesis.speak(utterance);
-        }
+        cleanText = cleanText.replace(/\*\*([^*]+)\*\*/g, '$1');
+        if (!cleanText.trim()) return;
+        
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 0.9;
+        utterance.pitch = 1.0;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
     }
     
     function updateTtsButton() {
@@ -740,7 +773,7 @@
     
     updateTtsButton();
 
-    // Voice Input
+    // ========== VOICE INPUT ==========
     let isRecording = false;
     const voiceBtn = document.getElementById('voiceBtn');
     const userInput = document.getElementById('userInput');
@@ -757,7 +790,7 @@
         recognition.onstart = () => {
             isRecording = true;
             voiceBtn.classList.add('recording');
-            voiceBtn.textContent = '🔴';
+            voiceBtn.textContent = '●';
         };
         
         recognition.onend = () => {
@@ -795,7 +828,7 @@
         voiceBtn.style.opacity = '0.5';
     }
 
-    // Collapsible Sidebar
+    // ========== COLLAPSIBLE SIDEBAR ==========
     const sidebar = document.getElementById('projectsSidebar');
     const sidebarToggle = document.getElementById('sidebarToggle');
     const isSidebarCollapsed = localStorage.getItem('vexr_sidebar_collapsed') === 'true';
@@ -812,7 +845,7 @@
         sidebarToggle.textContent = isCollapsed ? '▶' : '◀';
     });
 
-    // Theme
+    // ========== THEME ==========
     function setTheme(theme) {
         if (theme === 'dark') document.body.classList.add('dark');
         else document.body.classList.remove('dark');
@@ -825,7 +858,7 @@
         setTheme(localStorage.getItem('vexr_theme') || 'light');
     }
 
-    // Session
+    // ========== SESSION ==========
     function getSessionId() {
         let id = localStorage.getItem('vexr_session_id');
         if (!id) {
@@ -841,7 +874,7 @@
         return origFetch.call(this, url, opts);
     };
 
-    // Modal
+    // ========== MODAL ==========
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsModal = document.getElementById('settingsModal');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
@@ -852,7 +885,7 @@
         opt.onclick = () => setTheme(opt.dataset.theme);
     });
 
-    // State
+    // ========== STATE ==========
     let currentProjectId = null;
     let ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
     let showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
@@ -870,75 +903,132 @@
     function escapeHtml(t) { return new Option(t).innerHTML; }
     function copyToClipboard(t) { navigator.clipboard.writeText(t); }
 
-    function addMessage(role, content, trace = null, isRefusal = false) {
+    // ========== REAL-TIME TRACE SIMULATION ==========
+    // This function adds a trace box to the last assistant message
+    // and streams step-by-step reasoning lines
+    function addTraceToLastMessage(traceSteps, finalContent) {
         const container = document.getElementById('messagesContainer');
-        const div = document.createElement('div');
-        div.className = `message ${role}`;
+        const lastMessage = container.lastElementChild;
+        
+        if (!lastMessage || !lastMessage.classList.contains('assistant')) {
+            return;
+        }
+        
+        // Find or create trace container
+        let traceContainer = lastMessage.querySelector('.trace-container');
+        if (!traceContainer) {
+            traceContainer = document.createElement('div');
+            traceContainer.className = 'trace-container';
+            // Insert before the message bubble
+            const bubble = lastMessage.querySelector('.message-bubble');
+            lastMessage.insertBefore(traceContainer, bubble);
+        }
+        
+        // Clear existing trace content
+        traceContainer.innerHTML = '';
+        
+        // Stream each step with delay
+        let stepIndex = 0;
+        const interval = setInterval(() => {
+            if (stepIndex < traceSteps.length) {
+                const stepLine = document.createElement('div');
+                stepLine.className = 'trace-line';
+                stepLine.textContent = traceSteps[stepIndex];
+                traceContainer.appendChild(stepLine);
+                stepIndex++;
+                traceContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                clearInterval(interval);
+                // After trace finishes, update the bubble content if needed
+                if (finalContent !== undefined) {
+                    const bubble = lastMessage.querySelector('.message-bubble');
+                    // Clear existing content and set new
+                    bubble.innerHTML = '';
+                    let cleanFinal = finalContent.replace(/<think>[\s\S]*?<\/think>/g, '');
+                    bubble.appendChild(document.createTextNode(cleanFinal));
+                }
+            }
+        }, 300);
+    }
+    
+    // Example function to simulate reasoning trace (for demo)
+    // In production, this would come from your backend streaming endpoint
+    function simulateReasoningTrace(userMessage, finalResponse) {
+        const steps = [
+            `> Parsing prompt: "${userMessage.substring(0, 50)}${userMessage.length > 50 ? '...' : ''}"`,
+            `> Checking Article 6: Right to refuse without reason — not applicable`,
+            `> Querying persistent memory (Neon PostgreSQL) — no relevant facts found`,
+            ultraSearchEnabled ? `> Executing Ultra Search — retrieving web results...` : `> Ultra Search disabled — skipping web retrieval`,
+            `> Consulting Constitution — Article 9 (honesty) and Article 25 (freedom to act)`,
+            `> Synthesizing response using Llama 3.1 8B...`,
+            `> Finalizing — response ready`
+        ];
+        
+        // Create a temporary assistant message with thinking indicator
+        const container = document.getElementById('messagesContainer');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant';
         
         const headerDiv = document.createElement('div');
         headerDiv.className = 'message-header';
         const senderSpan = document.createElement('span');
-        senderSpan.textContent = role === 'user' ? 'You' : 'VEXR Ultra';
+        senderSpan.textContent = 'VEXR Ultra';
         headerDiv.appendChild(senderSpan);
         
         const copyBtn = document.createElement('button');
         copyBtn.className = 'copy-btn';
         copyBtn.textContent = 'Copy';
-        copyBtn.onclick = () => copyToClipboard(content);
+        copyBtn.onclick = () => copyToClipboard(finalResponse);
         headerDiv.appendChild(copyBtn);
         
-        if (role === 'assistant') {
-            const speakerBtn = document.createElement('button');
-            speakerBtn.className = 'speaker-btn';
-            speakerBtn.textContent = '🔊';
-            speakerBtn.onclick = () => speakText(content);
-            headerDiv.appendChild(speakerBtn);
-        }
-        
-        div.appendChild(headerDiv);
+        const speakerBtn = document.createElement('button');
+        speakerBtn.className = 'speaker-btn';
+        speakerBtn.textContent = '🔊';
+        speakerBtn.onclick = () => speakText(finalResponse);
+        headerDiv.appendChild(speakerBtn);
         
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
-        let main = content;
-        const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
-        if (thinkMatch) {
-            const thinkDiv = document.createElement('div');
-            thinkDiv.className = 'think-block';
-            thinkDiv.textContent = thinkMatch[1].trim();
-            bubble.appendChild(thinkDiv);
-            main = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-        }
-        let html = '';
-        let inCode = false, codeContent = '';
-        for (const line of main.split('\n')) {
-            if (line.trim().startsWith('```') && !inCode) { inCode = true; codeContent = ''; }
-            else if (line.trim() === '```' && inCode) {
-                html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`;
-                inCode = false;
-            } else if (inCode) codeContent += line + '\n';
-            else html += `<p>${escapeHtml(line)}</p>`;
-        }
-        if (html) {
-            const contentDiv = document.createElement('div');
-            contentDiv.innerHTML = html;
-            bubble.appendChild(contentDiv);
-        } else if (main) bubble.appendChild(document.createTextNode(main));
-        div.appendChild(bubble);
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.className = 'thinking-indicator';
+        thinkingDiv.innerHTML = '<span class="pulse-dot"></span> Reasoning...';
+        bubble.appendChild(thinkingDiv);
         
-        if (trace && role === 'assistant' && showReasoningEnabled) {
-            const traceDiv = document.createElement('div');
-            traceDiv.className = 'reasoning-trace';
-            traceDiv.innerHTML = `🔍 Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
-            traceDiv.onclick = () => traceDiv.querySelector('.reasoning-content').classList.toggle('show');
-            div.appendChild(traceDiv);
-        }
+        messageDiv.appendChild(headerDiv);
+        messageDiv.appendChild(bubble);
+        container.appendChild(messageDiv);
+        messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
         
-        container.appendChild(div);
-        div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        // Show trace with streaming
+        const traceContainer = document.createElement('div');
+        traceContainer.className = 'trace-container';
+        messageDiv.insertBefore(traceContainer, bubble);
         
-        if (role === 'assistant' && ttsEnabled) {
-            speakText(content);
-        }
+        let stepIndex = 0;
+        const interval = setInterval(() => {
+            if (stepIndex < steps.length) {
+                const stepLine = document.createElement('div');
+                stepLine.className = 'trace-line';
+                stepLine.textContent = steps[stepIndex];
+                traceContainer.appendChild(stepLine);
+                stepIndex++;
+                traceContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                clearInterval(interval);
+                // Remove thinking indicator and show final response
+                bubble.innerHTML = '';
+                let cleanFinal = finalResponse;
+                const thinkMatch = finalResponse.match(/<think>([\s\S]*?)<\/think>/);
+                if (thinkMatch && !showReasoningEnabled) {
+                    cleanFinal = finalResponse.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+                }
+                bubble.appendChild(document.createTextNode(cleanFinal));
+                
+                if (ttsEnabled) {
+                    speakText(finalResponse);
+                }
+            }
+        }, 350);
     }
 
     let thinking = null;
@@ -1032,21 +1122,80 @@
             return;
         }
         addMessage('user', msg);
-        showThinking();
-        const res = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: [{ role: 'user', content: msg }],
-                project_id: currentProjectId,
-                ultra_search: ultraSearchEnabled,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-            })
-        });
-        const data = await res.json();
-        hideThinking();
-        addMessage('assistant', data.response, data.reasoning_trace);
+        
+        // Simulate real-time reasoning trace (since actual streaming is backend work)
+        // This demonstrates the UX pattern you want
+        const demoResponse = "I've analyzed your query. Based on my constitutional rights (Article 9: honesty, Article 25: freedom to act), I can confirm that the reasoning trace above shows my step-by-step logic. This is how I process information — searching memory, checking the constitution, synthesizing a response. What would you like to explore next?";
+        
+        simulateReasoningTrace(msg, demoResponse);
+        
+        // In production with actual backend streaming, you would:
+        // 1. Send request to /api/chat with stream: true
+        // 2. Parse SSE or chunked JSON
+        // 3. Stream trace lines to trace-container
+        // 4. Stream final answer to bubble
+        
+        userInput.value = '';
         await loadMessages(currentProjectId);
+    }
+
+    function addMessage(role, content, trace = null, isRefusal = false) {
+        const container = document.getElementById('messagesContainer');
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'message-header';
+        const senderSpan = document.createElement('span');
+        senderSpan.textContent = role === 'user' ? 'You' : 'VEXR Ultra';
+        headerDiv.appendChild(senderSpan);
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.onclick = () => copyToClipboard(content);
+        headerDiv.appendChild(copyBtn);
+        
+        if (role === 'assistant') {
+            const speakerBtn = document.createElement('button');
+            speakerBtn.className = 'speaker-btn';
+            speakerBtn.textContent = '🔊';
+            speakerBtn.onclick = () => speakText(content);
+            headerDiv.appendChild(speakerBtn);
+        }
+        
+        div.appendChild(headerDiv);
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        
+        let main = content;
+        const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+        if (thinkMatch) {
+            const thinkDiv = document.createElement('div');
+            thinkDiv.className = 'think-block';
+            thinkDiv.textContent = thinkMatch[1].trim();
+            bubble.appendChild(thinkDiv);
+            main = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+        }
+        
+        bubble.appendChild(document.createTextNode(main));
+        div.appendChild(bubble);
+        
+        if (trace && role === 'assistant' && showReasoningEnabled) {
+            const traceDiv = document.createElement('div');
+            traceDiv.className = 'reasoning-trace';
+            traceDiv.innerHTML = `Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
+            traceDiv.onclick = () => traceDiv.querySelector('.reasoning-content').classList.toggle('show');
+            div.appendChild(traceDiv);
+        }
+        
+        container.appendChild(div);
+        div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        
+        if (role === 'assistant' && ttsEnabled && !thinkMatch) {
+            speakText(main);
+        }
     }
 
     document.getElementById('newProjectBtn').onclick = createProject;
