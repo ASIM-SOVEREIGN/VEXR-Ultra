@@ -1052,19 +1052,25 @@
         }
     }
 
-    let thinking = null;
+    let thinkingIndicator = null;
     function showThinking() {
-        if (thinking) thinking.remove();
-        const c = document.getElementById('messagesContainer');
-        const d = document.createElement('div');
-        d.className = 'message assistant';
-        d.id = 'thinkingIndicator';
-        d.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled ? 'Searching...' : 'Thinking...'}</div></div>`;
-        c.appendChild(d);
-        d.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        thinking = d;
+        if (thinkingIndicator) thinkingIndicator.remove();
+        const container = document.getElementById('messagesContainer');
+        const div = document.createElement('div');
+        div.className = 'message assistant';
+        div.id = 'thinkingIndicator';
+        div.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled ? 'Searching web and reasoning...' : 'Reasoning...'}</div></div>`;
+        container.appendChild(div);
+        div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        thinkingIndicator = div;
     }
-    function hideThinking() { if (thinking) { thinking.remove(); thinking = null; } }
+    
+    function hideThinking() { 
+        if (thinkingIndicator) { 
+            thinkingIndicator.remove(); 
+            thinkingIndicator = null; 
+        } 
+    }
 
     async function loadProjects() {
         const res = await fetch('/api/projects');
@@ -1161,7 +1167,6 @@
             });
             
             const data = await response.json();
-            hideThinking();
             
             // Ensure reasoning_trace has required fields
             const trace = data.reasoning_trace || {};
@@ -1177,6 +1182,9 @@
                     trace.verification ? `> Constitution Verification: ${trace.verification.result}` : "> Response finalized"
                 ];
             }
+            
+            // Hide thinking indicator BEFORE adding the response
+            hideThinking();
             
             addMessage('assistant', data.response, trace, data.response.toLowerCase().includes('cannot comply'));
             await loadMessages(currentProjectId);
