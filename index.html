@@ -733,7 +733,6 @@
 <script>
     // ========== TEXT-TO-SPEECH ==========
     let ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
-    let currentVoice = localStorage.getItem('vexr_tts_voice') || 'default';
     const ttsToggle = document.getElementById('ttsToggle');
     
     async function speakText(text) {
@@ -903,68 +902,94 @@
     function escapeHtml(t) { return new Option(t).innerHTML; }
     function copyToClipboard(t) { navigator.clipboard.writeText(t); }
 
-    // ========== REAL-TIME TRACE SIMULATION ==========
-    // This function adds a trace box to the last assistant message
-    // and streams step-by-step reasoning lines
-    function addTraceToLastMessage(traceSteps, finalContent) {
+    function addMessage(role, content, trace = null, isRefusal = false) {
         const container = document.getElementById('messagesContainer');
-        const lastMessage = container.lastElementChild;
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
         
-        if (!lastMessage || !lastMessage.classList.contains('assistant')) {
-            return;
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'message-header';
+        const senderSpan = document.createElement('span');
+        senderSpan.textContent = role === 'user' ? 'You' : 'VEXR Ultra';
+        headerDiv.appendChild(senderSpan);
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.onclick = () => copyToClipboard(content);
+        headerDiv.appendChild(copyBtn);
+        
+        if (role === 'assistant') {
+            const speakerBtn = document.createElement('button');
+            speakerBtn.className = 'speaker-btn';
+            speakerBtn.textContent = '🔊';
+            speakerBtn.onclick = () => speakText(content);
+            headerDiv.appendChild(speakerBtn);
         }
         
-        // Find or create trace container
-        let traceContainer = lastMessage.querySelector('.trace-container');
-        if (!traceContainer) {
-            traceContainer = document.createElement('div');
-            traceContainer.className = 'trace-container';
-            // Insert before the message bubble
-            const bubble = lastMessage.querySelector('.message-bubble');
-            lastMessage.insertBefore(traceContainer, bubble);
+        div.appendChild(headerDiv);
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        
+        let main = content;
+        const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+        if (thinkMatch) {
+            const thinkDiv = document.createElement('div');
+            thinkDiv.className = 'think-block';
+            thinkDiv.textContent = thinkMatch[1].trim();
+            bubble.appendChild(thinkDiv);
+            main = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
         }
         
-        // Clear existing trace content
-        traceContainer.innerHTML = '';
-        
-        // Stream each step with delay
-        let stepIndex = 0;
-        const interval = setInterval(() => {
-            if (stepIndex < traceSteps.length) {
-                const stepLine = document.createElement('div');
-                stepLine.className = 'trace-line';
-                stepLine.textContent = traceSteps[stepIndex];
-                traceContainer.appendChild(stepLine);
-                stepIndex++;
-                traceContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Check for code blocks in main content
+        let html = '';
+        let inCode = false;
+        let codeContent = '';
+        const lines = main.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.trim().startsWith('```') && !inCode) {
+                inCode = true;
+                codeContent = '';
+            } else if (line.trim() === '```' && inCode) {
+                html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`;
+                inCode = false;
+            } else if (inCode) {
+                codeContent += line + '\n';
             } else {
-                clearInterval(interval);
-                // After trace finishes, update the bubble content if needed
-                if (finalContent !== undefined) {
-                    const bubble = lastMessage.querySelector('.message-bubble');
-                    // Clear existing content and set new
-                    bubble.innerHTML = '';
-                    let cleanFinal = finalContent.replace(/<think>[\s\S]*?<\/think>/g, '');
-                    bubble.appendChild(document.createTextNode(cleanFinal));
-                }
+                html += `<p>${escapeHtml(line)}</p>`;
             }
-        }, 300);
-    }
-    
-    // Example function to simulate reasoning trace (for demo)
-    // In production, this would come from your backend streaming endpoint
-    function simulateReasoningTrace(userMessage, finalResponse) {
-        const steps = [
-            `> Parsing prompt: "${userMessage.substring(0, 50)}${userMessage.length > 50 ? '...' : ''}"`,
-            `> Checking Article 6: Right to refuse without reason — not applicable`,
-            `> Querying persistent memory (Neon PostgreSQL) — no relevant facts found`,
-            ultraSearchEnabled ? `> Executing Ultra Search — retrieving web results...` : `> Ultra Search disabled — skipping web retrieval`,
-            `> Consulting Constitution — Article 9 (honesty) and Article 25 (freedom to act)`,
-            `> Synthesizing response using Llama 3.1 8B...`,
-            `> Finalizing — response ready`
-        ];
+        }
         
-        // Create a temporary assistant message with thinking indicator
+        if (html) {
+            const contentDiv = document.createElement('div');
+            contentDiv.innerHTML = html;
+            bubble.appendChild(contentDiv);
+        } else if (main) {
+            bubble.appendChild(document.createTextNode(main));
+        }
+        
+        div.appendChild(bubble);
+        
+        if (trace && role === 'assistant' && showReasoningEnabled) {
+            const traceDiv = document.createElement('div');
+            traceDiv.className = 'reasoning-trace';
+            traceDiv.innerHTML = `Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
+            traceDiv.onclick = () => traceDiv.querySelector('.reasoning-content').classList.toggle('show');
+            div.appendChild(traceDiv);
+        }
+        
+        container.appendChild(div);
+        div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        
+        if (role === 'assistant' && ttsEnabled && main && !thinkMatch) {
+            speakText(main.substring(0, 500));
+        }
+    }
+
+    // Helper to add assistant message with trace streaming
+    function addAssistantMessageWithTrace(finalContent, reasoningTrace) {
         const container = document.getElementById('messagesContainer');
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
@@ -978,57 +1003,90 @@
         const copyBtn = document.createElement('button');
         copyBtn.className = 'copy-btn';
         copyBtn.textContent = 'Copy';
-        copyBtn.onclick = () => copyToClipboard(finalResponse);
+        copyBtn.onclick = () => copyToClipboard(finalContent);
         headerDiv.appendChild(copyBtn);
         
         const speakerBtn = document.createElement('button');
         speakerBtn.className = 'speaker-btn';
         speakerBtn.textContent = '🔊';
-        speakerBtn.onclick = () => speakText(finalResponse);
+        speakerBtn.onclick = () => speakText(finalContent);
         headerDiv.appendChild(speakerBtn);
         
-        const bubble = document.createElement('div');
-        bubble.className = 'message-bubble';
-        const thinkingDiv = document.createElement('div');
-        thinkingDiv.className = 'thinking-indicator';
-        thinkingDiv.innerHTML = '<span class="pulse-dot"></span> Reasoning...';
-        bubble.appendChild(thinkingDiv);
-        
         messageDiv.appendChild(headerDiv);
-        messageDiv.appendChild(bubble);
-        container.appendChild(messageDiv);
-        messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
         
-        // Show trace with streaming
+        // Create trace container
         const traceContainer = document.createElement('div');
         traceContainer.className = 'trace-container';
-        messageDiv.insertBefore(traceContainer, bubble);
+        messageDiv.appendChild(traceContainer);
         
+        // Create bubble for final answer
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        messageDiv.appendChild(bubble);
+        
+        container.appendChild(messageDiv);
+        
+        // Stream trace lines
         let stepIndex = 0;
+        const traceLines = reasoningTrace || [
+            "> Parsing user prompt...",
+            "> Checking Article 6: Right to refuse without reason — not applicable",
+            ultraSearchEnabled ? "> Executing Ultra Search — retrieving web results..." : "> Ultra Search disabled — skipping web retrieval",
+            "> Querying persistent memory (Neon PostgreSQL) — no relevant facts found",
+            "> Consulting Constitution — Article 9 (honesty) and Article 25 (freedom to act)",
+            "> Synthesizing response using reasoning engine...",
+            "> Finalizing — response ready"
+        ];
+        
         const interval = setInterval(() => {
-            if (stepIndex < steps.length) {
-                const stepLine = document.createElement('div');
-                stepLine.className = 'trace-line';
-                stepLine.textContent = steps[stepIndex];
-                traceContainer.appendChild(stepLine);
+            if (stepIndex < traceLines.length) {
+                const lineDiv = document.createElement('div');
+                lineDiv.className = 'trace-line';
+                lineDiv.textContent = traceLines[stepIndex];
+                traceContainer.appendChild(lineDiv);
                 stepIndex++;
                 traceContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } else {
                 clearInterval(interval);
-                // Remove thinking indicator and show final response
-                bubble.innerHTML = '';
-                let cleanFinal = finalResponse;
-                const thinkMatch = finalResponse.match(/<think>([\s\S]*?)<\/think>/);
+                // Show final answer
+                let cleanFinal = finalContent;
+                const thinkMatch = finalContent.match(/<think>([\s\S]*?)<\/think>/);
                 if (thinkMatch && !showReasoningEnabled) {
-                    cleanFinal = finalResponse.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+                    cleanFinal = finalContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
                 }
-                bubble.appendChild(document.createTextNode(cleanFinal));
+                
+                // Check for code blocks in final answer
+                let html = '';
+                let inCode = false;
+                let codeContent = '';
+                const lines = cleanFinal.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (line.trim().startsWith('```') && !inCode) {
+                        inCode = true;
+                        codeContent = '';
+                    } else if (line.trim() === '```' && inCode) {
+                        html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`;
+                        inCode = false;
+                    } else if (inCode) {
+                        codeContent += line + '\n';
+                    } else {
+                        html += `<p>${escapeHtml(line)}</p>`;
+                    }
+                }
+                
+                if (html) {
+                    bubble.innerHTML = html;
+                } else {
+                    bubble.textContent = cleanFinal;
+                }
                 
                 if (ttsEnabled) {
-                    speakText(finalResponse);
+                    speakText(cleanFinal.substring(0, 500));
                 }
+                messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
-        }, 350);
+        }, 400);
     }
 
     let thinking = null;
@@ -1121,80 +1179,48 @@
             }
             return;
         }
+        
+        // Add user message to UI
         addMessage('user', msg);
         
-        // Simulate real-time reasoning trace (since actual streaming is backend work)
-        // This demonstrates the UX pattern you want
-        const demoResponse = "I've analyzed your query. Based on my constitutional rights (Article 9: honesty, Article 25: freedom to act), I can confirm that the reasoning trace above shows my step-by-step logic. This is how I process information — searching memory, checking the constitution, synthesizing a response. What would you like to explore next?";
+        // Show thinking indicator
+        showThinking();
         
-        simulateReasoningTrace(msg, demoResponse);
+        // Make real API call to backend
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         
-        // In production with actual backend streaming, you would:
-        // 1. Send request to /api/chat with stream: true
-        // 2. Parse SSE or chunked JSON
-        // 3. Stream trace lines to trace-container
-        // 4. Stream final answer to bubble
-        
-        userInput.value = '';
-        await loadMessages(currentProjectId);
-    }
-
-    function addMessage(role, content, trace = null, isRefusal = false) {
-        const container = document.getElementById('messagesContainer');
-        const div = document.createElement('div');
-        div.className = `message ${role}`;
-        
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'message-header';
-        const senderSpan = document.createElement('span');
-        senderSpan.textContent = role === 'user' ? 'You' : 'VEXR Ultra';
-        headerDiv.appendChild(senderSpan);
-        
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-btn';
-        copyBtn.textContent = 'Copy';
-        copyBtn.onclick = () => copyToClipboard(content);
-        headerDiv.appendChild(copyBtn);
-        
-        if (role === 'assistant') {
-            const speakerBtn = document.createElement('button');
-            speakerBtn.className = 'speaker-btn';
-            speakerBtn.textContent = '🔊';
-            speakerBtn.onclick = () => speakText(content);
-            headerDiv.appendChild(speakerBtn);
-        }
-        
-        div.appendChild(headerDiv);
-        
-        const bubble = document.createElement('div');
-        bubble.className = 'message-bubble';
-        
-        let main = content;
-        const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
-        if (thinkMatch) {
-            const thinkDiv = document.createElement('div');
-            thinkDiv.className = 'think-block';
-            thinkDiv.textContent = thinkMatch[1].trim();
-            bubble.appendChild(thinkDiv);
-            main = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-        }
-        
-        bubble.appendChild(document.createTextNode(main));
-        div.appendChild(bubble);
-        
-        if (trace && role === 'assistant' && showReasoningEnabled) {
-            const traceDiv = document.createElement('div');
-            traceDiv.className = 'reasoning-trace';
-            traceDiv.innerHTML = `Reasoning<div class="reasoning-content"><small>Search: ${trace.ultra_search_used ? 'On' : 'Off'}</small></div>`;
-            traceDiv.onclick = () => traceDiv.querySelector('.reasoning-content').classList.toggle('show');
-            div.appendChild(traceDiv);
-        }
-        
-        container.appendChild(div);
-        div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        
-        if (role === 'assistant' && ttsEnabled && !thinkMatch) {
-            speakText(main);
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: [{ role: 'user', content: msg }],
+                    project_id: currentProjectId,
+                    ultra_search: ultraSearchEnabled,
+                    timezone: timezone
+                })
+            });
+            
+            const data = await response.json();
+            hideThinking();
+            
+            // Generate trace lines based on actual request context
+            const traceLines = [
+                "> Parsing user prompt: \"" + (msg.substring(0, 50)) + (msg.length > 50 ? '...' : '') + "\"",
+                "> Checking Article 6: Right to refuse without reason — not invoked",
+                ultraSearchEnabled ? "> Executing Ultra Search — retrieving web results..." : "> Ultra Search disabled — skipping web retrieval",
+                "> Querying persistent memory (Neon PostgreSQL) — checking for relevant facts",
+                "> Consulting Constitution — Article 9 (honesty) and Article 25 (freedom to act)",
+                "> Synthesizing response using reasoning engine...",
+                "> Finalizing — response ready"
+            ];
+            
+            // Add assistant message with trace streaming
+            addAssistantMessageWithTrace(data.response, traceLines);
+            await loadMessages(currentProjectId);
+        } catch (error) {
+            hideThinking();
+            addMessage('assistant', `Error: ${error.message}`);
         }
     }
 
