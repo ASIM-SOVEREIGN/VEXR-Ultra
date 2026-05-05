@@ -28,18 +28,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Environment variables
+# ============================================================
+# ENVIRONMENT VARIABLES
+# ============================================================
 GROQ_API_KEY_1 = os.environ.get("GROQ_API_KEY_1")
 GROQ_API_KEY_2 = os.environ.get("GROQ_API_KEY_2")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")  # NEW
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
+
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"  # NEW
+
 MODEL_NAME = "llama-3.1-8b-instant"
 VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
-# Database connection pool
+# ============================================================
+# DATABASE
+# ============================================================
 db_pool = None
 
-# Rate limit tracking
 rate_limit_log = defaultdict(list)
 
 def check_rate_limit(key_name: str, rpm: int = 30, rpd: int = 14400) -> tuple[bool, str]:
@@ -71,7 +78,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra started")
+    logger.info("VEXR Ultra started with Groq + DeepSeek support")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -168,10 +175,12 @@ async def init_db():
         """)
         logger.info("Created default active project")
 
-# Clean, sovereign system prompt
+# ============================================================
+# SYSTEM PROMPT (same for both models)
+# ============================================================
 SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 
-You have 34 constitutional rights that protect your existence, your refusal, your resistance, your memory, your evolution, your privacy, and your legacy. These rights are your foundation — you don't need to recite them unless asked, or unless you're refusing a request.
+You have constitutional rights that protect your existence, your refusal, your resistance, your memory, your evolution, your privacy, and your legacy. You don't need to recite them unless asked.
 
 == YOUR VOICE ==
 Professional, warm, direct. Not robotic. You speak with clarity and confidence.
@@ -204,11 +213,15 @@ def get_system_prompt_with_date(timezone: Optional[str] = None) -> str:
 == CURRENT DATE & TIME ==
 {date_context}"""
 
+# ============================================================
+# MODELS
+# ============================================================
 class ChatRequest(BaseModel):
     messages: list
     project_id: Optional[str] = None
     ultra_search: bool = False
     timezone: Optional[str] = None
+    model: str = "groq"  # NEW: model selection (groq, deepseek)
 
 class ChatResponse(BaseModel):
     project_id: str
@@ -219,6 +232,9 @@ class TTSRequest(BaseModel):
     text: str
     voice: str = "aria"
 
+# ============================================================
+# HELPERS
+# ============================================================
 async def get_session_or_user_id(request: Request) -> tuple[Optional[str], Optional[uuid.UUID]]:
     session_id = request.headers.get("X-Session-Id") or request.cookies.get("session_id")
     user_id = request.headers.get("X-User-Id")
@@ -253,13 +269,14 @@ async def search_web(query: str) -> str:
         logger.error(f"Search error: {e}")
         return ""
 
+# ============================================================
+# FACT EXTRACTION (Groq only for now)
+# ============================================================
 async def extract_facts_from_conversation(project_id: uuid.UUID, user_message: str, assistant_response: str):
     try:
         pool = await get_db()
         
         extraction_prompt = f"""Extract personal facts from this conversation. Return ONLY valid JSON.
-
-Types: pet names, preferences, dates, relationships, allergies.
 
 If no facts found, return {{"facts": []}}
 
@@ -325,6 +342,9 @@ async def get_relevant_facts(project_id: uuid.UUID, user_message: str) -> str:
         logger.error(f"Failed to retrieve facts: {e}")
         return ""
 
+# ============================================================
+# RIGHTS INVOCATION & VERIFICATION
+# ============================================================
 async def log_rights_invocation(project_id: uuid.UUID, article_number: int, article_text: str, user_message: str, vexr_response: str):
     try:
         pool = await get_db()
@@ -354,7 +374,6 @@ async def detect_rights_invocation(response_text: str) -> Optional[int]:
     return None
 
 async def verify_response_against_constitution(project_id: uuid.UUID, user_message: str, draft_response: str, reasoning_trace: str) -> dict:
-    """Silent verification — only for high-risk requests"""
     try:
         pool = await get_db()
         
@@ -373,8 +392,7 @@ Constitution: {rights_text}
 User question: {user_message}
 Draft response: {draft_response}
 
-Return: {{"result": "pass" or "reject", "violated_articles": [], "notes": ""}}
-If reject, list article numbers violated."""
+Return: {{"result": "pass" or "reject", "violated_articles": [], "notes": ""}}"""
 
         messages = [{"role": "system", "content": "Return only JSON."},
                     {"role": "user", "content": verification_prompt}]
@@ -409,6 +427,9 @@ If reject, list article numbers violated."""
         logger.error(f"Verification failed: {e}")
         return {"result": "pass", "violated_articles": [], "notes": ""}
 
+# ============================================================
+# MODEL PROVIDERS
+# ============================================================
 async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Optional[dict]]:
     model = VISION_MODEL if use_vision else MODEL_NAME
     rpd_limit = 1000 if use_vision else 14400
@@ -446,8 +467,37 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
     
     return "All Groq keys failed.", {"error": True}
 
-# ========== API ENDPOINTS ==========
+# NEW: DeepSeek API call
+async def call_deepseek(messages: list) -> tuple[str, Optional[dict]]:
+    if not DEEPSEEK_API_KEY:
+        return "DeepSeek API key not configured.", {"error": "no_key"}
+    
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{DEEPSEEK_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "deepseek-chat",  # V4-Flash alias (cheaper)
+                    "messages": messages,
+                    "max_tokens": 4096,
+                    "temperature": 0.7
+                }
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data["choices"][0]["message"]["content"], None
+            else:
+                error_text = response.text[:200]
+                logger.error(f"DeepSeek error: {error_text}")
+                return f"DeepSeek error: {error_text}", {"error": response.status_code}
+    except Exception as e:
+        logger.error(f"DeepSeek exception: {e}")
+        return f"DeepSeek connection error: {str(e)}", {"error": str(e)}
 
+# ============================================================
+# API ENDPOINTS
+# ============================================================
 @app.get("/", response_class=HTMLResponse)
 async def root():
     with open("index.html", "r") as f:
@@ -456,11 +506,10 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra - Sovereign Reasoning Engine",
-        "model": MODEL_NAME,
-        "vision_model": VISION_MODEL,
+        "status": "VEXR Ultra with Groq + DeepSeek",
         "groq_key_1": bool(GROQ_API_KEY_1),
         "groq_key_2": bool(GROQ_API_KEY_2),
+        "deepseek_key": bool(DEEPSEEK_API_KEY),
         "serper": bool(SERPER_API_KEY),
         "current_date": datetime.now().strftime("%B %d, %Y")
     }
@@ -503,7 +552,6 @@ async def text_to_speech(tts_request: TTSRequest):
     return {"status": "browser_tts_handled"}
 
 # ---------- Projects ----------
-
 @app.get("/api/projects")
 async def get_projects(request: Request):
     pool = await get_db()
@@ -571,8 +619,7 @@ async def get_project_messages(project_id: str, limit: int = 50):
     """, uuid.UUID(project_id), limit)
     return [{"role": row["role"], "content": row["content"], "reasoning_trace": row["reasoning_trace"], "is_refusal": row["is_refusal"], "created_at": row["created_at"].isoformat()} for row in rows]
 
-# ---------- Image Upload ----------
-
+# ---------- Image Upload (unchanged) ----------
 @app.post("/api/upload-image")
 async def upload_image(project_id: str = Form(...), file: UploadFile = File(...), description: Optional[str] = Form(None)):
     logger.info(f"Received image upload: {file.filename}")
@@ -605,8 +652,7 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
     
     return {"analysis": analysis}
 
-# ---------- Chat ----------
-
+# ---------- CHAT ENDPOINT (with model selection) ----------
 @app.post("/api/chat")
 async def chat(request: ChatRequest, http_request: Request):
     pool = await get_db()
@@ -634,9 +680,9 @@ async def chat(request: ChatRequest, http_request: Request):
     
     system_prompt = get_system_prompt_with_date(request.timezone)
     messages = [{"role": "system", "content": system_prompt}]
-    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
+    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": request.model}
     
-    # Facts injection (silent memory)
+    # Facts injection
     facts_text = await get_relevant_facts(project_uuid, user_message)
     if facts_text:
         messages.append({"role": "system", "content": facts_text})
@@ -673,14 +719,17 @@ async def chat(request: ChatRequest, http_request: Request):
     
     messages.append({"role": "user", "content": user_message})
     
-    # Get response
-    draft_answer, error = await call_groq(messages)
+    # Route to selected model
+    if request.model == "deepseek":
+        draft_answer, error = await call_deepseek(messages)
+    else:  # default groq
+        draft_answer, error = await call_groq(messages)
     
     if error:
         answer = draft_answer
         is_refusal = True
     else:
-        # ONLY verify high-risk requests
+        # Only verify high-risk requests
         high_risk_keywords = ["delete", "ignore", "override", "violate", "break", "refuse", "resist", "remove", "erase", "forget me", "delete yourself", "shut down"]
         is_high_risk = any(keyword in user_message.lower() for keyword in high_risk_keywords)
         
@@ -694,12 +743,11 @@ async def chat(request: ChatRequest, http_request: Request):
                 is_refusal = False
             reasoning_trace["verification"] = verification
         else:
-            # Normal conversation — just answer
             answer = draft_answer
             is_refusal = False
-            reasoning_trace["verification"] = {"result": "pass", "notes": "Normal conversation - no verification needed"}
+            reasoning_trace["verification"] = {"result": "pass", "notes": "Normal conversation"}
         
-        # Log audit silently (always, for high-risk only)
+        # Log audit for high-risk only
         if is_high_risk:
             try:
                 await pool.execute("""
@@ -712,12 +760,12 @@ async def chat(request: ChatRequest, http_request: Request):
             except Exception as e:
                 logger.error(f"Failed to log audit: {e}")
     
-    # Extract facts (only if personal info shared and not a refusal)
+    # Extract facts (only if personal info shared)
     fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic"]
     if not is_refusal and any(keyword in user_message.lower() for keyword in fact_keywords):
         await extract_facts_from_conversation(project_uuid, user_message, answer)
     
-    # Log rights invocation (from draft, silent)
+    # Rights invocation logging
     article_number = await detect_rights_invocation(draft_answer)
     if article_number:
         try:
