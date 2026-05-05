@@ -42,7 +42,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 # Use the free DeepSeek V4 Flash model via OpenRouter
-PRIMARY_MODEL = "deepseek/deepseek-v4-flash:free"
+PRIMARY_MODEL = "tencent/hy3-preview"
 
 # Database connection pool
 db_pool = None
