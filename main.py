@@ -784,7 +784,7 @@ async def chat(request: ChatRequest, http_request: Request):
         VALUES ($1, $2, $3, $4, $5)
     """, project_uuid, "assistant", answer, json.dumps(reasoning_trace), is_refusal)
     
-        response = ChatResponse(project_id=project_id, response=answer, reasoning_trace=reasoning_trace if not error else {"error": True})
+    response = ChatResponse(project_id=project_id, response=answer, reasoning_trace=reasoning_trace if not error else {"error": True})
     json_response = JSONResponse(content=response.dict())
     if session_id:
         json_response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
