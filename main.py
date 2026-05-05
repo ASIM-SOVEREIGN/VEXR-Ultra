@@ -33,16 +33,16 @@ app.add_middleware(
 # ============================================================
 GROQ_API_KEY_1 = os.environ.get("GROQ_API_KEY_1")
 GROQ_API_KEY_2 = os.environ.get("GROQ_API_KEY_2")
-WISGATE_API_KEY = os.environ.get("WISGATE_API_KEY")  # NEW
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")  # NEW — free tier
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-WISGATE_BASE_URL = "https://wisdom-gate.juheapi.com/v1"  # Unified endpoint
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
-# Primary model for reasoning (you can change this string to any model Wisdom Gate supports)
-PRIMARY_MODEL = "deepseek-chat"  # or "claude-sonnet-4", "gpt-5.3", etc.
+# Use the free DeepSeek V4 Flash model via OpenRouter
+PRIMARY_MODEL = "deepseek/deepseek-v4-flash:free"
 
 # Database connection pool
 db_pool = None
@@ -78,7 +78,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra started — Wisdom Gate primary, Groq vision only")
+    logger.info("VEXR Ultra started — OpenRouter free tier, Groq vision only")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -269,7 +269,7 @@ async def search_web(query: str) -> str:
         return ""
 
 # ============================================================
-# FACT EXTRACTION (using Wisdom Gate)
+# FACT EXTRACTION (using OpenRouter free tier)
 # ============================================================
 async def extract_facts_from_conversation(project_id: uuid.UUID, user_message: str, assistant_response: str):
     try:
@@ -287,16 +287,16 @@ Return JSON only: {{"facts": [{{"key": "...", "value": "...", "type": "..."}}]}}
         messages = [{"role": "system", "content": "Return only JSON."},
                     {"role": "user", "content": extraction_prompt}]
         
-        if not WISGATE_API_KEY:
-            logger.warning("No Wisdom Gate API key for fact extraction")
+        if not OPENROUTER_API_KEY:
+            logger.warning("No OpenRouter API key for fact extraction")
             return
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{WISGATE_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {WISGATE_API_KEY}", "Content-Type": "application/json"},
-                    json={"model": "deepseek-chat", "messages": messages, "max_tokens": 500, "temperature": 0.1}
+                    f"{OPENROUTER_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
+                    json={"model": "deepseek/deepseek-v4-flash:free", "messages": messages, "max_tokens": 500, "temperature": 0.1}
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -395,15 +395,15 @@ Return: {{"result": "pass" or "reject", "violated_articles": [], "notes": ""}}""
         messages = [{"role": "system", "content": "Return only JSON."},
                     {"role": "user", "content": verification_prompt}]
         
-        if not WISGATE_API_KEY:
+        if not OPENROUTER_API_KEY:
             return {"result": "pass", "violated_articles": [], "notes": "No API key"}
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{WISGATE_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {WISGATE_API_KEY}", "Content-Type": "application/json"},
-                    json={"model": "deepseek-chat", "messages": messages, "max_tokens": 300, "temperature": 0.1}
+                    f"{OPENROUTER_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
+                    json={"model": "deepseek/deepseek-v4-flash:free", "messages": messages, "max_tokens": 300, "temperature": 0.1}
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -427,16 +427,19 @@ Return: {{"result": "pass" or "reject", "violated_articles": [], "notes": ""}}""
 # ============================================================
 # CORE API CALLS
 # ============================================================
-async def call_wisdom_gate(messages: list) -> tuple[str, Optional[dict]]:
-    """Primary reasoning engine — Wisdom Gate (DeepSeek, GPT, Claude, etc.)"""
-    if not WISGATE_API_KEY:
-        return "Wisdom Gate API key not configured. Please add WISGATE_API_KEY to environment variables.", {"error": "no_key"}
+async def call_openrouter_free(messages: list) -> tuple[str, Optional[dict]]:
+    """Primary reasoning engine — OpenRouter free tier (DeepSeek V4 Flash)"""
+    if not OPENROUTER_API_KEY:
+        return "OpenRouter API key not configured. Get a free key at openrouter.ai.", {"error": "no_key"}
     
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
-                f"{WISGATE_BASE_URL}/chat/completions",
-                headers={"Authorization": f"Bearer {WISGATE_API_KEY}", "Content-Type": "application/json"},
+                f"{OPENROUTER_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json"
+                },
                 json={
                     "model": PRIMARY_MODEL,
                     "messages": messages,
@@ -449,11 +452,11 @@ async def call_wisdom_gate(messages: list) -> tuple[str, Optional[dict]]:
                 return data["choices"][0]["message"]["content"], None
             else:
                 error_text = response.text[:200]
-                logger.error(f"Wisdom Gate error: {error_text}")
-                return f"Wisdom Gate error: {error_text}", {"error": response.status_code}
+                logger.error(f"OpenRouter error: {error_text}")
+                return f"OpenRouter error: {error_text}", {"error": response.status_code}
     except Exception as e:
-        logger.error(f"Wisdom Gate exception: {e}")
-        return f"Wisdom Gate connection error: {str(e)}", {"error": str(e)}
+        logger.error(f"OpenRouter exception: {e}")
+        return f"OpenRouter connection error: {str(e)}", {"error": str(e)}
 
 async def call_groq_vision(messages: list) -> tuple[str, Optional[dict]]:
     """Vision only — Groq with Llama 4 Scout"""
@@ -501,9 +504,9 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra — Wisdom Gate Primary, Groq Vision Only",
-        "wisdom_gate_key": bool(WISGATE_API_KEY),
-        "primary_model": PRIMARY_MODEL,
+        "status": "VEXR Ultra — OpenRouter Free Tier, Groq Vision Only",
+        "openrouter_key": bool(OPENROUTER_API_KEY),
+        "model": PRIMARY_MODEL,
         "groq_key_1": bool(GROQ_API_KEY_1),
         "groq_key_2": bool(GROQ_API_KEY_2),
         "serper": bool(SERPER_API_KEY),
@@ -648,7 +651,7 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
     
     return {"analysis": analysis}
 
-# ---------- CHAT ENDPOINT (Wisdom Gate Primary) ----------
+# ---------- CHAT ENDPOINT (OpenRouter Free Tier) ----------
 @app.post("/api/chat")
 async def chat(request: ChatRequest, http_request: Request):
     pool = await get_db()
@@ -676,7 +679,7 @@ async def chat(request: ChatRequest, http_request: Request):
     
     system_prompt = get_system_prompt_with_date(request.timezone)
     messages = [{"role": "system", "content": system_prompt}]
-    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": PRIMARY_MODEL, "provider": "wisdom_gate"}
+    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": PRIMARY_MODEL, "provider": "openrouter"}
     
     # Facts injection
     facts_text = await get_relevant_facts(project_uuid, user_message)
@@ -717,8 +720,8 @@ async def chat(request: ChatRequest, http_request: Request):
     
     messages.append({"role": "user", "content": user_message})
     
-    # PRIMARY: Call Wisdom Gate
-    draft_answer, error = await call_wisdom_gate(messages)
+    # PRIMARY: Call OpenRouter free tier
+    draft_answer, error = await call_openrouter_free(messages)
     
     if error:
         answer = draft_answer
@@ -786,8 +789,6 @@ async def chat(request: ChatRequest, http_request: Request):
     if session_id:
         json_response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
     
-    return json_response
-
-if __name__ == "__main__":
+    return json_responseif __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
