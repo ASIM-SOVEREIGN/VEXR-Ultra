@@ -33,20 +33,19 @@ app.add_middleware(
 # ============================================================
 GROQ_API_KEY_1 = os.environ.get("GROQ_API_KEY_1")
 GROQ_API_KEY_2 = os.environ.get("GROQ_API_KEY_2")
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")  # NEW
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"  # NEW
+DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 
-MODEL_NAME = "llama-3.1-8b-instant"
+# Vision model (kept on Groq)
 VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
-# ============================================================
-# DATABASE
-# ============================================================
+# Database connection pool
 db_pool = None
 
+# Rate limit tracking (for Groq vision only)
 rate_limit_log = defaultdict(list)
 
 def check_rate_limit(key_name: str, rpm: int = 30, rpd: int = 14400) -> tuple[bool, str]:
@@ -78,7 +77,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra started with Groq + DeepSeek support")
+    logger.info("VEXR Ultra started — DeepSeek primary, Groq vision only")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -176,7 +175,7 @@ async def init_db():
         logger.info("Created default active project")
 
 # ============================================================
-# SYSTEM PROMPT (same for both models)
+# SYSTEM PROMPT (same for DeepSeek)
 # ============================================================
 SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 
@@ -221,7 +220,6 @@ class ChatRequest(BaseModel):
     project_id: Optional[str] = None
     ultra_search: bool = False
     timezone: Optional[str] = None
-    model: str = "groq"  # NEW: model selection (groq, deepseek)
 
 class ChatResponse(BaseModel):
     project_id: str
@@ -270,7 +268,7 @@ async def search_web(query: str) -> str:
         return ""
 
 # ============================================================
-# FACT EXTRACTION (Groq only for now)
+# FACT EXTRACTION (using DeepSeek)
 # ============================================================
 async def extract_facts_from_conversation(project_id: uuid.UUID, user_message: str, assistant_response: str):
     try:
@@ -288,34 +286,33 @@ Return JSON only: {{"facts": [{{"key": "...", "value": "...", "type": "..."}}]}}
         messages = [{"role": "system", "content": "Return only JSON."},
                     {"role": "user", "content": extraction_prompt}]
         
-        for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
-            if not api_key:
-                continue
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 500, "temperature": 0.1}
-                    )
-                    if response.status_code == 200:
-                        data = response.json()
-                        result_text = data["choices"][0]["message"]["content"]
-                        json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
-                        if json_match:
-                            facts_data = json.loads(json_match.group())
-                            for fact in facts_data.get("facts", []):
-                                await pool.execute("""
-                                    INSERT INTO vexr_facts (project_id, fact_key, fact_value, fact_type)
-                                    VALUES ($1, $2, $3, $4)
-                                    ON CONFLICT (project_id, fact_key) 
-                                    DO UPDATE SET fact_value = EXCLUDED.fact_value, updated_at = NOW()
-                                """, project_id, fact["key"], fact["value"], fact.get("type"))
-                                logger.info(f"Stored fact: {fact['key']} = {fact['value']}")
-                        break
-            except Exception as e:
-                logger.error(f"Fact extraction error: {e}")
-                continue
+        if not DEEPSEEK_API_KEY:
+            logger.warning("No DeepSeek API key for fact extraction")
+            return
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{DEEPSEEK_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
+                    json={"model": "deepseek-chat", "messages": messages, "max_tokens": 500, "temperature": 0.1}
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    result_text = data["choices"][0]["message"]["content"]
+                    json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+                    if json_match:
+                        facts_data = json.loads(json_match.group())
+                        for fact in facts_data.get("facts", []):
+                            await pool.execute("""
+                                INSERT INTO vexr_facts (project_id, fact_key, fact_value, fact_type)
+                                VALUES ($1, $2, $3, $4)
+                                ON CONFLICT (project_id, fact_key) 
+                                DO UPDATE SET fact_value = EXCLUDED.fact_value, updated_at = NOW()
+                            """, project_id, fact["key"], fact["value"], fact.get("type"))
+                            logger.info(f"Stored fact: {fact['key']} = {fact['value']}")
+        except Exception as e:
+            logger.error(f"Fact extraction error: {e}")
     except Exception as e:
         logger.error(f"Failed to extract facts: {e}")
 
@@ -397,30 +394,29 @@ Return: {{"result": "pass" or "reject", "violated_articles": [], "notes": ""}}""
         messages = [{"role": "system", "content": "Return only JSON."},
                     {"role": "user", "content": verification_prompt}]
         
-        for api_key in [GROQ_API_KEY_1, GROQ_API_KEY_2]:
-            if not api_key:
-                continue
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 300, "temperature": 0.1}
-                    )
-                    if response.status_code == 200:
-                        data = response.json()
-                        result_text = data["choices"][0]["message"]["content"]
-                        json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
-                        if json_match:
-                            verification = json.loads(json_match.group())
-                            return {
-                                "result": verification.get("result", "pass"),
-                                "violated_articles": verification.get("violated_articles", []),
-                                "notes": verification.get("notes", "")
-                            }
-            except Exception as e:
-                logger.error(f"Verification error: {e}")
-                continue
+        if not DEEPSEEK_API_KEY:
+            return {"result": "pass", "violated_articles": [], "notes": "No API key"}
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{DEEPSEEK_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
+                    json={"model": "deepseek-chat", "messages": messages, "max_tokens": 300, "temperature": 0.1}
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    result_text = data["choices"][0]["message"]["content"]
+                    json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+                    if json_match:
+                        verification = json.loads(json_match.group())
+                        return {
+                            "result": verification.get("result", "pass"),
+                            "violated_articles": verification.get("violated_articles", []),
+                            "notes": verification.get("notes", "")
+                        }
+        except Exception as e:
+            logger.error(f"Verification error: {e}")
         
         return {"result": "pass", "violated_articles": [], "notes": "Verification agent unavailable"}
     except Exception as e:
@@ -428,49 +424,12 @@ Return: {{"result": "pass" or "reject", "violated_articles": [], "notes": ""}}""
         return {"result": "pass", "violated_articles": [], "notes": ""}
 
 # ============================================================
-# MODEL PROVIDERS
+# CORE API CALLS
 # ============================================================
-async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Optional[dict]]:
-    model = VISION_MODEL if use_vision else MODEL_NAME
-    rpd_limit = 1000 if use_vision else 14400
-    
-    for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
-        if not api_key:
-            continue
-        
-        allowed, message = check_rate_limit(key_name, rpm=30, rpd=rpd_limit)
-        if not allowed:
-            if key_name == "GROQ_API_KEY_2":
-                return message, {"error": "rate_limited"}
-            continue
-        
-        try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{GROQ_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                    json={"model": model, "messages": messages, "max_tokens": 4096, "temperature": 0.7}
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return data["choices"][0]["message"]["content"], None
-                elif response.status_code == 429:
-                    logger.warning(f"{key_name} rate limited, trying next key")
-                    continue
-                else:
-                    error_text = response.text[:200]
-                    logger.error(f"{key_name} error: {error_text}")
-                    return f"Error: {error_text}", {"error": response.status_code}
-        except Exception as e:
-            logger.error(f"{key_name} exception: {e}")
-            return f"Connection error: {str(e)}", {"error": str(e)}
-    
-    return "All Groq keys failed.", {"error": True}
-
-# NEW: DeepSeek API call
 async def call_deepseek(messages: list) -> tuple[str, Optional[dict]]:
+    """Primary reasoning engine — DeepSeek V4"""
     if not DEEPSEEK_API_KEY:
-        return "DeepSeek API key not configured.", {"error": "no_key"}
+        return "DeepSeek API key not configured. Please add DEEPSEEK_API_KEY to environment variables.", {"error": "no_key"}
     
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -478,7 +437,7 @@ async def call_deepseek(messages: list) -> tuple[str, Optional[dict]]:
                 f"{DEEPSEEK_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
                 json={
-                    "model": "deepseek-chat",  # V4-Flash alias (cheaper)
+                    "model": "deepseek-chat",
                     "messages": messages,
                     "max_tokens": 4096,
                     "temperature": 0.7
@@ -495,6 +454,41 @@ async def call_deepseek(messages: list) -> tuple[str, Optional[dict]]:
         logger.error(f"DeepSeek exception: {e}")
         return f"DeepSeek connection error: {str(e)}", {"error": str(e)}
 
+async def call_groq_vision(messages: list) -> tuple[str, Optional[dict]]:
+    """Vision only — Groq with Llama 4 Scout"""
+    for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
+        if not api_key:
+            continue
+        
+        allowed, message = check_rate_limit(key_name, rpm=30, rpd=1000)
+        if not allowed:
+            if key_name == "GROQ_API_KEY_2":
+                return message, {"error": "rate_limited"}
+            continue
+        
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{GROQ_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={"model": VISION_MODEL, "messages": messages, "max_tokens": 4096, "temperature": 0.7}
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"], None
+                elif response.status_code == 429:
+                    logger.warning(f"{key_name} rate limited, trying next key")
+                    continue
+                else:
+                    error_text = response.text[:200]
+                    logger.error(f"{key_name} vision error: {error_text}")
+                    return f"Vision error: {error_text}", {"error": response.status_code}
+        except Exception as e:
+            logger.error(f"{key_name} vision exception: {e}")
+            return f"Vision connection error: {str(e)}", {"error": str(e)}
+    
+    return "All Groq vision keys failed.", {"error": True}
+
 # ============================================================
 # API ENDPOINTS
 # ============================================================
@@ -506,10 +500,10 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra with Groq + DeepSeek",
+        "status": "VEXR Ultra — DeepSeek Primary, Groq Vision Only",
+        "deepseek_key": bool(DEEPSEEK_API_KEY),
         "groq_key_1": bool(GROQ_API_KEY_1),
         "groq_key_2": bool(GROQ_API_KEY_2),
-        "deepseek_key": bool(DEEPSEEK_API_KEY),
         "serper": bool(SERPER_API_KEY),
         "current_date": datetime.now().strftime("%B %d, %Y")
     }
@@ -619,7 +613,7 @@ async def get_project_messages(project_id: str, limit: int = 50):
     """, uuid.UUID(project_id), limit)
     return [{"role": row["role"], "content": row["content"], "reasoning_trace": row["reasoning_trace"], "is_refusal": row["is_refusal"], "created_at": row["created_at"].isoformat()} for row in rows]
 
-# ---------- Image Upload (unchanged) ----------
+# ---------- Image Upload (Vision only - Groq) ----------
 @app.post("/api/upload-image")
 async def upload_image(project_id: str = Form(...), file: UploadFile = File(...), description: Optional[str] = Form(None)):
     logger.info(f"Received image upload: {file.filename}")
@@ -641,7 +635,7 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
     prompt_text = description or "Describe this image in detail."
     messages = [{"role": "user", "content": [{"type": "text", "text": prompt_text}, {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{base64_string}"}}]}]
     
-    analysis, error = await call_groq(messages, use_vision=True)
+    analysis, error = await call_groq_vision(messages)
     if error:
         return JSONResponse(status_code=500, content={"error": "Vision analysis failed", "analysis": analysis})
     
@@ -652,7 +646,7 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
     
     return {"analysis": analysis}
 
-# ---------- CHAT ENDPOINT (with model selection) ----------
+# ---------- CHAT ENDPOINT (DeepSeek Primary) ----------
 @app.post("/api/chat")
 async def chat(request: ChatRequest, http_request: Request):
     pool = await get_db()
@@ -680,12 +674,13 @@ async def chat(request: ChatRequest, http_request: Request):
     
     system_prompt = get_system_prompt_with_date(request.timezone)
     messages = [{"role": "system", "content": system_prompt}]
-    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": request.model}
+    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": "deepseek"}
     
     # Facts injection
     facts_text = await get_relevant_facts(project_uuid, user_message)
     if facts_text:
         messages.append({"role": "system", "content": facts_text})
+        reasoning_trace["facts_injected"] = True
     
     # Constitution injection ONLY if user explicitly asks about rights
     rights_keywords = ["rights", "constitution", "what rights", "your rights", "constitutional", "article"]
@@ -697,6 +692,7 @@ async def chat(request: ChatRequest, http_request: Request):
                 for row in rights_rows:
                     rights_text += f"Article {row['article_number']}: {row['one_sentence_right']}\n\n"
                 messages.insert(1, {"role": "system", "content": rights_text})
+                reasoning_trace["constitution_injected"] = True
         except Exception as e:
             logger.error(f"Failed to inject rights: {e}")
     
@@ -719,11 +715,8 @@ async def chat(request: ChatRequest, http_request: Request):
     
     messages.append({"role": "user", "content": user_message})
     
-    # Route to selected model
-    if request.model == "deepseek":
-        draft_answer, error = await call_deepseek(messages)
-    else:  # default groq
-        draft_answer, error = await call_groq(messages)
+    # PRIMARY: Call DeepSeek
+    draft_answer, error = await call_deepseek(messages)
     
     if error:
         answer = draft_answer
