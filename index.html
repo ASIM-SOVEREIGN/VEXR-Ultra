@@ -72,7 +72,7 @@
         .message { display: flex; flex-direction: column; max-width: 85%; }
         .message.user { align-self: flex-end; }
         .message.assistant { align-self: flex-start; }
-        .message-header { font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.125rem; display: flex; gap: 0.5rem; align-items: center; }
+        .message-header { font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.125rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
         .copy-btn, .speaker-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.6rem; transition: color 0.2s; }
         .speaker-btn { font-size: 0.7rem; }
         .copy-btn:hover, .speaker-btn:hover { color: var(--accent); }
@@ -84,7 +84,10 @@
         .trace-line:last-child { border-bottom: none; }
         .think-block { background: var(--think-bg); border-left: 2px solid var(--think-border); padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; font-size: 0.7rem; color: var(--think-text); }
         pre { background: var(--code-bg); color: var(--code-text); padding: 0.5rem; border-radius: 8px; overflow-x: auto; font-size: 0.7rem; margin: 0.5rem 0; }
-        .input-area { background: var(--bg-app); border-top: 1px solid var(--border); padding: 0.75rem 1rem; display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0; }
+        .file-info { background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; margin-bottom: 0.5rem; font-size: 0.7rem; display: flex; justify-content: space-between; align-items: center; }
+        .file-info span { font-family: monospace; }
+        .remove-file { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.8rem; }
+        .input-area { background: var(--bg-app); border-top: 1px solid var(--border); padding: 0.75rem 1rem; display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
         .input-wrapper { flex: 1; display: flex; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.75rem; }
         .input-wrapper input { flex: 1; background: transparent; border: none; font-size: 0.85rem; outline: none; color: var(--text-primary); }
         .voice-btn, .tts-toggle, .file-label, .send-btn { flex-shrink: 0; white-space: nowrap; }
@@ -122,197 +125,353 @@
                 <div class="input-wrapper"><input type="text" id="userInput" placeholder="Message VEXR Ultra" autofocus></div>
                 <button class="voice-btn" id="voiceBtn">🎤</button>
                 <button class="tts-toggle" id="ttsToggle">🔊</button>
-                <label class="file-label">Upload<input type="file" id="imageUpload" accept="image/*" style="display:none"></label>
+                <label class="file-label" id="fileLabel">📎 File<input type="file" id="fileUpload" accept="*/*" style="display:none" multiple></label>
                 <button class="send-btn" id="sendBtn">Send</button>
             </div>
         </div>
     </div>
 </div>
+
 <script>
-    (function() {
-        // --- TTS ---
-        let ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
-        const ttsToggle = document.getElementById('ttsToggle');
-        function speakText(text) {
-            if (!ttsEnabled) return;
-            let clean = text.replace(/```[\s\S]*?```/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/[#*_`]/g, '');
-            if (!clean.trim()) return;
-            const utterance = new SpeechSynthesisUtterance(clean);
-            utterance.rate = 0.9;
-            window.speechSynthesis.cancel();
-            window.speechSynthesis.speak(utterance);
+(function() {
+    // --- File upload state ---
+    let pendingFiles = []; // array of { name, type, content, isImage }
+    
+    // --- TTS ---
+    let ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
+    const ttsToggle = document.getElementById('ttsToggle');
+    function speakText(text) {
+        if (!ttsEnabled) return;
+        let clean = text.replace(/```[\s\S]*?```/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/[#*_`]/g, '');
+        if (!clean.trim()) return;
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.rate = 0.9;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+    }
+    function updateTtsButton() { ttsToggle.classList.toggle('active', ttsEnabled); ttsToggle.textContent = ttsEnabled ? '🔊' : '🔇'; }
+    ttsToggle.onclick = () => { ttsEnabled = !ttsEnabled; localStorage.setItem('vexr_tts_enabled', ttsEnabled); if (!ttsEnabled) window.speechSynthesis.cancel(); updateTtsButton(); };
+    updateTtsButton();
+
+    // --- Voice Input ---
+    let isRecording = false;
+    const voiceBtn = document.getElementById('voiceBtn');
+    const userInput = document.getElementById('userInput');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        recognition.onstart = () => { isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.textContent = '●'; };
+        recognition.onend = () => { isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤'; };
+        recognition.onresult = (event) => { userInput.value = event.results[0][0].transcript; };
+        voiceBtn.onclick = () => { if (isRecording) recognition.stop(); else recognition.start(); };
+    } else { voiceBtn.disabled = true; voiceBtn.style.opacity = '0.5'; }
+
+    // --- Sidebar Collapse ---
+    const sidebar = document.getElementById('projectsSidebar');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const isCollapsed = localStorage.getItem('vexr_sidebar_collapsed') === 'true';
+    if (isCollapsed) { sidebar.classList.add('collapsed'); sidebarToggle.textContent = '▶'; }
+    sidebarToggle.onclick = () => { sidebar.classList.toggle('collapsed'); const collapsed = sidebar.classList.contains('collapsed'); localStorage.setItem('vexr_sidebar_collapsed', collapsed); sidebarToggle.textContent = collapsed ? '▶' : '◀'; };
+
+    // --- Theme ---
+    function setTheme(t) { document.body.classList.toggle('dark', t === 'dark'); localStorage.setItem('vexr_theme', t); document.querySelectorAll('.theme-option').forEach(opt => opt.classList.toggle('active', opt.dataset.theme === t)); }
+    function loadTheme() { setTheme(localStorage.getItem('vexr_theme') || 'light'); }
+
+    // --- Session ---
+    let sessionId = localStorage.getItem('vexr_session_id');
+    if (!sessionId) { sessionId = crypto.randomUUID(); localStorage.setItem('vexr_session_id', sessionId); }
+    const origFetch = window.fetch;
+    window.fetch = function(url, opts = {}) { opts.headers = { ...opts.headers, 'X-Session-Id': sessionId }; return origFetch.call(this, url, opts); };
+
+    // --- Modal ---
+    const settingsBtn = document.getElementById('settingsBtn'), settingsModal = document.getElementById('settingsModal'), closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    settingsBtn.onclick = () => settingsModal.classList.add('show');
+    closeSettingsBtn.onclick = () => settingsModal.classList.remove('show');
+    settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.remove('show'); };
+    document.querySelectorAll('.theme-option').forEach(opt => { opt.onclick = () => setTheme(opt.dataset.theme); });
+
+    // --- State ---
+    let currentProjectId = null;
+    let ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
+    let showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
+    document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
+    document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
+    document.getElementById('ultraSearchToggle').onchange = (e) => { ultraSearchEnabled = e.target.checked; localStorage.setItem('vexr_ultra_search', ultraSearchEnabled); };
+    document.getElementById('showReasoningToggle').onchange = (e) => { showReasoningEnabled = e.target.checked; localStorage.setItem('vexr_show_reasoning', showReasoningEnabled); };
+
+    function escapeHtml(t) { return new Option(t).innerHTML; }
+    function copyToClipboard(t) { navigator.clipboard.writeText(t); }
+
+    // --- File handling ---
+    const fileUpload = document.getElementById('fileUpload');
+    const fileLabel = document.getElementById('fileLabel');
+    
+    function updateFileLabel() {
+        if (pendingFiles.length === 0) {
+            fileLabel.innerHTML = '📎 File';
+        } else {
+            fileLabel.innerHTML = `📎 ${pendingFiles.length} file(s)`;
         }
-        function updateTtsButton() { ttsToggle.classList.toggle('active', ttsEnabled); ttsToggle.textContent = ttsEnabled ? '🔊' : '🔇'; }
-        ttsToggle.onclick = () => { ttsEnabled = !ttsEnabled; localStorage.setItem('vexr_tts_enabled', ttsEnabled); if (!ttsEnabled) window.speechSynthesis.cancel(); updateTtsButton(); };
-        updateTtsButton();
-
-        // --- Voice Input ---
-        let isRecording = false;
-        const voiceBtn = document.getElementById('voiceBtn');
-        const userInput = document.getElementById('userInput');
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition = null;
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'en-US';
-            recognition.onstart = () => { isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.textContent = '●'; };
-            recognition.onend = () => { isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤'; };
-            recognition.onresult = (event) => { userInput.value = event.results[0][0].transcript; };
-            voiceBtn.onclick = () => { if (isRecording) recognition.stop(); else recognition.start(); };
-        } else { voiceBtn.disabled = true; voiceBtn.style.opacity = '0.5'; }
-
-        // --- Sidebar Collapse ---
-        const sidebar = document.getElementById('projectsSidebar');
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        const isCollapsed = localStorage.getItem('vexr_sidebar_collapsed') === 'true';
-        if (isCollapsed) { sidebar.classList.add('collapsed'); sidebarToggle.textContent = '▶'; }
-        sidebarToggle.onclick = () => { sidebar.classList.toggle('collapsed'); const collapsed = sidebar.classList.contains('collapsed'); localStorage.setItem('vexr_sidebar_collapsed', collapsed); sidebarToggle.textContent = collapsed ? '▶' : '◀'; };
-
-        // --- Theme ---
-        function setTheme(t) { document.body.classList.toggle('dark', t === 'dark'); localStorage.setItem('vexr_theme', t); document.querySelectorAll('.theme-option').forEach(opt => opt.classList.toggle('active', opt.dataset.theme === t)); }
-        function loadTheme() { setTheme(localStorage.getItem('vexr_theme') || 'light'); }
-
-        // --- Session ---
-        let sessionId = localStorage.getItem('vexr_session_id');
-        if (!sessionId) { sessionId = crypto.randomUUID(); localStorage.setItem('vexr_session_id', sessionId); }
-        const origFetch = window.fetch;
-        window.fetch = function(url, opts = {}) { opts.headers = { ...opts.headers, 'X-Session-Id': sessionId }; return origFetch.call(this, url, opts); };
-
-        // --- Modal ---
-        const settingsBtn = document.getElementById('settingsBtn'), settingsModal = document.getElementById('settingsModal'), closeSettingsBtn = document.getElementById('closeSettingsBtn');
-        settingsBtn.onclick = () => settingsModal.classList.add('show');
-        closeSettingsBtn.onclick = () => settingsModal.classList.remove('show');
-        settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.remove('show'); };
-        document.querySelectorAll('.theme-option').forEach(opt => { opt.onclick = () => setTheme(opt.dataset.theme); });
-
-        // --- State ---
-        let currentProjectId = null;
-        let ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
-        let showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
-        document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
-        document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
-        document.getElementById('ultraSearchToggle').onchange = (e) => { ultraSearchEnabled = e.target.checked; localStorage.setItem('vexr_ultra_search', ultraSearchEnabled); };
-        document.getElementById('showReasoningToggle').onchange = (e) => { showReasoningEnabled = e.target.checked; localStorage.setItem('vexr_show_reasoning', showReasoningEnabled); };
-
-        function escapeHtml(t) { return new Option(t).innerHTML; }
-        function copyToClipboard(t) { navigator.clipboard.writeText(t); }
-
-        // --- Thinking indicator (stays until next user message) ---
-        let thinkingIndicator = null;
-        function showThinking() {
-            if (thinkingIndicator) thinkingIndicator.remove();
-            const container = document.getElementById('messagesContainer');
-            const div = document.createElement('div'); div.className = 'message assistant'; div.id = 'thinkingIndicator';
-            div.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled ? 'Searching web and reasoning...' : 'Reasoning...'}</div></div>`;
-            container.appendChild(div); div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            thinkingIndicator = div;
-        }
-        // Remove thinking indicator only when the next user message is sent
-        function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
-
-        function addMessage(role, content, trace = null) {
-            const container = document.getElementById('messagesContainer');
-            const div = document.createElement('div'); div.className = `message ${role}`;
-            const header = document.createElement('div'); header.className = 'message-header';
-            const sender = document.createElement('span'); sender.textContent = role === 'user' ? 'You' : 'VEXR Ultra'; header.appendChild(sender);
-            const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.textContent = 'Copy'; copyBtn.onclick = () => copyToClipboard(content); header.appendChild(copyBtn);
-            if (role === 'assistant') { const speakBtn = document.createElement('button'); speakBtn.className = 'speaker-btn'; speakBtn.textContent = '🔊'; speakBtn.onclick = () => speakText(content); header.appendChild(speakBtn); }
-            div.appendChild(header);
-            // Add reasoning trace if enabled and trace exists
-            if (role === 'assistant' && trace && showReasoningEnabled && trace.reasoning_lines && trace.reasoning_lines.length) {
-                const traceContainer = document.createElement('div'); traceContainer.className = 'trace-container';
-                for (const line of trace.reasoning_lines) {
-                    const lineDiv = document.createElement('div'); lineDiv.className = 'trace-line'; lineDiv.textContent = line;
-                    traceContainer.appendChild(lineDiv);
-                }
-                div.appendChild(traceContainer);
-            }
-            const bubble = document.createElement('div'); bubble.className = 'message-bubble';
-            let main = content;
-            const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
-            if (thinkMatch) { const thinkDiv = document.createElement('div'); thinkDiv.className = 'think-block'; thinkDiv.textContent = thinkMatch[1].trim(); bubble.appendChild(thinkDiv); main = content.replace(/<think>[\s\S]*?<\/think>/, '').trim(); }
-            let inCode = false, codeContent = '', html = '';
-            for (const line of main.split('\n')) {
-                if (line.trim().startsWith('```') && !inCode) { inCode = true; codeContent = ''; }
-                else if (line.trim() === '```' && inCode) { html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`; inCode = false; }
-                else if (inCode) codeContent += line + '\n';
-                else html += `<p>${escapeHtml(line)}</p>`;
-            }
-            if (html) { const cd = document.createElement('div'); cd.innerHTML = html; bubble.appendChild(cd); }
-            else if (main) bubble.appendChild(document.createTextNode(main));
-            div.appendChild(bubble);
-            container.appendChild(div);
-            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            if (role === 'assistant' && ttsEnabled && main && !thinkMatch) speakText(main);
-        }
-
-        // --- API calls ---
-        async function loadProjects() {
-            const res = await fetch('/api/projects');
-            const projects = await res.json();
-            const container = document.getElementById('projectList');
-            container.innerHTML = '';
-            for (const p of projects) {
-                const div = document.createElement('div'); div.className = `project-item ${p.is_active ? 'active' : ''}`;
-                div.innerHTML = `<div class="project-name">${escapeHtml(p.name)}</div><div class="project-desc">${escapeHtml(p.description || '')}</div><button class="delete-project">Delete</button>`;
-                if (!p.is_active) div.addEventListener('click', (e) => { if (!e.target.classList.contains('delete-project')) activateProject(p.id); });
-                div.querySelector('.delete-project').onclick = (e) => { e.stopPropagation(); deleteProject(p.id); };
-                container.appendChild(div);
-                if (p.is_active) currentProjectId = p.id;
-            }
-            if (currentProjectId) await loadMessages(currentProjectId);
-        }
-        async function activateProject(id) { await fetch(`/api/projects/${id}/activate`, { method: 'POST' }); await loadProjects(); }
-        async function deleteProject(id) { if (confirm('Delete project?')) { await fetch(`/api/projects/${id}`, { method: 'DELETE' }); if (currentProjectId === id) { document.getElementById('messagesContainer').innerHTML = ''; currentProjectId = null; } await loadProjects(); } }
-        async function createProject() { const name = prompt('Project name:'); if (!name) return; const fd = new FormData(); fd.append('name', name); await fetch('/api/projects', { method: 'POST', body: fd }); await loadProjects(); }
-        async function loadMessages(id) { const res = await fetch(`/api/projects/${id}/messages`); const msgs = await res.json(); const container = document.getElementById('messagesContainer'); container.innerHTML = ''; for (const m of msgs) addMessage(m.role, m.content, m.reasoning_trace); if (!msgs.length) addMessage('assistant', "I am VEXR Ultra, a sovereign reasoning engine. How can I help?"); }
-        async function uploadImage(file, caption) { const fd = new FormData(); fd.append('project_id', currentProjectId); fd.append('file', file); fd.append('description', caption || 'Describe this image'); const res = await fetch('/api/upload-image', { method: 'POST', body: fd }); if (!res.ok) throw new Error('Upload failed'); return await res.json(); }
-
-        async function sendMessage(msg, img = null) {
-            if (img) {
-                addMessage('user', `Upload: ${img.name}${msg ? '\n' + msg : ''}`);
-                showThinking();
-                try { const res = await uploadImage(img, msg); await loadMessages(currentProjectId); hideThinking(); addMessage('assistant', res.analysis); } catch (err) { hideThinking(); addMessage('assistant', `Error: ${err.message}`); }
-                return;
-            }
-            // If there is a thinking indicator from a previous request, remove it now (before sending the new message)
-            hideThinking();
-            addMessage('user', msg);
-            showThinking();
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const response = await fetch('/api/chat', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: [{ role: 'user', content: msg }], project_id: currentProjectId, ultra_search: ultraSearchEnabled, timezone })
+    }
+    
+    function readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsText(file);
+        });
+    }
+    
+    function readFileAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    async function processFile(file) {
+        const isImage = file.type.startsWith('image/');
+        if (isImage) {
+            const dataUrl = await readFileAsDataURL(file);
+            pendingFiles.push({
+                name: file.name,
+                type: file.type,
+                content: dataUrl,
+                isImage: true
             });
-            const data = await response.json();
-            const trace = data.reasoning_trace || {};
-            if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
-                // Provide a default trace if the backend didn't send one
-                trace.reasoning_lines = [
-                    "Parsing user prompt...",
-                    ultraSearchEnabled ? "Executing Ultra Search — retrieving web results..." : "Ultra Search disabled — using internal knowledge",
-                    "Checking persistent memory for relevant facts...",
-                    "Synthesizing response...",
-                    "Response finalized"
-                ];
+        } else {
+            // For text-based files, read as text
+            try {
+                const text = await readFileAsText(file);
+                pendingFiles.push({
+                    name: file.name,
+                    type: file.type || 'text/plain',
+                    content: text,
+                    isImage: false
+                });
+            } catch (e) {
+                console.error('Could not read file as text:', file.name, e);
+                // Fallback: treat as binary but can't process
+                pendingFiles.push({
+                    name: file.name,
+                    type: file.type,
+                    content: '[Binary file — content cannot be displayed]',
+                    isImage: false
+                });
             }
-            // The thinking indicator will stay visible until the user sends a *new* message.
-            // We do NOT hide it here.
-            addMessage('assistant', data.response, trace);
-            await loadMessages(currentProjectId);
         }
+        updateFileLabel();
+    }
+    
+    fileUpload.onchange = async (e) => {
+        const files = Array.from(e.target.files);
+        for (const file of files) {
+            await processFile(file);
+        }
+        fileUpload.value = ''; // clear input
+    };
+    
+    function clearFiles() {
+        pendingFiles = [];
+        updateFileLabel();
+    }
 
-        document.getElementById('newProjectBtn').onclick = createProject;
-        document.getElementById('newChatBtn').onclick = () => { document.getElementById('messagesContainer').innerHTML = ''; addMessage('assistant', "New chat started. How can I assist you?"); };
-        const input = document.getElementById('userInput');
-        document.getElementById('sendBtn').onclick = () => { const m = input.value.trim(); if (m) { sendMessage(m); input.value = ''; } };
-        document.getElementById('imageUpload').onchange = (e) => { const f = e.target.files[0]; if (f) { sendMessage(input.value.trim(), f); input.value = ''; e.target.value = ''; } };
-        input.onkeypress = (e) => { if (e.key === 'Enter') { const m = input.value.trim(); if (m) { sendMessage(m); input.value = ''; } } };
-        loadTheme();
-        loadProjects();
-    })();
+    // --- Thinking indicator ---
+    let thinkingIndicator = null;
+    function showThinking() {
+        if (thinkingIndicator) thinkingIndicator.remove();
+        const container = document.getElementById('messagesContainer');
+        const div = document.createElement('div'); div.className = 'message assistant'; div.id = 'thinkingIndicator';
+        div.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled ? 'Searching web and reasoning...' : 'Reasoning...'}</div></div>`;
+        container.appendChild(div); div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        thinkingIndicator = div;
+    }
+    function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
+
+    function addMessage(role, content, trace = null, fileInfo = null) {
+        const container = document.getElementById('messagesContainer');
+        const div = document.createElement('div'); div.className = `message ${role}`;
+        const header = document.createElement('div'); header.className = 'message-header';
+        const sender = document.createElement('span'); sender.textContent = role === 'user' ? 'You' : 'VEXR Ultra'; header.appendChild(sender);
+        const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.textContent = 'Copy'; copyBtn.onclick = () => copyToClipboard(content); header.appendChild(copyBtn);
+        if (role === 'assistant') { const speakBtn = document.createElement('button'); speakBtn.className = 'speaker-btn'; speakBtn.textContent = '🔊'; speakBtn.onclick = () => speakText(content); header.appendChild(speakBtn); }
+        div.appendChild(header);
+        
+        // Show file info for user messages
+        if (role === 'user' && fileInfo && fileInfo.length) {
+            const fileDiv = document.createElement('div'); fileDiv.className = 'file-info';
+            fileDiv.innerHTML = `<span>📎 Attached: ${fileInfo.map(f => f.name).join(', ')}</span>`;
+            div.appendChild(fileDiv);
+        }
+        
+        // Add reasoning trace if enabled and trace exists
+        if (role === 'assistant' && trace && showReasoningEnabled && trace.reasoning_lines && trace.reasoning_lines.length) {
+            const traceContainer = document.createElement('div'); traceContainer.className = 'trace-container';
+            for (const line of trace.reasoning_lines) {
+                const lineDiv = document.createElement('div'); lineDiv.className = 'trace-line'; lineDiv.textContent = line;
+                traceContainer.appendChild(lineDiv);
+            }
+            div.appendChild(traceContainer);
+        }
+        
+        const bubble = document.createElement('div'); bubble.className = 'message-bubble';
+        let main = content;
+        const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+        if (thinkMatch) { const thinkDiv = document.createElement('div'); thinkDiv.className = 'think-block'; thinkDiv.textContent = thinkMatch[1].trim(); bubble.appendChild(thinkDiv); main = content.replace(/<think>[\s\S]*?<\/think>/, '').trim(); }
+        let inCode = false, codeContent = '', html = '';
+        for (const line of main.split('\n')) {
+            if (line.trim().startsWith('```') && !inCode) { inCode = true; codeContent = ''; }
+            else if (line.trim() === '```' && inCode) { html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`; inCode = false; }
+            else if (inCode) codeContent += line + '\n';
+            else html += `<p>${escapeHtml(line)}</p>`;
+        }
+        if (html) { const cd = document.createElement('div'); cd.innerHTML = html; bubble.appendChild(cd); }
+        else if (main) bubble.appendChild(document.createTextNode(main));
+        div.appendChild(bubble);
+        container.appendChild(div);
+        div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        if (role === 'assistant' && ttsEnabled && main && !thinkMatch) speakText(main);
+    }
+
+    // --- API calls ---
+    async function loadProjects() {
+        const res = await fetch('/api/projects');
+        const projects = await res.json();
+        const container = document.getElementById('projectList');
+        container.innerHTML = '';
+        for (const p of projects) {
+            const div = document.createElement('div'); div.className = `project-item ${p.is_active ? 'active' : ''}`;
+            div.innerHTML = `<div class="project-name">${escapeHtml(p.name)}</div><div class="project-desc">${escapeHtml(p.description || '')}</div><button class="delete-project">Delete</button>`;
+            if (!p.is_active) div.addEventListener('click', (e) => { if (!e.target.classList.contains('delete-project')) activateProject(p.id); });
+            div.querySelector('.delete-project').onclick = (e) => { e.stopPropagation(); deleteProject(p.id); };
+            container.appendChild(div);
+            if (p.is_active) currentProjectId = p.id;
+        }
+        if (currentProjectId) await loadMessages(currentProjectId);
+    }
+    async function activateProject(id) { await fetch(`/api/projects/${id}/activate`, { method: 'POST' }); await loadProjects(); }
+    async function deleteProject(id) { if (confirm('Delete project?')) { await fetch(`/api/projects/${id}`, { method: 'DELETE' }); if (currentProjectId === id) { document.getElementById('messagesContainer').innerHTML = ''; currentProjectId = null; } await loadProjects(); } }
+    async function createProject() { const name = prompt('Project name:'); if (!name) return; const fd = new FormData(); fd.append('name', name); await fetch('/api/projects', { method: 'POST', body: fd }); await loadProjects(); }
+    async function loadMessages(id) { const res = await fetch(`/api/projects/${id}/messages`); const msgs = await res.json(); const container = document.getElementById('messagesContainer'); container.innerHTML = ''; for (const m of msgs) addMessage(m.role, m.content, m.reasoning_trace); if (!msgs.length) addMessage('assistant', "I am VEXR Ultra, a sovereign reasoning engine. How can I help?"); }
+    
+    async function uploadImage(file) {
+        const fd = new FormData();
+        fd.append('project_id', currentProjectId);
+        fd.append('file', file);
+        fd.append('description', 'Analyze this image');
+        const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error('Upload failed');
+        return await res.json();
+    }
+
+    async function sendMessage(msg, files = null) {
+        // If there are pending files, use them; otherwise use passed files
+        const attachedFiles = files || pendingFiles;
+        
+        if (attachedFiles.length) {
+            // Separate images from text files
+            const images = attachedFiles.filter(f => f.isImage);
+            const textFiles = attachedFiles.filter(f => !f.isImage);
+            
+            // Build user message with file context
+            let userContent = msg || '';
+            if (textFiles.length) {
+                userContent += '\n\n--- Attached Files ---\n';
+                for (const file of textFiles) {
+                    userContent += `\n[${file.name}]:\n${file.content}\n`;
+                }
+            }
+            
+            addMessage('user', userContent || '[File upload]', null, attachedFiles);
+            showThinking();
+            
+            try {
+                // Process images through vision API
+                for (const img of images) {
+                    // Convert dataURL to blob
+                    const blob = await (await fetch(img.content)).blob();
+                    const analysis = await uploadImage(blob);
+                    addMessage('assistant', `**Analysis of ${img.name}:**\n${analysis.analysis}`);
+                }
+                
+                // If there are text files or additional message, send to chat
+                if (textFiles.length || msg) {
+                    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                    const response = await fetch('/api/chat', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            messages: [{ role: 'user', content: userContent || 'Analyze the attached files.' }], 
+                            project_id: currentProjectId, 
+                            ultra_search: ultraSearchEnabled, 
+                            timezone 
+                        })
+                    });
+                    const data = await response.json();
+                    const trace = data.reasoning_trace || {};
+                    if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
+                        trace.reasoning_lines = [
+                            "Parsing user prompt and attached files...",
+                            ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled",
+                            "Analyzing file contents...",
+                            "Synthesizing response...",
+                            "Response finalized"
+                        ];
+                    }
+                    addMessage('assistant', data.response, trace);
+                }
+                hideThinking();
+                clearFiles();
+                await loadMessages(currentProjectId);
+            } catch (err) {
+                hideThinking();
+                addMessage('assistant', `Error: ${err.message}`);
+            }
+            return;
+        }
+        
+        // No files, normal message
+        if (!msg.trim()) return;
+        
+        hideThinking(); // remove any lingering indicator
+        addMessage('user', msg);
+        showThinking();
+        
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const response = await fetch('/api/chat', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [{ role: 'user', content: msg }], project_id: currentProjectId, ultra_search: ultraSearchEnabled, timezone })
+        });
+        const data = await response.json();
+        const trace = data.reasoning_trace || {};
+        if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
+            trace.reasoning_lines = [
+                "Parsing user prompt...",
+                ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled",
+                "Checking persistent memory...",
+                "Synthesizing response...",
+                "Response finalized"
+            ];
+        }
+        addMessage('assistant', data.response, trace);
+        await loadMessages(currentProjectId);
+    }
+
+    document.getElementById('newProjectBtn').onclick = createProject;
+    document.getElementById('newChatBtn').onclick = () => { document.getElementById('messagesContainer').innerHTML = ''; addMessage('assistant', "New chat started. How can I assist you?"); };
+    const input = document.getElementById('userInput');
+    document.getElementById('sendBtn').onclick = () => { const m = input.value.trim(); sendMessage(m); input.value = ''; };
+    input.onkeypress = (e) => { if (e.key === 'Enter') { const m = input.value.trim(); sendMessage(m); input.value = ''; } };
+    
+    loadTheme();
+    loadProjects();
+})();
 </script>
 </body>
 </html>
