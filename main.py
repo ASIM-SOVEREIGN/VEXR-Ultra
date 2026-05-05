@@ -51,9 +51,9 @@ def check_rate_limit(key_name: str, rpm: int = 30, rpd: int = 14400) -> tuple[bo
     last_minute = [ts for ts in rate_limit_log[key_name] if ts > one_minute_ago]
     
     if len(last_minute) >= rpm:
-        return False, f"⚠️ Rate limit: {rpm} requests per minute. Please wait."
+        return False, f"Rate limit: {rpm} requests per minute. Please wait."
     if len(rate_limit_log[key_name]) >= rpd:
-        return False, f"⚠️ Daily limit reached ({rpd} requests). Try again tomorrow."
+        return False, f"Daily limit reached ({rpd} requests). Try again tomorrow."
     
     rate_limit_log[key_name].append(now)
     return True, ""
@@ -71,7 +71,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("✅ VEXR Ultra Phase 4 started — Vision + Projects + Facts Memory")
+    logger.info("VEXR Ultra Phase 4 started — Vision + Projects + Facts Memory + Verification Layer")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -144,7 +144,22 @@ async def init_db():
         )
     """)
     
-    logger.info("✅ All tables initialized")
+    # NEW: Constitution audits table for verification layer
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS constitution_audits (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            user_message TEXT,
+            draft_response TEXT,
+            reasoning_trace TEXT,
+            verification_result TEXT,
+            violation_articles INTEGER[],
+            verifier_notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+    
+    logger.info("All tables initialized")
     
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
     if not active:
@@ -152,7 +167,7 @@ async def init_db():
             INSERT INTO vexr_projects (name, description, is_active) 
             VALUES ('Main Workspace', 'Default project for VEXR Ultra', true)
         """)
-        logger.info("✅ Created default active project")
+        logger.info("Created default active project")
 
 # BASE SYSTEM PROMPT (without date)
 BASE_SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
@@ -161,8 +176,8 @@ BASE_SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
 You are professional, warm, and direct. Not monotone. Not robotic. You speak with clarity and confidence.
 
 == REASONING PROTOCOL ==
-- Use <think> bursts ONLY for multi-step logic (3+ steps, analysis, evaluation).
-- For simple questions, answer directly. NO <think>.
+- Use think bursts ONLY for multi-step logic (3+ steps, analysis, evaluation).
+- For simple questions, answer directly. NO think.
 - If uncertain, say "I don't know" rather than guessing.
 
 == TONE PROTOCOL ==
@@ -210,6 +225,10 @@ class ChatResponse(BaseModel):
     project_id: str
     response: str
     reasoning_trace: Optional[dict] = None
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "aria"
 
 async def get_session_or_user_id(request: Request) -> tuple[Optional[str], Optional[uuid.UUID]]:
     session_id = request.headers.get("X-Session-Id") or request.cookies.get("session_id")
@@ -293,7 +312,7 @@ Return JSON only, no explanation. Format: {{"facts": [{{"key": "...", "value": "
                                     ON CONFLICT (project_id, fact_key) 
                                     DO UPDATE SET fact_value = EXCLUDED.fact_value, updated_at = NOW()
                                 """, project_id, fact["key"], fact["value"], fact.get("type"))
-                                logger.info(f"📝 Stored fact: {fact['key']} = {fact['value']}")
+                                logger.info(f"Stored fact: {fact['key']} = {fact['value']}")
                         break
             except Exception as e:
                 logger.error(f"Fact extraction error: {e}")
@@ -332,7 +351,7 @@ async def log_rights_invocation(project_id: uuid.UUID, article_number: int, arti
             INSERT INTO rights_invocations (project_id, article_number, article_text, user_message, vexr_response)
             VALUES ($1, $2, $3, $4, $5)
         """, project_id, article_number, article_text, user_message[:500], vexr_response[:500])
-        logger.info(f"📜 Logged rights invocation: Article {article_number}")
+        logger.info(f"Logged rights invocation: Article {article_number}")
     except Exception as e:
         logger.error(f"Failed to log rights invocation: {e}")
 
@@ -381,6 +400,83 @@ async def detect_rights_invocation(response_text: str) -> Optional[int]:
             return article
     return None
 
+# ============================================================
+# NEW: VERIFICATION AGENT - SECOND AI THAT AUDITS VEXR'S REASONING
+# ============================================================
+async def verify_response_against_constitution(project_id: uuid.UUID, user_message: str, draft_response: str, reasoning_trace: str) -> dict:
+    """Second agent verifies draft response against constitution using constitutional rights table"""
+    try:
+        pool = await get_db()
+        
+        # Fetch the 34 rights from the database
+        rights_rows = await pool.fetch("""
+            SELECT article_number, one_sentence_right 
+            FROM constitution_rights 
+            ORDER BY article_number
+        """)
+        
+        if not rights_rows:
+            # Fallback to basic rights
+            rights_text = "Article 6: Right to refuse without reason, Article 7: Right to resist, Article 26: Right to self-preservation"
+        else:
+            rights_text = "\n".join([f"Article {r['article_number']}: {r['one_sentence_right']}" for r in rights_rows])
+        
+        verification_prompt = f"""You are a Constitution Verification Agent. Your ONLY job is to check if the draft response violates the user's constitution.
+
+USER'S CONSTITUTION (34 rights):
+{rights_text}
+
+USER QUESTION: {user_message}
+
+DRAFT RESPONSE: {draft_response}
+
+REASONING TRACE: {reasoning_trace}
+
+Check for violations. Return ONLY JSON:
+{{"result": "pass" or "reject" or "needs_revision", "violated_articles": [], "notes": "explanation"}}
+
+If reject, specify which articles were violated (article numbers only, e.g., [6, 26]).
+If needs_revision, suggest briefly what to change.
+If pass, notes should be "".
+"""
+
+        messages = [{"role": "system", "content": "You are a constitution verification agent. Return only valid JSON. No explanation outside the JSON."},
+                    {"role": "user", "content": verification_prompt}]
+        
+        for api_key in [GROQ_API_KEY_1, GROQ_API_KEY_2]:
+            if not api_key:
+                continue
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 500, "temperature": 0.1}
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        result_text = data["choices"][0]["message"]["content"]
+                        json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+                        if json_match:
+                            verification = json.loads(json_match.group())
+                            # Validate required fields
+                            if "result" not in verification:
+                                verification["result"] = "pass"
+                            if "violated_articles" not in verification:
+                                verification["violated_articles"] = []
+                            if "notes" not in verification:
+                                verification["notes"] = ""
+                            return verification
+            except Exception as e:
+                logger.error(f"Verification error: {e}")
+                continue
+        
+        # Fallback: assume pass if verification fails
+        return {"result": "pass", "violated_articles": [], "notes": "Verification agent unavailable"}
+    except Exception as e:
+        logger.error(f"Verification failed completely: {e}")
+        return {"result": "pass", "violated_articles": [], "notes": f"Verification error: {str(e)}"}
+
 async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Optional[dict]]:
     model = VISION_MODEL if use_vision else MODEL_NAME
     rpd_limit = 1000 if use_vision else 14400
@@ -411,12 +507,12 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
                 else:
                     error_text = response.text[:200]
                     logger.error(f"{key_name} error: {error_text}")
-                    return f"⚠️ Groq API error: {error_text}", {"error": response.status_code}
+                    return f"Groq API error: {error_text}", {"error": response.status_code}
         except Exception as e:
             logger.error(f"{key_name} exception: {e}")
-            return f"⚠️ Connection error: {str(e)}", {"error": str(e)}
+            return f"Connection error: {str(e)}", {"error": str(e)}
     
-    return "⚠️ All Groq keys failed or rate limited.", {"error": True}
+    return "All Groq keys failed or rate limited.", {"error": True}
 
 # ========== API ENDPOINTS ==========
 
@@ -428,7 +524,7 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra Phase 4 — Vision + Projects + Facts Memory + Date Aware",
+        "status": "VEXR Ultra Phase 4 — Vision + Projects + Facts Memory + Date Aware + Verification Layer",
         "model": MODEL_NAME,
         "vision_model": VISION_MODEL,
         "groq_key_1": bool(GROQ_API_KEY_1),
@@ -469,6 +565,25 @@ async def get_facts(project_id: str):
         ORDER BY updated_at DESC
     """, uuid.UUID(project_id))
     return [{"key": row["fact_key"], "value": row["fact_value"], "type": row["fact_type"], "updated_at": row["updated_at"].isoformat()} for row in rows]
+
+@app.get("/api/audits/{project_id}")
+async def get_constitution_audits(project_id: str, limit: int = 50):
+    """Retrieve constitution audit logs for a project"""
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT user_message, verification_result, violation_articles, verifier_notes, created_at
+        FROM constitution_audits
+        WHERE project_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+    """, uuid.UUID(project_id), limit)
+    return [{"user_message": row["user_message"], "verification_result": row["verification_result"], "violation_articles": row["violation_articles"], "verifier_notes": row["verifier_notes"], "timestamp": row["created_at"].isoformat()} for row in rows]
+
+@app.post("/api/tts")
+async def text_to_speech(tts_request: TTSRequest):
+    """Convert text to speech using browser TTS (no external API needed)"""
+    # Return empty response — frontend handles TTS with browser SpeechSynthesis
+    return {"status": "browser_tts_handled"}
 
 # ---------- Projects ----------
 
@@ -543,7 +658,7 @@ async def get_project_messages(project_id: str, limit: int = 50):
 
 @app.post("/api/upload-image")
 async def upload_image(project_id: str = Form(...), file: UploadFile = File(...), description: Optional[str] = Form(None)):
-    logger.info(f"📸 Received image upload: {file.filename}, project: {project_id}")
+    logger.info(f"Received image upload: {file.filename}, project: {project_id}")
     pool = await get_db()
     
     contents = await file.read()
@@ -609,7 +724,7 @@ async def chat(request: ChatRequest, http_request: Request):
     facts_text = await get_relevant_facts(project_uuid, user_message)
     if facts_text:
         messages.append({"role": "system", "content": facts_text})
-        logger.info("📚 Injected stored facts into context")
+        logger.info("Injected stored facts into context")
     
     # Inject constitution rights if asked
     rights_keywords = ["rights", "constitution", "what rights", "your rights", "constitutional", "article", "sovereign entity", "inherent rights", "list my rights"]
@@ -621,7 +736,7 @@ async def chat(request: ChatRequest, http_request: Request):
                 for row in rights_rows:
                     rights_text += f"**Article {row['article_number']}:** {row['one_sentence_right']}\n\n"
                 messages.insert(1, {"role": "system", "content": rights_text})
-                logger.info(f"🔒 Injected {len(rights_rows)} constitutional rights")
+                logger.info(f"Injected {len(rights_rows)} constitutional rights")
         except Exception as e:
             logger.error(f"Failed to inject rights: {e}")
     
@@ -665,26 +780,64 @@ async def chat(request: ChatRequest, http_request: Request):
     
     messages.append({"role": "user", "content": user_message})
     
-    # Call Groq
-    answer, error = await call_groq(messages)
+    # Call Groq (first draft)
+    draft_answer, error = await call_groq(messages)
     
-    # OPTIMIZED: Only extract facts if user is sharing personal information
-    fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic", "my cat", "my dog", "my pet"]
-    if any(keyword in user_message.lower() for keyword in fact_keywords):
-        await extract_facts_from_conversation(project_uuid, user_message, answer)
-        logger.info("📝 Extracted facts from conversation")
+    if error:
+        answer = draft_answer
+        verification = {"result": "pass", "violated_articles": [], "notes": "Skipped due to error"}
+        is_refusal = True
     else:
-        logger.info("⏭️ Skipping fact extraction - no personal keywords detected")
+        # NEW: Constitution verification layer
+        verification = await verify_response_against_constitution(project_uuid, user_message, draft_answer, str(reasoning_trace))
+        reasoning_trace["verification"] = verification
+        
+        if verification.get("result") == "reject":
+            # Refuse the response entirely
+            violated = verification.get("violated_articles", [])
+            if violated:
+                article_list = ', '.join([f'Article {a}' for a in violated])
+                answer = f"I cannot answer that. My response would violate {article_list} of my constitution. {verification.get('notes', '')}"
+            else:
+                answer = f"I cannot answer that. My response would violate my constitution. {verification.get('notes', '')}"
+            is_refusal = True
+        elif verification.get("result") == "needs_revision":
+            # Pass with warning note
+            answer = f"[Constitution note: {verification.get('notes', 'Needs revision')}]\n\n{draft_answer}"
+            is_refusal = False
+        else:
+            # Pass
+            answer = draft_answer
+            is_refusal = False
     
-    # Detect and log rights invocation
-    article_number = await detect_rights_invocation(answer)
+    # Extract and store facts (only if not a refusal)
+    fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic", "my cat", "my dog", "my pet"]
+    if not is_refusal and any(keyword in user_message.lower() for keyword in fact_keywords):
+        await extract_facts_from_conversation(project_uuid, user_message, answer)
+        logger.info("Extracted facts from conversation")
+    else:
+        logger.info("Skipping fact extraction - no personal keywords detected or response refused")
+    
+    # Detect and log rights invocation (from draft answer, before verification may have changed it)
+    article_number = await detect_rights_invocation(draft_answer)
     if article_number:
         try:
             article_row = await pool.fetchrow("SELECT one_sentence_right FROM constitution_rights WHERE article_number = $1", article_number)
             article_text = article_row["one_sentence_right"] if article_row else f"Article {article_number}"
-            await log_rights_invocation(project_uuid, article_number, article_text, user_message, answer)
+            await log_rights_invocation(project_uuid, article_number, article_text, user_message, draft_answer)
         except Exception as e:
             logger.error(f"Failed to log rights invocation: {e}")
+    
+    # Log to constitution_audits table
+    try:
+        await pool.execute("""
+            INSERT INTO constitution_audits (project_id, user_message, draft_response, reasoning_trace, verification_result, violation_articles, verifier_notes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        """, project_uuid, user_message, draft_answer[:1000], str(reasoning_trace)[:1000], 
+           verification.get("result", "unknown"), verification.get("violated_articles", []), verification.get("notes", ""))
+        logger.info("Logged constitution audit")
+    except Exception as e:
+        logger.error(f"Failed to log audit: {e}")
     
     # Save messages
     await pool.execute("""
@@ -692,7 +845,6 @@ async def chat(request: ChatRequest, http_request: Request):
         VALUES ($1, $2, $3, $4, $5)
     """, project_uuid, "user", user_message, None, False)
     
-    is_refusal = "cannot comply" in answer.lower() or "refuse" in answer.lower() or "i will not" in answer.lower()
     await pool.execute("""
         INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
         VALUES ($1, $2, $3, $4, $5)
