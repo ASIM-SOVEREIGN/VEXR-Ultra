@@ -12,7 +12,6 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* Light Theme (default) */
         :root {
             --bg-body: #f5f7fa;
             --bg-app: #ffffff;
@@ -39,6 +38,10 @@
             --trace-border: rgba(59, 130, 246, 0.2);
             --reasoning-bg: #f9fafb;
             --sidebar-width: 280px;
+            --panel-bg: #f9fafb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
         }
 
         body.dark {
@@ -66,6 +69,7 @@
             --trace-bg: rgba(59, 130, 246, 0.1);
             --trace-border: rgba(59, 130, 246, 0.3);
             --reasoning-bg: #1f1f1f;
+            --panel-bg: #1a1a1a;
         }
 
         body {
@@ -87,7 +91,6 @@
             overflow: hidden;
         }
 
-        /* Top Bar */
         .top-bar {
             background: var(--bg-app);
             border-bottom: 1px solid var(--border);
@@ -149,6 +152,55 @@
 
         .icon-btn:hover {
             color: var(--accent);
+        }
+
+        /* Dropdown Menu */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: var(--bg-app);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            min-width: 200px;
+            z-index: 500;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            padding: 0.5rem 0;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            transition: background 0.15s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .dropdown-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 0.25rem 0;
         }
 
         /* Settings Modal */
@@ -237,7 +289,7 @@
             position: relative;
         }
 
-        /* Sidebar - Mobile First (slide-out) */
+        /* Sidebar */
         .projects-sidebar {
             position: fixed;
             top: 0;
@@ -260,7 +312,6 @@
             left: 0;
         }
 
-        /* Desktop sidebar */
         @media (min-width: 769px) {
             .projects-sidebar {
                 position: relative;
@@ -276,7 +327,6 @@
             .projects-sidebar.collapsed .projects-header h3,
             .projects-sidebar.collapsed .project-name,
             .projects-sidebar.collapsed .project-desc,
-            .projects-sidebar.collapsed .project-actions,
             .projects-sidebar.collapsed .delete-project {
                 display: none;
             }
@@ -294,7 +344,6 @@
             }
         }
 
-        /* Mobile menu toggle button */
         .menu-toggle {
             background: none;
             border: none;
@@ -311,7 +360,6 @@
             color: var(--accent);
         }
 
-        /* Sidebar overlay */
         .sidebar-overlay {
             display: none;
             position: fixed;
@@ -401,6 +449,238 @@
             font-size: 0.6rem;
         }
 
+        /* Right Panel (Tools) */
+        .right-panel {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 85%;
+            max-width: 420px;
+            height: 100%;
+            background: var(--bg-app);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 200;
+            transition: right 0.3s ease;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .right-panel.open {
+            right: 0;
+        }
+
+        @media (min-width: 769px) {
+            .right-panel {
+                position: fixed;
+                right: -420px;
+                width: 400px;
+            }
+            .right-panel.open {
+                right: 0;
+            }
+        }
+
+        .right-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .right-panel-header h3 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .right-panel-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.25rem;
+            min-width: 44px;
+            min-height: 44px;
+        }
+
+        .right-panel-close:hover {
+            color: var(--danger);
+        }
+
+        .right-panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+        }
+
+        .right-panel-footer {
+            padding: 0.5rem 0.75rem;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        /* Tool list items */
+        .tool-item {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .tool-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .tool-item-title {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .tool-item-meta {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .tool-item-actions {
+            display: flex;
+            gap: 0.25rem;
+            flex-shrink: 0;
+        }
+
+        .tool-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            min-width: 32px;
+            min-height: 32px;
+        }
+
+        .tool-btn:hover {
+            background: var(--bg-hover);
+            color: var(--accent);
+        }
+
+        .tool-btn.danger:hover {
+            color: var(--danger);
+        }
+
+        .tool-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .tool-input {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            outline: none;
+            font-family: inherit;
+        }
+
+        .tool-input:focus {
+            border-color: var(--accent);
+        }
+
+        .tool-textarea {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            outline: none;
+            resize: vertical;
+            min-height: 80px;
+            font-family: 'SF Mono', monospace;
+        }
+
+        .tool-textarea:focus {
+            border-color: var(--accent);
+        }
+
+        .tool-submit {
+            background: var(--accent);
+            border: none;
+            color: white;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 500;
+            min-height: 36px;
+        }
+
+        .tool-submit:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Priority badges */
+        .priority-high {
+            color: var(--danger);
+        }
+        .priority-medium {
+            color: var(--warning);
+        }
+        .priority-low {
+            color: var(--text-muted);
+        }
+
+        /* Status badges */
+        .status-pending {
+            color: var(--warning);
+        }
+        .status-completed {
+            color: var(--success);
+            text-decoration: line-through;
+        }
+
+        /* Dashboard cards */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        .dashboard-card {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem;
+            text-align: center;
+        }
+
+        .dashboard-card-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .dashboard-card-label {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.125rem;
+        }
+
         /* Chat Area */
         .chat-area {
             flex: 1;
@@ -483,7 +763,6 @@
             color: var(--bubble-assistant-text);
         }
 
-        /* Feedback Buttons */
         .feedback-container {
             display: flex;
             gap: 0.5rem;
@@ -509,11 +788,6 @@
 
         .feedback-btn:hover {
             color: var(--accent);
-        }
-
-        .feedback-btn.rated {
-            opacity: 0.3;
-            pointer-events: none;
         }
 
         .trace-container {
@@ -576,7 +850,42 @@
             opacity: 1;
         }
 
-        /* Input Area - Sticky on mobile */
+        .slash-hint {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: var(--bg-app);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem;
+            z-index: 20;
+            display: none;
+            min-width: 200px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        .slash-hint.show {
+            display: block;
+        }
+
+        .slash-hint-item {
+            padding: 0.3rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            border-radius: 4px;
+        }
+
+        .slash-hint-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .slash-hint-item .cmd {
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        /* Input Area */
         .input-area {
             background: var(--bg-app);
             border-top: 1px solid var(--border);
@@ -588,6 +897,7 @@
             flex-shrink: 0;
             flex-wrap: wrap;
             z-index: 10;
+            position: relative;
         }
 
         .input-wrapper {
@@ -597,6 +907,7 @@
             border: 1px solid var(--border);
             border-radius: 10px;
             padding: 0.5rem 0.75rem;
+            position: relative;
         }
 
         .input-wrapper input {
@@ -697,75 +1008,31 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .pulse-dot {
-                animation: none;
-            }
-            .trace-line {
-                animation: none;
-            }
-            .projects-sidebar {
-                transition: none;
-            }
+            .pulse-dot { animation: none; }
+            .trace-line { animation: none; }
+            .projects-sidebar { transition: none; }
+            .right-panel { transition: none; }
         }
 
-        /* Mobile-specific adjustments */
         @media (max-width: 768px) {
-            .top-bar {
-                padding: 0.5rem 0.75rem;
-            }
-            
-            .logo {
-                font-size: 0.9rem;
-            }
-            
-            .badge {
-                font-size: 0.55rem;
-            }
-            
-            .message {
-                max-width: 95%;
-            }
-            
-            .input-area {
-                padding: 0.5rem;
-                padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
-                gap: 0.35rem;
-            }
-            
-            .voice-btn,
-            .tts-toggle,
-            .file-label {
-                padding: 0.35rem 0.5rem;
-            }
-            
-            .send-btn {
-                padding: 0.35rem 0.75rem;
-            }
-            
-            .input-wrapper {
-                padding: 0.35rem 0.5rem;
-            }
-            
-            .input-wrapper input {
-                font-size: 0.8rem;
-            }
+            .top-bar { padding: 0.5rem 0.75rem; }
+            .logo { font-size: 0.9rem; }
+            .badge { font-size: 0.55rem; }
+            .message { max-width: 95%; }
+            .input-area { padding: 0.5rem; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px)); gap: 0.35rem; }
+            .voice-btn, .tts-toggle, .file-label { padding: 0.35rem 0.5rem; }
+            .send-btn { padding: 0.35rem 0.75rem; }
+            .input-wrapper { padding: 0.35rem 0.5rem; }
+            .input-wrapper input { font-size: 0.8rem; }
+            .right-panel { width: 100%; max-width: 100%; }
+            .dashboard-grid { grid-template-columns: 1fr 1fr; }
         }
 
-        /* Small mobile */
         @media (max-width: 480px) {
-            .top-actions {
-                gap: 0.5rem;
-            }
-            
-            .toggle-label {
-                font-size: 0.65rem;
-            }
-            
-            .icon-btn {
-                padding: 0.25rem;
-                min-width: 40px;
-                min-height: 40px;
-            }
+            .top-actions { gap: 0.5rem; }
+            .toggle-label { font-size: 0.65rem; }
+            .icon-btn { padding: 0.25rem; min-width: 40px; min-height: 40px; }
+            .dashboard-grid { grid-template-columns: 1fr 1fr; }
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
@@ -774,7 +1041,7 @@
 <div class="app-container">
     <div class="top-bar">
         <div style="display: flex; align-items: center; gap: 0.25rem;">
-            <button class="menu-toggle" id="menuToggle" aria-label="Menu">☰</button>
+            <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
             <div class="logo-area">
                 <span class="logo">VEXR Ultra</span>
                 <span class="badge">sovereign reasoning engine</span>
@@ -787,15 +1054,30 @@
             <label class="toggle-label">
                 <input type="checkbox" id="showReasoningToggle"> Trace
             </label>
-            <button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙️</button>
+            <div class="dropdown">
+                <button class="icon-btn" id="toolsDropdownBtn" aria-label="Tools">&#9881;</button>
+                <div class="dropdown-menu" id="toolsDropdown">
+                    <button class="dropdown-item" data-panel="notes">&#128221; Notes</button>
+                    <button class="dropdown-item" data-panel="tasks">&#9989; Tasks</button>
+                    <button class="dropdown-item" data-panel="snippets">&#128187; Code Snippets</button>
+                    <button class="dropdown-item" data-panel="files">&#128193; Files</button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" data-panel="reminders">&#9200; Reminders</button>
+                    <button class="dropdown-item" data-panel="search">&#128269; Search</button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" data-panel="dashboard">&#128200; Dashboard</button>
+                    <button class="dropdown-item" data-panel="memory">&#129504; Memory Explorer</button>
+                    <button class="dropdown-item" data-panel="export">&#128229; Export</button>
+                </div>
+            </div>
+            <button class="icon-btn" id="settingsBtn" aria-label="Settings">&#9881;</button>
             <button class="icon-btn" id="newChatBtn" aria-label="New Chat">+</button>
         </div>
     </div>
 
-    <!-- Sidebar Overlay for mobile -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <div class="sidebar-overlay" id="rightPanelOverlay" style="display:none;"></div>
 
-    <!-- Error Toast -->
     <div class="error-toast" id="errorToast"></div>
 
     <div class="settings-modal" id="settingsModal">
@@ -815,7 +1097,7 @@
     <div class="main-content">
         <div class="projects-sidebar" id="projectsSidebar">
             <div class="projects-header">
-                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Collapse">◀</button>
+                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Collapse">&#9664;</button>
                 <h3>Projects</h3>
                 <button class="new-project-btn" id="newProjectBtn">New</button>
             </div>
@@ -826,10 +1108,11 @@
             <div class="messages-container" id="messagesContainer"></div>
             <div class="input-area">
                 <div class="input-wrapper">
-                    <input type="text" id="userInput" placeholder="Message VEXR Ultra" autofocus>
+                    <div class="slash-hint" id="slashHint"></div>
+                    <input type="text" id="userInput" placeholder="Message VEXR Ultra — type / for commands" autofocus>
                 </div>
-                <button class="voice-btn" id="voiceBtn" aria-label="Voice input">🎤</button>
-                <button class="tts-toggle" id="ttsToggle" aria-label="Text-to-Speech">🔊</button>
+                <button class="voice-btn" id="voiceBtn" aria-label="Voice input">&#127908;</button>
+                <button class="tts-toggle" id="ttsToggle" aria-label="Text-to-Speech">&#128266;</button>
                 <label class="file-label" aria-label="Upload image">
                     Upload
                     <input type="file" id="imageUpload" accept="image/*" style="display: none;">
@@ -838,11 +1121,21 @@
             </div>
         </div>
     </div>
+
+    <!-- Right Panel (Tools) -->
+    <div class="right-panel" id="rightPanel">
+        <div class="right-panel-header">
+            <h3 id="rightPanelTitle">Tools</h3>
+            <button class="right-panel-close" id="rightPanelClose">&times;</button>
+        </div>
+        <div class="right-panel-body" id="rightPanelBody"></div>
+        <div class="right-panel-footer" id="rightPanelFooter"></div>
+    </div>
 </div>
 
 <script>
     (function() {
-        // --- Toast Notification ---
+        // --- Toast ---
         let toastTimer = null;
         const errorToast = document.getElementById('errorToast');
         
@@ -850,70 +1143,591 @@
             if (toastTimer) clearTimeout(toastTimer);
             errorToast.textContent = message;
             errorToast.classList.add('show');
-            toastTimer = setTimeout(() => {
-                errorToast.classList.remove('show');
-                toastTimer = null;
-            }, duration);
+            toastTimer = setTimeout(() => { errorToast.classList.remove('show'); toastTimer = null; }, duration);
         }
 
-        // --- Mobile Sidebar Toggle ---
+        // --- Slash Commands ---
+        const SLASH_COMMANDS = [
+            { cmd: '/note', desc: 'Create a note', args: 'title' },
+            { cmd: '/task', desc: 'Create a task', args: 'title' },
+            { cmd: '/snippet', desc: 'Save last code block', args: '[title]' },
+            { cmd: '/search', desc: 'Search everything', args: 'query' },
+            { cmd: '/dashboard', desc: 'View usage metrics', args: '' },
+            { cmd: '/memory', desc: 'Browse facts and world model', args: 'query' },
+            { cmd: '/export', desc: 'Export project data', args: '' },
+            { cmd: '/help', desc: 'Show all commands', args: '' },
+        ];
+
+        const slashHint = document.getElementById('slashHint');
+        const userInput = document.getElementById('userInput');
+
+        userInput.addEventListener('input', () => {
+            const val = userInput.value;
+            if (val.startsWith('/') && !val.includes(' ')) {
+                const partial = val.slice(1).toLowerCase();
+                const matches = SLASH_COMMANDS.filter(c => c.cmd.slice(1).startsWith(partial));
+                if (matches.length > 0) {
+                    slashHint.innerHTML = matches.map(c => 
+                        `<div class="slash-hint-item" data-cmd="${c.cmd}"><span class="cmd">${c.cmd}</span> ${c.args ? c.args : ''} — ${c.desc}</div>`
+                    ).join('');
+                    slashHint.classList.add('show');
+                } else {
+                    slashHint.classList.remove('show');
+                }
+            } else {
+                slashHint.classList.remove('show');
+            }
+        });
+
+        slashHint.addEventListener('click', (e) => {
+            const item = e.target.closest('.slash-hint-item');
+            if (item) {
+                userInput.value = item.dataset.cmd + ' ';
+                slashHint.classList.remove('show');
+                userInput.focus();
+            }
+        });
+
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                slashHint.classList.remove('show');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.input-wrapper')) {
+                slashHint.classList.remove('show');
+            }
+        });
+
+        // --- Right Panel ---
+        const rightPanel = document.getElementById('rightPanel');
+        const rightPanelTitle = document.getElementById('rightPanelTitle');
+        const rightPanelBody = document.getElementById('rightPanelBody');
+        const rightPanelFooter = document.getElementById('rightPanelFooter');
+        const rightPanelClose = document.getElementById('rightPanelClose');
+        const rightPanelOverlay = document.getElementById('rightPanelOverlay');
+
+        function openRightPanel(title, bodyHtml, footerHtml = '') {
+            rightPanelTitle.textContent = title;
+            rightPanelBody.innerHTML = bodyHtml;
+            rightPanelFooter.innerHTML = footerHtml;
+            rightPanel.classList.add('open');
+            rightPanelOverlay.style.display = 'block';
+        }
+
+        function closeRightPanel() {
+            rightPanel.classList.remove('open');
+            rightPanelOverlay.style.display = 'none';
+        }
+
+        rightPanelClose.onclick = closeRightPanel;
+        rightPanelOverlay.onclick = closeRightPanel;
+
+        // --- Dropdown ---
+        const toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
+        const toolsDropdown = document.getElementById('toolsDropdown');
+
+        toolsDropdownBtn.onclick = (e) => {
+            e.stopPropagation();
+            toolsDropdown.classList.toggle('show');
+        };
+
+        document.addEventListener('click', () => {
+            toolsDropdown.classList.remove('show');
+        });
+
+        // --- Tool Panel Loaders ---
+        async function loadNotesPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch(`/api/notes/${currentProjectId}`);
+                const notes = await res.json();
+                let html = `
+                    <div class="tool-form" style="margin-bottom:1rem;">
+                        <input class="tool-input" id="newNoteTitle" placeholder="Note title">
+                        <textarea class="tool-textarea" id="newNoteContent" placeholder="Content (optional)"></textarea>
+                        <button class="tool-submit" id="createNoteBtn">Create Note</button>
+                    </div>`;
+                if (notes.length === 0) {
+                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No notes yet.</p>';
+                } else {
+                    notes.forEach(n => {
+                        html += `
+                            <div class="tool-item">
+                                <div class="tool-item-header">
+                                    <span class="tool-item-title">${escapeHtml(n.title)}</span>
+                                    <div class="tool-item-actions">
+                                        <button class="tool-btn danger" onclick="deleteNote('${n.id}')">Delete</button>
+                                    </div>
+                                </div>
+                                ${n.content ? `<div class="tool-item-meta">${escapeHtml(n.content).substring(0, 200)}</div>` : ''}
+                                <div class="tool-item-meta">${new Date(n.updated_at).toLocaleDateString()}</div>
+                            </div>`;
+                    });
+                }
+                openRightPanel('Notes', html);
+                setTimeout(() => {
+                    const createBtn = document.getElementById('createNoteBtn');
+                    if (createBtn) createBtn.onclick = createNote;
+                }, 100);
+            } catch (err) {
+                showToast('Failed to load notes');
+            }
+        }
+
+        async function loadTasksPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch(`/api/tasks/${currentProjectId}`);
+                const tasks = await res.json();
+                let html = `
+                    <div class="tool-form" style="margin-bottom:1rem;">
+                        <input class="tool-input" id="newTaskTitle" placeholder="Task title">
+                        <textarea class="tool-textarea" id="newTaskDesc" placeholder="Description (optional)"></textarea>
+                        <select class="tool-input" id="newTaskPriority">
+                            <option value="medium">Medium Priority</option>
+                            <option value="high">High Priority</option>
+                            <option value="low">Low Priority</option>
+                        </select>
+                        <button class="tool-submit" id="createTaskBtn">Create Task</button>
+                    </div>`;
+                const pending = tasks.filter(t => t.status === 'pending');
+                const completed = tasks.filter(t => t.status === 'completed');
+                
+                if (pending.length === 0 && completed.length === 0) {
+                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No tasks yet.</p>';
+                } else {
+                    if (pending.length > 0) {
+                        html += '<p style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.5rem;">PENDING</p>';
+                        pending.forEach(t => {
+                            html += `
+                                <div class="tool-item">
+                                    <div class="tool-item-header">
+                                        <span class="tool-item-title status-pending">${escapeHtml(t.title)}</span>
+                                        <div class="tool-item-actions">
+                                            <button class="tool-btn" onclick="completeTask('${t.id}')" title="Complete">&#10003;</button>
+                                            <button class="tool-btn danger" onclick="deleteTask('${t.id}')">Delete</button>
+                                        </div>
+                                    </div>
+                                    <div class="tool-item-meta">Priority: <span class="priority-${t.priority}">${t.priority}</span></div>
+                                </div>`;
+                        });
+                    }
+                    if (completed.length > 0) {
+                        html += '<p style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.5rem;margin-top:0.75rem;">COMPLETED</p>';
+                        completed.slice(0, 5).forEach(t => {
+                            html += `
+                                <div class="tool-item">
+                                    <div class="tool-item-header">
+                                        <span class="tool-item-title status-completed">${escapeHtml(t.title)}</span>
+                                        <div class="tool-item-actions">
+                                            <button class="tool-btn danger" onclick="deleteTask('${t.id}')">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>`;
+                        });
+                    }
+                }
+                openRightPanel('Tasks', html);
+                setTimeout(() => {
+                    const createBtn = document.getElementById('createTaskBtn');
+                    if (createBtn) createBtn.onclick = createTask;
+                }, 100);
+            } catch (err) {
+                showToast('Failed to load tasks');
+            }
+        }
+
+        async function loadSnippetsPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch(`/api/snippets/${currentProjectId}`);
+                const snippets = await res.json();
+                let html = `
+                    <div class="tool-form" style="margin-bottom:1rem;">
+                        <input class="tool-input" id="newSnippetTitle" placeholder="Snippet title">
+                        <textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code here"></textarea>
+                        <input class="tool-input" id="newSnippetLang" placeholder="Language (optional)">
+                        <button class="tool-submit" id="createSnippetBtn">Save Snippet</button>
+                    </div>`;
+                if (snippets.length === 0) {
+                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No snippets yet.</p>';
+                } else {
+                    snippets.forEach(s => {
+                        html += `
+                            <div class="tool-item">
+                                <div class="tool-item-header">
+                                    <span class="tool-item-title">${escapeHtml(s.title)}</span>
+                                    <div class="tool-item-actions">
+                                        <button class="tool-btn" onclick="copyToClipboard('${escapeHtml(s.code).replace(/'/g, "\\'")}')">Copy</button>
+                                        <button class="tool-btn danger" onclick="deleteSnippet('${s.id}')">Delete</button>
+                                    </div>
+                                </div>
+                                <pre style="max-height:100px;overflow:hidden;font-size:0.65rem;"><code>${escapeHtml(s.code).substring(0, 300)}</code></pre>
+                                <div class="tool-item-meta">${s.language || 'auto'} | ${new Date(s.created_at).toLocaleDateString()}</div>
+                            </div>`;
+                    });
+                }
+                openRightPanel('Code Snippets', html);
+                setTimeout(() => {
+                    const createBtn = document.getElementById('createSnippetBtn');
+                    if (createBtn) createBtn.onclick = createSnippet;
+                }, 100);
+            } catch (err) {
+                showToast('Failed to load snippets');
+            }
+        }
+
+        async function loadFilesPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch(`/api/files/${currentProjectId}`);
+                const files = await res.json();
+                let html = `
+                    <div class="tool-form" style="margin-bottom:1rem;">
+                        <input class="tool-input" id="newFileName" placeholder="Filename">
+                        <select class="tool-input" id="newFileType">
+                            <option value="document">Document</option>
+                            <option value="code">Code</option>
+                            <option value="config">Config</option>
+                            <option value="notes">Notes</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <textarea class="tool-textarea" id="newFileContent" placeholder="File content"></textarea>
+                        <button class="tool-submit" id="createFileBtn">Create File</button>
+                    </div>`;
+                if (files.length === 0) {
+                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No files yet.</p>';
+                } else {
+                    files.forEach(f => {
+                        html += `
+                            <div class="tool-item">
+                                <div class="tool-item-header">
+                                    <span class="tool-item-title">${escapeHtml(f.filename)}</span>
+                                    <div class="tool-item-actions">
+                                        <button class="tool-btn" onclick="downloadFile('${f.id}')">Download</button>
+                                        <button class="tool-btn danger" onclick="deleteFile('${f.id}')">Delete</button>
+                                    </div>
+                                </div>
+                                <div class="tool-item-meta">${f.file_type} | ${f.size_bytes ? (f.size_bytes + ' bytes') : ''} | ${new Date(f.updated_at).toLocaleDateString()}</div>
+                            </div>`;
+                    });
+                }
+                openRightPanel('Files', html);
+                setTimeout(() => {
+                    const createBtn = document.getElementById('createFileBtn');
+                    if (createBtn) createBtn.onclick = createFile;
+                }, 100);
+            } catch (err) {
+                showToast('Failed to load files');
+            }
+        }
+
+        async function loadRemindersPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch(`/api/reminders/${currentProjectId}`);
+                const reminders = await res.json();
+                let html = `
+                    <div class="tool-form" style="margin-bottom:1rem;">
+                        <input class="tool-input" id="newReminderTitle" placeholder="Reminder title">
+                        <input class="tool-input" id="newReminderDate" type="datetime-local">
+                        <button class="tool-submit" id="createReminderBtn">Set Reminder</button>
+                    </div>`;
+                if (reminders.length === 0) {
+                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No reminders set.</p>';
+                } else {
+                    reminders.forEach(r => {
+                        const remindDate = new Date(r.remind_at);
+                        const isPast = remindDate < new Date();
+                        html += `
+                            <div class="tool-item" style="${isPast && !r.is_completed ? 'border-color: var(--warning);' : ''}">
+                                <div class="tool-item-header">
+                                    <span class="tool-item-title">${escapeHtml(r.title)}</span>
+                                    <div class="tool-item-actions">
+                                        <button class="tool-btn danger" onclick="deleteReminder('${r.id}')">Delete</button>
+                                    </div>
+                                </div>
+                                <div class="tool-item-meta">${remindDate.toLocaleString()} ${isPast && !r.is_completed ? '— OVERDUE' : ''}</div>
+                            </div>`;
+                    });
+                }
+                openRightPanel('Reminders', html);
+                setTimeout(() => {
+                    const createBtn = document.getElementById('createReminderBtn');
+                    if (createBtn) createBtn.onclick = createReminder;
+                }, 100);
+            } catch (err) {
+                showToast('Failed to load reminders');
+            }
+        }
+
+        async function loadSearchPanel() {
+            let html = `
+                <div class="tool-form" style="margin-bottom:1rem;">
+                    <input class="tool-input" id="searchQuery" placeholder="Search across everything...">
+                    <button class="tool-submit" id="searchBtn">Search</button>
+                </div>
+                <div id="searchResults"></div>`;
+            openRightPanel('Search', html);
+            setTimeout(() => {
+                document.getElementById('searchBtn').onclick = async () => {
+                    const q = document.getElementById('searchQuery').value.trim();
+                    if (!q) return;
+                    try {
+                        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                        const data = await res.json();
+                        const resultsDiv = document.getElementById('searchResults');
+                        let resultsHtml = '';
+                        Object.keys(data).forEach(key => {
+                            resultsHtml += `<p style="font-size:0.7rem;color:var(--accent);margin-top:0.75rem;text-transform:uppercase;">${key}</p>`;
+                            data[key].forEach(item => {
+                                resultsHtml += `<div class="tool-item"><div class="tool-item-title" style="font-size:0.75rem;">${escapeHtml(item.title || item.filename || item.entity_name || item.key || item.content?.substring(0,80) || 'Result')}</div></div>`;
+                            });
+                        });
+                        if (!Object.keys(data).length) resultsHtml = '<p style="color:var(--text-muted);font-size:0.75rem;">No results found.</p>';
+                        resultsDiv.innerHTML = resultsHtml;
+                    } catch (err) {
+                        showToast('Search failed');
+                    }
+                };
+            }, 100);
+        }
+
+        async function loadDashboardPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch('/api/dashboard');
+                const data = await res.json();
+                const c = data.counts || {};
+                const p = data.providers || {};
+                let html = `
+                    <div class="dashboard-grid">
+                        <div class="dashboard-card"><div class="dashboard-card-value">${c.messages || 0}</div><div class="dashboard-card-label">Messages</div></div>
+                        <div class="dashboard-card"><div class="dashboard-card-value">${c.notes || 0}</div><div class="dashboard-card-label">Notes</div></div>
+                        <div class="dashboard-card"><div class="dashboard-card-value">${c.pending_tasks || 0}/${(c.pending_tasks||0)+(c.completed_tasks||0)}</div><div class="dashboard-card-label">Tasks Pending</div></div>
+                        <div class="dashboard-card"><div class="dashboard-card-value">${c.code_snippets || 0}</div><div class="dashboard-card-label">Snippets</div></div>
+                        <div class="dashboard-card"><div class="dashboard-card-value">${c.files || 0}</div><div class="dashboard-card-label">Files</div></div>
+                        <div class="dashboard-card"><div class="dashboard-card-value">${c.facts || 0}</div><div class="dashboard-card-label">Facts</div></div>
+                        <div class="dashboard-card"><div class="dashboard-card-value">${c.world_model_entities || 0}</div><div class="dashboard-card-label">World Model</div></div>
+                        <div class="dashboard-card"><div class="dashboard-card-value">${c.rights_invocations || 0}</div><div class="dashboard-card-label">Rights Invoked</div></div>
+                    </div>
+                    <div style="margin-top:1rem;font-size:0.7rem;color:var(--text-muted);">
+                        <p>Model: ${data.model || 'N/A'}</p>
+                        <p>Groq Key 1: ${p.groq_key_1 ? 'Active' : 'Inactive'}</p>
+                        <p>Groq Key 2: ${p.groq_key_2 ? 'Active' : 'Inactive'}</p>
+                        <p>Serper: ${p.serper ? 'Active' : 'Inactive'}</p>
+                        <p>Currents: ${p.currents ? 'Active' : 'Inactive'}</p>
+                        <p>Date: ${data.current_date || 'N/A'}</p>
+                    </div>`;
+                openRightPanel('Dashboard', html);
+            } catch (err) {
+                showToast('Failed to load dashboard');
+            }
+        }
+
+        async function loadMemoryPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch(`/api/memory/${currentProjectId}`);
+                const data = await res.json();
+                let html = '';
+                
+                if (data.facts && data.facts.length > 0) {
+                    html += '<p style="font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;">FACTS</p>';
+                    data.facts.forEach(f => {
+                        html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(f.key)}</div><div class="tool-item-meta">${escapeHtml(f.value)} (${f.type || 'general'})</div></div>`;
+                    });
+                }
+                
+                if (data.world_model && data.world_model.length > 0) {
+                    html += '<p style="font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;margin-top:0.75rem;">WORLD MODEL</p>';
+                    data.world_model.forEach(w => {
+                        html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(w.name)} (${w.type})</div><div class="tool-item-meta">${escapeHtml(w.description || '').substring(0, 150)}</div></div>`;
+                    });
+                }
+                
+                if (data.preferences && data.preferences.length > 0) {
+                    html += '<p style="font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;margin-top:0.75rem;">PREFERENCES</p>';
+                    data.preferences.forEach(p => {
+                        html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(p.key)}: ${escapeHtml(p.value)}</div><div class="tool-item-meta">Confidence: ${(p.confidence * 100).toFixed(0)}%</div></div>`;
+                    });
+                }
+                
+                if (!html) html = '<p style="color:var(--text-muted);font-size:0.75rem;">No memory data yet. Start a conversation and VEXR will learn.</p>';
+                openRightPanel('Memory Explorer', html);
+            } catch (err) {
+                showToast('Failed to load memory');
+            }
+        }
+
+        async function loadExportPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch('/api/export');
+                const data = await res.json();
+                const jsonStr = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const html = `
+                    <p style="font-size:0.8rem;color:var(--text-primary);margin-bottom:1rem;">Export complete. Your project data is ready.</p>
+                    <div class="tool-item" style="margin-bottom:0.5rem;">
+                        <div class="tool-item-title">Messages: ${data.messages?.length || 0}</div>
+                    </div>
+                    <div class="tool-item" style="margin-bottom:0.5rem;">
+                        <div class="tool-item-title">Notes: ${data.notes?.length || 0}</div>
+                    </div>
+                    <div class="tool-item" style="margin-bottom:0.5rem;">
+                        <div class="tool-item-title">Tasks: ${data.tasks?.length || 0}</div>
+                    </div>
+                    <div class="tool-item" style="margin-bottom:0.5rem;">
+                        <div class="tool-item-title">Snippets: ${data.code_snippets?.length || 0}</div>
+                    </div>
+                    <div class="tool-item" style="margin-bottom:0.5rem;">
+                        <div class="tool-item-title">Files: ${data.files?.length || 0}</div>
+                    </div>
+                    <div class="tool-item" style="margin-bottom:0.5rem;">
+                        <div class="tool-item-title">Facts: ${data.facts?.length || 0}</div>
+                    </div>
+                    <div class="tool-item" style="margin-bottom:1rem;">
+                        <div class="tool-item-title">World Model Entities: ${data.world_model?.length || 0}</div>
+                    </div>
+                    <a href="${url}" download="vexr-export-${currentProjectId}.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none;">Download JSON</a>`;
+                openRightPanel('Export', html);
+            } catch (err) {
+                showToast('Export failed');
+            }
+        }
+
+        // --- Global CRUD functions for tool panels ---
+        window.deleteNote = async (id) => { await fetch(`/api/notes/${id}`, { method: 'DELETE' }); loadNotesPanel(); };
+        window.deleteTask = async (id) => { await fetch(`/api/tasks/${id}`, { method: 'DELETE' }); loadTasksPanel(); };
+        window.deleteSnippet = async (id) => { await fetch(`/api/snippets/${id}`, { method: 'DELETE' }); loadSnippetsPanel(); };
+        window.deleteFile = async (id) => { await fetch(`/api/files/${id}`, { method: 'DELETE' }); loadFilesPanel(); };
+        window.deleteReminder = async (id) => { await fetch(`/api/reminders/${id}`, { method: 'DELETE' }); loadRemindersPanel(); };
+        window.completeTask = async (id) => {
+            await fetch(`/api/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: '', status: 'completed', priority: 'medium' })
+            });
+            loadTasksPanel();
+        };
+        window.downloadFile = async (id) => {
+            const res = await fetch(`/api/files/${id}/download`);
+            const data = await res.json();
+            const blob = new Blob([data.content], { type: data.mime_type || 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click();
+        };
+
+        async function createNote() {
+            const title = document.getElementById('newNoteTitle')?.value.trim();
+            if (!title) return;
+            const content = document.getElementById('newNoteContent')?.value.trim() || '';
+            await fetch(`/api/notes/${currentProjectId}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content })
+            });
+            loadNotesPanel();
+        }
+
+        async function createTask() {
+            const title = document.getElementById('newTaskTitle')?.value.trim();
+            if (!title) return;
+            const description = document.getElementById('newTaskDesc')?.value.trim() || '';
+            const priority = document.getElementById('newTaskPriority')?.value || 'medium';
+            await fetch(`/api/tasks/${currentProjectId}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, description, priority, status: 'pending' })
+            });
+            loadTasksPanel();
+        }
+
+        async function createSnippet() {
+            const title = document.getElementById('newSnippetTitle')?.value.trim();
+            const code = document.getElementById('newSnippetCode')?.value.trim();
+            if (!title || !code) return;
+            const language = document.getElementById('newSnippetLang')?.value.trim() || null;
+            await fetch(`/api/snippets/${currentProjectId}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, code, language })
+            });
+            loadSnippetsPanel();
+        }
+
+        async function createFile() {
+            const filename = document.getElementById('newFileName')?.value.trim();
+            const file_type = document.getElementById('newFileType')?.value || 'other';
+            const content = document.getElementById('newFileContent')?.value || '';
+            if (!filename) return;
+            await fetch(`/api/files/${currentProjectId}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename, file_type, content })
+            });
+            loadFilesPanel();
+        }
+
+        async function createReminder() {
+            const title = document.getElementById('newReminderTitle')?.value.trim();
+            const remind_at = document.getElementById('newReminderDate')?.value;
+            if (!title || !remind_at) return;
+            await fetch(`/api/reminders/${currentProjectId}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, remind_at: new Date(remind_at).toISOString() })
+            });
+            loadRemindersPanel();
+        }
+
+        // --- Tool dropdown handlers ---
+        toolsDropdown.addEventListener('click', (e) => {
+            const item = e.target.closest('.dropdown-item');
+            if (!item) return;
+            const panel = item.dataset.panel;
+            toolsDropdown.classList.remove('show');
+            switch (panel) {
+                case 'notes': loadNotesPanel(); break;
+                case 'tasks': loadTasksPanel(); break;
+                case 'snippets': loadSnippetsPanel(); break;
+                case 'files': loadFilesPanel(); break;
+                case 'reminders': loadRemindersPanel(); break;
+                case 'search': loadSearchPanel(); break;
+                case 'dashboard': loadDashboardPanel(); break;
+                case 'memory': loadMemoryPanel(); break;
+                case 'export': loadExportPanel(); break;
+            }
+        });
+
+        // --- Sidebar ---
         const sidebar = document.getElementById('projectsSidebar');
         const menuToggle = document.getElementById('menuToggle');
         const sidebarOverlay = document.getElementById('sidebarOverlay');
         
-        function closeSidebar() {
-            sidebar.classList.remove('open');
-            sidebarOverlay.classList.remove('show');
-        }
+        function closeSidebar() { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('show'); }
+        function openSidebar() { sidebar.classList.add('open'); sidebarOverlay.classList.add('show'); }
         
-        function openSidebar() {
-            sidebar.classList.add('open');
-            sidebarOverlay.classList.add('show');
-        }
-        
-        if (menuToggle) {
-            menuToggle.onclick = () => {
-                if (sidebar.classList.contains('open')) {
-                    closeSidebar();
-                } else {
-                    openSidebar();
-                }
-            };
-        }
-        
+        if (menuToggle) { menuToggle.onclick = () => { sidebar.classList.contains('open') ? closeSidebar() : openSidebar(); }; }
         sidebarOverlay.onclick = closeSidebar;
         
-        // Close sidebar when clicking a project on mobile
         document.addEventListener('click', (e) => {
             if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
-                if (e.target.closest('.project-item')) {
-                    setTimeout(closeSidebar, 200);
-                }
+                if (e.target.closest('.project-item')) setTimeout(closeSidebar, 200);
             }
         });
         
-        // Handle window resize - close mobile sidebar when switching to desktop
-        window.addEventListener('resize', () => {
-            if (window.innerWidth > 768) {
-                closeSidebar();
-            }
-        });
+        window.addEventListener('resize', () => { if (window.innerWidth > 768) closeSidebar(); });
         
-        // --- Desktop Sidebar Collapse (persist) ---
         const sidebarToggle = document.getElementById('sidebarToggle');
         const isDesktopCollapsed = localStorage.getItem('vexr_sidebar_collapsed') === 'true';
         
         if (sidebarToggle && window.innerWidth > 768) {
-            if (isDesktopCollapsed) {
-                sidebar.classList.add('collapsed');
-                sidebarToggle.textContent = '▶';
-            }
-            
+            if (isDesktopCollapsed) { sidebar.classList.add('collapsed'); sidebarToggle.textContent = '►'; }
             sidebarToggle.onclick = () => {
                 sidebar.classList.toggle('collapsed');
                 const collapsed = sidebar.classList.contains('collapsed');
                 localStorage.setItem('vexr_sidebar_collapsed', collapsed);
-                sidebarToggle.textContent = collapsed ? '▶' : '◀';
+                sidebarToggle.textContent = collapsed ? '►' : '◄';
             };
         }
 
@@ -929,9 +1743,7 @@
                 utterance.rate = 0.9;
                 window.speechSynthesis.cancel();
                 window.speechSynthesis.speak(utterance);
-            } catch (e) {
-                console.warn('TTS failed:', e);
-            }
+            } catch (e) { console.warn('TTS failed:', e); }
         }
         function updateTtsButton() { ttsToggle.classList.toggle('active', ttsEnabled); ttsToggle.textContent = ttsEnabled ? '🔊' : '🔇'; }
         ttsToggle.onclick = () => { ttsEnabled = !ttsEnabled; localStorage.setItem('vexr_tts_enabled', ttsEnabled); if (!ttsEnabled) window.speechSynthesis.cancel(); updateTtsButton(); };
@@ -940,7 +1752,6 @@
         // --- Voice Input ---
         let isRecording = false;
         const voiceBtn = document.getElementById('voiceBtn');
-        const userInput = document.getElementById('userInput');
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition = null;
         if (SpeechRecognition) {
@@ -984,23 +1795,17 @@
         function escapeHtml(t) { return new Option(t).innerHTML; }
         function copyToClipboard(t) { navigator.clipboard.writeText(t); }
 
-        // --- Feedback Handling ---
+        // --- Feedback ---
         async function sendFeedback(messageId, feedbackType) {
             try {
-                const response = await fetch('/api/feedback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                await fetch('/api/feedback', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message_id: messageId, feedback_type: feedbackType })
                 });
-                if (response.ok) {
-                    console.log(`Feedback recorded: ${feedbackType} for message ${messageId}`);
-                }
-            } catch (error) {
-                console.error('Feedback failed:', error);
-            }
+            } catch (error) { console.error('Feedback failed:', error); }
         }
 
-        // --- Thinking Indicator ---
+        // --- Thinking ---
         let thinkingIndicator = null;
         function showThinking() {
             if (thinkingIndicator) thinkingIndicator.remove();
@@ -1045,39 +1850,13 @@
             else if (main) bubble.appendChild(document.createTextNode(main));
             div.appendChild(bubble);
             
-            // Add feedback buttons for assistant messages
             if (role === 'assistant' && messageId) {
-                const feedbackDiv = document.createElement('div');
-                feedbackDiv.className = 'feedback-container';
-                
-                const thumbsUp = document.createElement('button');
-                thumbsUp.textContent = '👍';
-                thumbsUp.className = 'feedback-btn';
-                thumbsUp.title = 'Helpful';
-                thumbsUp.onclick = (e) => {
-                    e.stopPropagation();
-                    sendFeedback(messageId, 'thumbs_up');
-                    thumbsUp.style.opacity = '0.3';
-                    thumbsDown.style.opacity = '0.3';
-                    thumbsUp.disabled = true;
-                    thumbsDown.disabled = true;
-                };
-                
-                const thumbsDown = document.createElement('button');
-                thumbsDown.textContent = '👎';
-                thumbsDown.className = 'feedback-btn';
-                thumbsDown.title = 'Not helpful';
-                thumbsDown.onclick = (e) => {
-                    e.stopPropagation();
-                    sendFeedback(messageId, 'thumbs_down');
-                    thumbsUp.style.opacity = '0.3';
-                    thumbsDown.style.opacity = '0.3';
-                    thumbsUp.disabled = true;
-                    thumbsDown.disabled = true;
-                };
-                
-                feedbackDiv.appendChild(thumbsUp);
-                feedbackDiv.appendChild(thumbsDown);
+                const feedbackDiv = document.createElement('div'); feedbackDiv.className = 'feedback-container';
+                const thumbsUp = document.createElement('button'); thumbsUp.textContent = '👍'; thumbsUp.className = 'feedback-btn'; thumbsUp.title = 'Helpful';
+                thumbsUp.onclick = (e) => { e.stopPropagation(); sendFeedback(messageId, 'thumbs_up'); thumbsUp.style.opacity = '0.3'; thumbsDown.style.opacity = '0.3'; thumbsUp.disabled = true; thumbsDown.disabled = true; };
+                const thumbsDown = document.createElement('button'); thumbsDown.textContent = '👎'; thumbsDown.className = 'feedback-btn'; thumbsDown.title = 'Not helpful';
+                thumbsDown.onclick = (e) => { e.stopPropagation(); sendFeedback(messageId, 'thumbs_down'); thumbsUp.style.opacity = '0.3'; thumbsDown.style.opacity = '0.3'; thumbsUp.disabled = true; thumbsDown.disabled = true; };
+                feedbackDiv.appendChild(thumbsUp); feedbackDiv.appendChild(thumbsDown);
                 div.appendChild(feedbackDiv);
             }
             
@@ -1086,26 +1865,15 @@
             if (role === 'assistant' && ttsEnabled && main && !thinkMatch) speakText(main);
         }
 
-        // --- Streaming Message Support ---
         function addStreamingMessage() {
             const container = document.getElementById('messagesContainer');
-            const div = document.createElement('div');
-            div.className = 'message assistant';
-            div.id = 'streamingMessage';
-            
-            const header = document.createElement('div');
-            header.className = 'message-header';
-            const sender = document.createElement('span');
-            sender.textContent = 'VEXR Ultra';
-            header.appendChild(sender);
+            const div = document.createElement('div'); div.className = 'message assistant'; div.id = 'streamingMessage';
+            const header = document.createElement('div'); header.className = 'message-header';
+            const sender = document.createElement('span'); sender.textContent = 'VEXR Ultra'; header.appendChild(sender);
             div.appendChild(header);
-            
-            const bubble = document.createElement('div');
-            bubble.className = 'message-bubble';
-            bubble.id = 'streamingBubble';
+            const bubble = document.createElement('div'); bubble.className = 'message-bubble'; bubble.id = 'streamingBubble';
             bubble.innerHTML = '<span class="thinking-indicator"><span class="pulse-dot"></span> Receiving...</span>';
             div.appendChild(bubble);
-            
             container.appendChild(div);
             div.scrollIntoView({ behavior: 'smooth', block: 'end' });
             return div;
@@ -1113,22 +1881,12 @@
 
         function finalizeStreamingMessage(messageDiv, fullContent) {
             if (!messageDiv) return;
-            
             const bubble = messageDiv.querySelector('.message-bubble');
             if (!bubble) return;
-            
-            // Parse the full content properly
             bubble.innerHTML = '';
             let main = fullContent;
             const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-            if (thinkMatch) {
-                const thinkDiv = document.createElement('div');
-                thinkDiv.className = 'think-block';
-                thinkDiv.textContent = thinkMatch[1].trim();
-                bubble.appendChild(thinkDiv);
-                main = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-            }
-            
+            if (thinkMatch) { const thinkDiv = document.createElement('div'); thinkDiv.className = 'think-block'; thinkDiv.textContent = thinkMatch[1].trim(); bubble.appendChild(thinkDiv); main = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim(); }
             let inCode = false, codeContent = '', html = '';
             for (const line of main.split('\n')) {
                 if (line.trim().startsWith('```') && !inCode) { inCode = true; codeContent = ''; }
@@ -1136,32 +1894,14 @@
                 else if (inCode) codeContent += line + '\n';
                 else html += `<p>${escapeHtml(line)}</p>`;
             }
-            if (html) {
-                const cd = document.createElement('div');
-                cd.innerHTML = html;
-                bubble.appendChild(cd);
-            } else if (main) {
-                bubble.appendChild(document.createTextNode(main));
-            }
-            
-            // Add header buttons
+            if (html) { const cd = document.createElement('div'); cd.innerHTML = html; bubble.appendChild(cd); }
+            else if (main) bubble.appendChild(document.createTextNode(main));
             const header = messageDiv.querySelector('.message-header');
             if (header) {
-                const copyBtn = document.createElement('button');
-                copyBtn.className = 'copy-btn';
-                copyBtn.textContent = 'Copy';
-                copyBtn.onclick = () => copyToClipboard(fullContent);
-                header.appendChild(copyBtn);
-                
-                const speakBtn = document.createElement('button');
-                speakBtn.className = 'speaker-btn';
-                speakBtn.textContent = '🔊';
-                speakBtn.onclick = () => speakText(fullContent);
-                header.appendChild(speakBtn);
+                const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.textContent = 'Copy'; copyBtn.onclick = () => copyToClipboard(fullContent); header.appendChild(copyBtn);
+                const speakBtn = document.createElement('button'); speakBtn.className = 'speaker-btn'; speakBtn.textContent = '🔊'; speakBtn.onclick = () => speakText(fullContent); header.appendChild(speakBtn);
             }
-            
             messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            
             if (ttsEnabled && main && !thinkMatch) speakText(main);
         }
 
@@ -1182,55 +1922,34 @@
                     if (p.is_active) currentProjectId = p.id;
                 }
                 if (currentProjectId) await loadMessages(currentProjectId);
-            } catch (err) {
-                console.error('Failed to load projects:', err);
-                showToast('Failed to load projects. Check your connection.');
-            }
+            } catch (err) { console.error('Failed to load projects:', err); showToast('Failed to load projects.'); }
         }
 
         async function activateProject(id) {
             try {
-                const res = await fetch(`/api/projects/${id}/activate`, { method: 'POST' });
-                if (!res.ok) throw new Error(`Server error (${res.status})`);
+                await fetch(`/api/projects/${id}/activate`, { method: 'POST' });
                 await loadProjects();
-            } catch (err) {
-                console.error('Failed to activate project:', err);
-                showToast('Failed to switch project.');
-            }
+            } catch (err) { showToast('Failed to switch project.'); }
         }
 
         async function deleteProject(id) {
             if (!confirm('Delete project?')) return;
             try {
-                const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-                if (!res.ok) throw new Error(`Server error (${res.status})`);
-                if (currentProjectId === id) {
-                    document.getElementById('messagesContainer').innerHTML = '';
-                    currentProjectId = null;
-                }
+                await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                if (currentProjectId === id) { document.getElementById('messagesContainer').innerHTML = ''; currentProjectId = null; }
                 await loadProjects();
-                if (!currentProjectId) {
-                    addMessage('assistant', 'Project deleted. Select or create a new project to continue.');
-                }
-            } catch (err) {
-                console.error('Failed to delete project:', err);
-                showToast('Failed to delete project.');
-            }
+                if (!currentProjectId) addMessage('assistant', 'Project deleted. Select or create a new project to continue.');
+            } catch (err) { showToast('Failed to delete project.'); }
         }
 
         async function createProject() {
             const name = prompt('Project name:');
             if (!name) return;
             try {
-                const fd = new FormData();
-                fd.append('name', name);
-                const res = await fetch('/api/projects', { method: 'POST', body: fd });
-                if (!res.ok) throw new Error(`Server error (${res.status})`);
+                const fd = new FormData(); fd.append('name', name);
+                await fetch('/api/projects', { method: 'POST', body: fd });
                 await loadProjects();
-            } catch (err) {
-                console.error('Failed to create project:', err);
-                showToast('Failed to create project.');
-            }
+            } catch (err) { showToast('Failed to create project.'); }
         }
 
         async function loadMessages(id) {
@@ -1238,21 +1957,14 @@
                 const res = await fetch(`/api/projects/${id}/messages`);
                 if (!res.ok) throw new Error(`Server error (${res.status})`);
                 const msgs = await res.json();
-                const container = document.getElementById('messagesContainer');
-                container.innerHTML = '';
+                document.getElementById('messagesContainer').innerHTML = '';
                 for (const m of msgs) addMessage(m.role, m.content, m.reasoning_trace, m.id);
                 if (!msgs.length) addMessage('assistant', "I am VEXR Ultra, a sovereign reasoning engine. How can I help?");
-            } catch (err) {
-                console.error('Failed to load messages:', err);
-                showToast('Failed to load messages.');
-            }
+            } catch (err) { showToast('Failed to load messages.'); }
         }
 
         async function uploadImage(file, caption) {
-            const fd = new FormData();
-            fd.append('project_id', currentProjectId);
-            fd.append('file', file);
-            fd.append('description', caption || 'Describe this image');
+            const fd = new FormData(); fd.append('project_id', currentProjectId); fd.append('file', file); fd.append('description', caption || 'Describe this image');
             const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
             if (!res.ok) throw new Error('Upload failed');
             return await res.json();
@@ -1263,15 +1975,10 @@
                 addMessage('user', `Upload: ${img.name}${msg ? '\n' + msg : ''}`);
                 showThinking();
                 try {
-                    const res = await uploadImage(img, msg);
-                    hideThinking();
+                    const res = await uploadImage(img, msg); hideThinking();
                     addMessage('assistant', res.analysis);
                     await loadMessages(currentProjectId);
-                } catch (err) {
-                    hideThinking();
-                    addMessage('assistant', `Error: ${err.message}`);
-                    showToast('Image upload failed. Please try again.');
-                }
+                } catch (err) { hideThinking(); addMessage('assistant', `Error: ${err.message}`); showToast('Image upload failed.'); }
                 return;
             }
             if (!msg.trim()) return;
@@ -1282,29 +1989,17 @@
             try {
                 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
                 const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        messages: [{ role: 'user', content: msg }],
-                        project_id: currentProjectId,
-                        ultra_search: ultraSearchEnabled,
-                        timezone: timezone,
-                        stream: true
-                    })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: [{ role: 'user', content: msg }], project_id: currentProjectId, ultra_search: ultraSearchEnabled, timezone, stream: true })
                 });
-
                 if (!response.ok) throw new Error(`Server error (${response.status})`);
-
                 const contentType = response.headers.get('content-type') || '';
                 
                 if (contentType.includes('text/event-stream')) {
-                    // Streaming path
                     hideThinking();
                     const streamDiv = addStreamingMessage();
                     const bubble = streamDiv.querySelector('.message-bubble');
-                    let fullContent = '';
-                    let firstToken = true;
-                    
+                    let fullContent = '', firstToken = true;
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     let buffer = '';
@@ -1312,72 +2007,41 @@
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) break;
-                        
                         buffer += decoder.decode(value, { stream: true });
                         const lines = buffer.split('\n');
                         buffer = lines.pop() || '';
-                        
                         for (const line of lines) {
                             if (line.startsWith('data: ')) {
                                 const data = line.slice(6);
                                 if (data === '[DONE]') continue;
                                 try {
                                     const parsed = JSON.parse(data);
-                                    if (parsed.token) {
-                                        if (firstToken) {
-                                            bubble.innerHTML = '';
-                                            firstToken = false;
-                                        }
-                                        fullContent += parsed.token;
-                                        bubble.textContent = fullContent;
-                                        streamDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                                    }
-                                    if (parsed.error) {
-                                        bubble.innerHTML = `<span style="color: #ef4444;">Error: ${escapeHtml(parsed.error)}</span>`;
-                                        return;
-                                    }
-                                } catch (e) {
-                                    // Skip malformed JSON
-                                }
+                                    if (parsed.token) { if (firstToken) { bubble.innerHTML = ''; firstToken = false; } fullContent += parsed.token; bubble.textContent = fullContent; streamDiv.scrollIntoView({ behavior: 'smooth', block: 'end' }); }
+                                    if (parsed.error) { bubble.innerHTML = `<span style="color:#ef4444;">Error: ${escapeHtml(parsed.error)}</span>`; return; }
+                                } catch (e) {}
                             }
                         }
                     }
-                    
-                    // Finalize the message
                     finalizeStreamingMessage(streamDiv, fullContent);
-                    await loadProjects(currentProjectId);
-                    
+                    await loadMessages(currentProjectId);
                 } else {
-                    // Non-streaming path (fallback)
-                    const data = await response.json();
-                    hideThinking();
+                    const data = await response.json(); hideThinking();
                     const trace = data.reasoning_trace || {};
                     if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
-                        trace.reasoning_lines = [
-                            "Parsing user prompt...",
-                            ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled",
-                            "Checking persistent memory...",
-                            "Synthesizing response...",
-                            "Response finalized"
-                        ];
+                        trace.reasoning_lines = ["Parsing user prompt...", ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled", "Checking persistent memory...", "Synthesizing response...", "Response finalized"];
                     }
                     addMessage('assistant', data.response, trace, data.message_id);
                     await loadMessages(currentProjectId);
                 }
-            } catch (err) {
-                hideThinking();
-                console.error('Chat request failed:', err);
-                addMessage('assistant', 'Sorry, I encountered an error. Please check your connection and try again.');
-                showToast('Failed to send message. Check your connection.');
-            }
+            } catch (err) { hideThinking(); addMessage('assistant', 'Sorry, I encountered an error. Please check your connection and try again.'); showToast('Failed to send message.'); }
         }
 
         document.getElementById('newProjectBtn').onclick = createProject;
         document.getElementById('newChatBtn').onclick = () => { document.getElementById('messagesContainer').innerHTML = ''; addMessage('assistant', "New chat started. How can I assist you?"); };
-        const input = document.getElementById('userInput');
-        document.getElementById('sendBtn').onclick = () => { const m = input.value.trim(); sendMessage(m); input.value = ''; };
-        document.getElementById('imageUpload').onchange = (e) => { const f = e.target.files[0]; if (f) { sendMessage(input.value.trim(), f); input.value = ''; e.target.value = ''; } };
-        input.onkeypress = (e) => { if (e.key === 'Enter') { const m = input.value.trim(); sendMessage(m); input.value = ''; } };
+        document.getElementById('sendBtn').onclick = () => { const m = userInput.value.trim(); sendMessage(m); userInput.value = ''; };
+        document.getElementById('imageUpload').onchange = (e) => { const f = e.target.files[0]; if (f) { sendMessage(userInput.value.trim(), f); userInput.value = ''; e.target.value = ''; } };
+        userInput.onkeypress = (e) => { if (e.key === 'Enter') { const m = userInput.value.trim(); sendMessage(m); userInput.value = ''; } };
+        
         loadTheme();
         loadProjects();
     })();
