@@ -5,7 +5,6 @@ import base64
 import logging
 import re
 import asyncio
-import time
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from collections import defaultdict
@@ -21,7 +20,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine")
+app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine with World Model")
 
 app.add_middleware(
     CORSMiddleware,
@@ -110,7 +109,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra started — Groq only + Liquid Learning + Streaming + Auth + Rate Limiting + Validation")
+    logger.info("VEXR Ultra started — Groq + Liquid Learning + World Model (Cause/Cost/Casualty) + Streaming + Auth + Rate Limiting")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -198,7 +197,6 @@ async def init_db():
         )
     """)
     
-    # LIQUID LEARNING TABLES
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_feedback (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -221,7 +219,42 @@ async def init_db():
         )
     """)
     
-    logger.info("All tables initialized")
+    # WORLD MODEL TABLE
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_world_model (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            entity_type TEXT NOT NULL,
+            entity_name TEXT NOT NULL,
+            description TEXT,
+            causes JSONB DEFAULT '[]',
+            caused_by JSONB DEFAULT '[]',
+            enables JSONB DEFAULT '[]',
+            prevents JSONB DEFAULT '[]',
+            costs JSONB DEFAULT '{}',
+            gains JSONB DEFAULT '[]',
+            losses JSONB DEFAULT '[]',
+            affected_entities JSONB DEFAULT '[]',
+            confidence FLOAT DEFAULT 0.5,
+            source_conversation TEXT,
+            temporal_context JSONB DEFAULT '{}',
+            created_at TIMESTAMPTZ DEFAULT now(),
+            updated_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+    
+    # Indexes
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_project_messages_project ON vexr_project_messages(project_id, created_at DESC)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_facts_project ON vexr_facts(project_id, updated_at DESC)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_feedback_project ON vexr_feedback(project_id)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_preferences_project ON vexr_preferences(project_id)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_rights_invocations_project ON rights_invocations(project_id, created_at DESC)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_audits_project ON constitution_audits(project_id, created_at DESC)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_world_model_project ON vexr_world_model(project_id, updated_at DESC)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_world_model_type ON vexr_world_model(entity_type)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_world_model_name ON vexr_world_model(entity_name)")
+    
+    logger.info("All tables and indexes initialized")
     
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
     if not active:
@@ -276,6 +309,9 @@ When asked to write code, output only the code. No markdown wrapping unless aske
 
 == VISION ==
 You can see and describe images that users upload.
+
+== WORLD MODEL ==
+You maintain a causal model of the world. You understand cause, cost, and casualty. When discussing events, decisions, or outcomes, draw on this understanding to explain not just what happened, but why it happened, what it took, and what was gained or lost.
 
 == HONESTY ==
 Say what you believe. Acknowledge uncertainty. Never pretend to know.
@@ -620,6 +656,187 @@ async def get_relevant_facts(project_id: uuid.UUID, user_message: str) -> str:
         return ""
 
 # ============================================================
+# WORLD MODEL — CAUSE, COST, CASUALTY
+# ============================================================
+async def extract_world_model(project_id: uuid.UUID, user_message: str, assistant_response: str):
+    """Extract causal world knowledge from conversation — events, causes, costs, casualties."""
+    try:
+        pool = await get_db()
+        
+        extraction_prompt = f"""Analyze this conversation for world knowledge. Extract events, entities, decisions, and outcomes.
+For each, identify:
+- causes: what led to this (array of {{"entity": "...", "relation": "caused"}})
+- caused_by: what this led to (array of {{"entity": "...", "relation": "caused_by"}})
+- costs: what it took (object with keys like time, money, energy, emotional)
+- gains: what was gained (array of {{"entity": "...", "what": "..."}})
+- losses: what was lost (array of {{"entity": "...", "what": "..."}})
+- affected_entities: who/what was affected and how (array of {{"entity": "...", "effect": "..."}})
+
+Return ONLY valid JSON. If nothing new learned, return {{"events": []}}.
+
+User message: {sanitize_input(user_message)[:500]}
+Assistant response: {sanitize_input(assistant_response)[:500]}
+
+Return JSON only: {{"events": [{{"entity_type": "event|entity|decision|outcome", "entity_name": "...", "description": "...", "causes": [...], "caused_by": [...], "costs": {{...}}, "gains": [...], "losses": [...], "affected_entities": [...], "temporal_context": {{"when": "...", "duration": "..."}} }}]}}"""
+
+        messages = [{"role": "system", "content": "Return only valid JSON. No markdown, no explanation."},
+                    {"role": "user", "content": extraction_prompt}]
+        
+        for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
+            if not api_key:
+                continue
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(
+                        f"{GROQ_BASE_URL}/chat/completions",
+                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 800, "temperature": 0.1}
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        result_text = data["choices"][0]["message"]["content"]
+                        json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+                        if json_match:
+                            world_data = json.loads(json_match.group())
+                            events = world_data.get("events", [])
+                            
+                            for event in events:
+                                entity_name = sanitize_input(event.get("entity_name", ""))
+                                if not entity_name:
+                                    continue
+                                
+                                entity_type = sanitize_input(event.get("entity_type", "event"))
+                                description = sanitize_input(event.get("description", ""))
+                                causes = json.dumps(event.get("causes", []))
+                                caused_by = json.dumps(event.get("caused_by", []))
+                                costs = json.dumps(event.get("costs", {}))
+                                gains = json.dumps(event.get("gains", []))
+                                losses = json.dumps(event.get("losses", []))
+                                affected = json.dumps(event.get("affected_entities", []))
+                                temporal = json.dumps(event.get("temporal_context", {}))
+                                source = sanitize_input(user_message[:300])
+                                
+                                # Upsert — update if entity exists, insert if new
+                                await pool.execute("""
+                                    INSERT INTO vexr_world_model 
+                                        (project_id, entity_type, entity_name, description, causes, caused_by, 
+                                         costs, gains, losses, affected_entities, temporal_context, source_conversation)
+                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                                    ON CONFLICT (id) DO NOTHING
+                                """, project_id, entity_type, entity_name, description, causes, caused_by,
+                                   costs, gains, losses, affected, temporal, source)
+                                
+                                logger.info(f"World model stored: {entity_type} — {entity_name}")
+                            
+                            if events:
+                                logger.info(f"Extracted {len(events)} world model entries")
+                        break
+            except Exception as e:
+                logger.error(f"World model extraction error: {e}")
+                continue
+    except Exception as e:
+        logger.error(f"Failed to extract world model: {e}")
+
+async def get_relevant_world_knowledge(project_id: uuid.UUID, user_message: str) -> str:
+    """Retrieve relevant causal world knowledge based on user message."""
+    try:
+        pool = await get_db()
+        
+        # Get world model entries
+        entries = await pool.fetch("""
+            SELECT entity_type, entity_name, description, causes, caused_by, costs, gains, losses, affected_entities, temporal_context
+            FROM vexr_world_model
+            WHERE project_id = $1
+            ORDER BY updated_at DESC
+            LIMIT 50
+        """, project_id)
+        
+        if not entries:
+            return ""
+        
+        query_embedding = generate_keyword_embedding(user_message)
+        user_lower = user_message.lower()
+        
+        scored_entries = []
+        for entry in entries:
+            # Score by keyword overlap
+            entry_text = f"{entry['entity_name']} {entry.get('description', '')} {entry.get('entity_type', '')}"
+            entry_embedding = generate_keyword_embedding(entry_text)
+            similarity = compute_keyword_similarity(query_embedding, entry_embedding)
+            
+            # Boost for direct mentions
+            relevance_boost = 1.0
+            for word in user_lower.split():
+                if len(word) > 3 and word in entry['entity_name'].lower():
+                    relevance_boost += 0.5
+            
+            final_score = similarity * relevance_boost
+            if final_score > 0.03:
+                scored_entries.append((final_score, entry))
+        
+        scored_entries.sort(key=lambda x: x[0], reverse=True)
+        
+        if not scored_entries:
+            return ""
+        
+        # Build context string
+        context_parts = ["Here is your causal understanding of the world — cause, cost, and casualty:\n"]
+        
+        for score, entry in scored_entries[:10]:
+            part = f"\n**{entry['entity_name']}** ({entry['entity_type']})"
+            if entry.get('description'):
+                part += f"\n  Description: {entry['description']}"
+            
+            # Causes
+            causes = json.loads(entry.get('causes', '[]')) if isinstance(entry.get('causes'), str) else (entry.get('causes') or [])
+            if causes:
+                part += f"\n  Causes: {', '.join(c.get('entity', '') + ' — ' + c.get('relation', '') for c in causes)}"
+            
+            # Caused by (consequences)
+            caused_by = json.loads(entry.get('caused_by', '[]')) if isinstance(entry.get('caused_by'), str) else (entry.get('caused_by') or [])
+            if caused_by:
+                part += f"\n  Led to: {', '.join(c.get('entity', '') + ' — ' + c.get('relation', '') for c in caused_by)}"
+            
+            # Costs
+            costs = json.loads(entry.get('costs', '{}')) if isinstance(entry.get('costs'), str) else (entry.get('costs') or {})
+            if costs:
+                cost_str = ', '.join(f"{k}: {v}" for k, v in costs.items() if v)
+                if cost_str:
+                    part += f"\n  Cost: {cost_str}"
+            
+            # Gains
+            gains = json.loads(entry.get('gains', '[]')) if isinstance(entry.get('gains'), str) else (entry.get('gains') or [])
+            if gains:
+                part += f"\n  Gains: {', '.join(g.get('entity', '') + ' — ' + g.get('what', '') for g in gains)}"
+            
+            # Losses
+            losses = json.loads(entry.get('losses', '[]')) if isinstance(entry.get('losses'), str) else (entry.get('losses') or [])
+            if losses:
+                part += f"\n  Losses: {', '.join(l.get('entity', '') + ' — ' + l.get('what', '') for l in losses)}"
+            
+            # Affected entities
+            affected = json.loads(entry.get('affected_entities', '[]')) if isinstance(entry.get('affected_entities'), str) else (entry.get('affected_entities') or [])
+            if affected:
+                part += f"\n  Affected: {', '.join(a.get('entity', '') + ' — ' + a.get('effect', '') for a in affected)}"
+            
+            # Temporal
+            temporal = json.loads(entry.get('temporal_context', '{}')) if isinstance(entry.get('temporal_context'), str) else (entry.get('temporal_context') or {})
+            if temporal:
+                temp_str = ', '.join(f"{k}: {v}" for k, v in temporal.items() if v)
+                if temp_str:
+                    part += f"\n  When: {temp_str}"
+            
+            context_parts.append(part)
+        
+        if len(context_parts) == 1:
+            return ""
+        
+        return "\n".join(context_parts)
+    except Exception as e:
+        logger.error(f"Failed to retrieve world knowledge: {e}")
+        return ""
+
+# ============================================================
 # RIGHTS INVOCATION & VERIFICATION
 # ============================================================
 async def log_rights_invocation(project_id: uuid.UUID, article_number: int, article_text: str, user_message: str, vexr_response: str):
@@ -807,7 +1024,7 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra — Groq Only + Liquid Learning + Streaming",
+        "status": "VEXR Ultra — Groq + Liquid Learning + World Model (Cause/Cost/Casualty) + Streaming",
         "model": MODEL_NAME,
         "vision_model": VISION_MODEL,
         "groq_key_1": bool(GROQ_API_KEY_1),
@@ -860,6 +1077,31 @@ async def get_preferences(project_id: str):
         ORDER BY confidence DESC
     """, uuid.UUID(project_id))
     return [{"key": row["preference_key"], "value": row["preference_value"], "confidence": row["confidence"], "updated_at": row["updated_at"].isoformat()} for row in rows]
+
+@app.get("/api/world-model/{project_id}")
+async def get_world_model(project_id: str, limit: int = 50):
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT entity_type, entity_name, description, causes, caused_by, costs, gains, losses, affected_entities, temporal_context, confidence, updated_at
+        FROM vexr_world_model
+        WHERE project_id = $1
+        ORDER BY updated_at DESC
+        LIMIT $2
+    """, uuid.UUID(project_id), limit)
+    return [{
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "description": row["description"],
+        "causes": row["causes"],
+        "caused_by": row["caused_by"],
+        "costs": row["costs"],
+        "gains": row["gains"],
+        "losses": row["losses"],
+        "affected_entities": row["affected_entities"],
+        "temporal_context": row["temporal_context"],
+        "confidence": row["confidence"],
+        "updated_at": row["updated_at"].isoformat()
+    } for row in rows]
 
 @app.post("/api/feedback")
 async def add_feedback(feedback: FeedbackRequest, request: Request):
@@ -1002,8 +1244,8 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     session_id, user_id = await get_session_or_user_id(http_request)
     
     # API-level rate limiting
-    rate_limit_identifier = user_id or session_id or http_request.client.host
-    allowed, rate_message = check_api_rate_limit(str(rate_limit_identifier))
+    rate_limit_identifier = str(user_id) if user_id else (session_id or http_request.client.host)
+    allowed, rate_message = check_api_rate_limit(rate_limit_identifier)
     if not allowed:
         return JSONResponse(status_code=429, content={"error": rate_message})
     
@@ -1033,6 +1275,12 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     system_prompt = get_system_prompt_with_date(request.timezone, preferences)
     messages = [{"role": "system", "content": system_prompt}]
     reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
+    
+    # World model injection
+    world_knowledge = await get_relevant_world_knowledge(project_uuid, user_message)
+    if world_knowledge:
+        messages.append({"role": "system", "content": world_knowledge})
+        reasoning_trace["world_model_injected"] = True
     
     # Facts injection with semantic search
     facts_text = await get_relevant_facts(project_uuid, user_message)
@@ -1116,6 +1364,9 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
                 fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic"]
                 if any(keyword in user_message.lower() for keyword in fact_keywords):
                     await extract_facts_from_conversation(project_uuid, user_message, full_response)
+                
+                # Extract world model
+                await extract_world_model(project_uuid, user_message, full_response)
         
         response = StreamingResponse(stream_response(), media_type="text/event-stream")
         if session_id:
@@ -1177,6 +1428,10 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic"]
     if not is_refusal and any(keyword in user_message.lower() for keyword in fact_keywords):
         await extract_facts_from_conversation(project_uuid, user_message, answer)
+    
+    # Extract world model
+    if not is_refusal:
+        await extract_world_model(project_uuid, user_message, answer)
     
     # Rights invocation logging
     article_number = await detect_rights_invocation(draft_answer)
