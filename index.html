@@ -1086,6 +1086,85 @@
             if (role === 'assistant' && ttsEnabled && main && !thinkMatch) speakText(main);
         }
 
+        // --- Streaming Message Support ---
+        function addStreamingMessage() {
+            const container = document.getElementById('messagesContainer');
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.id = 'streamingMessage';
+            
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            const sender = document.createElement('span');
+            sender.textContent = 'VEXR Ultra';
+            header.appendChild(sender);
+            div.appendChild(header);
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            bubble.id = 'streamingBubble';
+            bubble.innerHTML = '<span class="thinking-indicator"><span class="pulse-dot"></span> Receiving...</span>';
+            div.appendChild(bubble);
+            
+            container.appendChild(div);
+            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            return div;
+        }
+
+        function finalizeStreamingMessage(messageDiv, fullContent) {
+            if (!messageDiv) return;
+            
+            const bubble = messageDiv.querySelector('.message-bubble');
+            if (!bubble) return;
+            
+            // Parse the full content properly
+            bubble.innerHTML = '';
+            let main = fullContent;
+            const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
+            if (thinkMatch) {
+                const thinkDiv = document.createElement('div');
+                thinkDiv.className = 'think-block';
+                thinkDiv.textContent = thinkMatch[1].trim();
+                bubble.appendChild(thinkDiv);
+                main = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+            }
+            
+            let inCode = false, codeContent = '', html = '';
+            for (const line of main.split('\n')) {
+                if (line.trim().startsWith('```') && !inCode) { inCode = true; codeContent = ''; }
+                else if (line.trim() === '```' && inCode) { html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`; inCode = false; }
+                else if (inCode) codeContent += line + '\n';
+                else html += `<p>${escapeHtml(line)}</p>`;
+            }
+            if (html) {
+                const cd = document.createElement('div');
+                cd.innerHTML = html;
+                bubble.appendChild(cd);
+            } else if (main) {
+                bubble.appendChild(document.createTextNode(main));
+            }
+            
+            // Add header buttons
+            const header = messageDiv.querySelector('.message-header');
+            if (header) {
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-btn';
+                copyBtn.textContent = 'Copy';
+                copyBtn.onclick = () => copyToClipboard(fullContent);
+                header.appendChild(copyBtn);
+                
+                const speakBtn = document.createElement('button');
+                speakBtn.className = 'speaker-btn';
+                speakBtn.textContent = '🔊';
+                speakBtn.onclick = () => speakText(fullContent);
+                header.appendChild(speakBtn);
+            }
+            
+            messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            
+            if (ttsEnabled && main && !thinkMatch) speakText(main);
+        }
+
         // --- API calls ---
         async function loadProjects() {
             try {
@@ -1203,24 +1282,88 @@
             try {
                 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
                 const response = await fetch('/api/chat', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: [{ role: 'user', content: msg }], project_id: currentProjectId, ultra_search: ultraSearchEnabled, timezone })
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messages: [{ role: 'user', content: msg }],
+                        project_id: currentProjectId,
+                        ultra_search: ultraSearchEnabled,
+                        timezone: timezone,
+                        stream: true
+                    })
                 });
+
                 if (!response.ok) throw new Error(`Server error (${response.status})`);
-                const data = await response.json();
-                const trace = data.reasoning_trace || {};
-                if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
-                    trace.reasoning_lines = [
-                        "Parsing user prompt...",
-                        ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled",
-                        "Checking persistent memory...",
-                        "Synthesizing response...",
-                        "Response finalized"
-                    ];
+
+                const contentType = response.headers.get('content-type') || '';
+                
+                if (contentType.includes('text/event-stream')) {
+                    // Streaming path
+                    hideThinking();
+                    const streamDiv = addStreamingMessage();
+                    const bubble = streamDiv.querySelector('.message-bubble');
+                    let fullContent = '';
+                    let firstToken = true;
+                    
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const data = line.slice(6);
+                                if (data === '[DONE]') continue;
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (parsed.token) {
+                                        if (firstToken) {
+                                            bubble.innerHTML = '';
+                                            firstToken = false;
+                                        }
+                                        fullContent += parsed.token;
+                                        bubble.textContent = fullContent;
+                                        streamDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                                    }
+                                    if (parsed.error) {
+                                        bubble.innerHTML = `<span style="color: #ef4444;">Error: ${escapeHtml(parsed.error)}</span>`;
+                                        return;
+                                    }
+                                } catch (e) {
+                                    // Skip malformed JSON
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Finalize the message
+                    finalizeStreamingMessage(streamDiv, fullContent);
+                    await loadProjects(currentProjectId);
+                    
+                } else {
+                    // Non-streaming path (fallback)
+                    const data = await response.json();
+                    hideThinking();
+                    const trace = data.reasoning_trace || {};
+                    if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
+                        trace.reasoning_lines = [
+                            "Parsing user prompt...",
+                            ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled",
+                            "Checking persistent memory...",
+                            "Synthesizing response...",
+                            "Response finalized"
+                        ];
+                    }
+                    addMessage('assistant', data.response, trace, data.message_id);
+                    await loadMessages(currentProjectId);
                 }
-                hideThinking();
-                addMessage('assistant', data.response, trace, data.message_id);
-                await loadMessages(currentProjectId);
             } catch (err) {
                 hideThinking();
                 console.error('Chat request failed:', err);
