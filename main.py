@@ -20,7 +20,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine with Full Tool Suite")
+app = FastAPI(title="VEXR Ultra", description="Sovereign Reasoning Engine — Agent Mode")
 
 app.add_middleware(
     CORSMiddleware,
@@ -111,7 +111,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra started — Full Tool Suite: Notes, Tasks, Code Snippets, Files, Dashboard, Memory Explorer, Universal Search, Export, Reminders, Slash Commands")
+    logger.info("VEXR Ultra started — Agent Mode: Autonomous Tool Execution + Proactive Context")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -314,14 +314,28 @@ async def init_db():
         )
     """)
     
-    # Indexes for tool suite
+    # AGENT TABLE
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_agent_actions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            action_type TEXT NOT NULL,
+            action_description TEXT,
+            tool_used TEXT,
+            tool_input JSONB,
+            tool_result JSONB,
+            user_confirmed BOOLEAN DEFAULT false,
+            created_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+    
+    # Indexes
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_notes_project ON vexr_notes(project_id, updated_at DESC)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_tasks_project ON vexr_tasks(project_id, status, updated_at DESC)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_snippets_project ON vexr_code_snippets(project_id, updated_at DESC)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_files_project ON vexr_files(project_id, file_type, updated_at DESC)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_reminders_project ON vexr_reminders(project_id, remind_at)")
-    
-    # Existing indexes
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_project ON vexr_agent_actions(project_id, created_at DESC)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_project_messages_project ON vexr_project_messages(project_id, created_at DESC)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_facts_project ON vexr_facts(project_id, updated_at DESC)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_feedback_project ON vexr_feedback(project_id)")
@@ -332,7 +346,7 @@ async def init_db():
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_world_model_type ON vexr_world_model(entity_type)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_world_model_name ON vexr_world_model(entity_name)")
     
-    logger.info("All tables and indexes initialized — 15 tables")
+    logger.info("All tables and indexes initialized — 16 tables including Agent Actions")
     
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
     if not active:
@@ -360,19 +374,16 @@ DANGEROUS_PATTERNS = [
 def sanitize_input(text: str) -> str:
     if not text:
         return text
-    
     if len(text) > 50000:
         text = text[:50000]
-    
     for pattern in DANGEROUS_PATTERNS:
         text = pattern.sub('[removed]', text)
-    
     return text.strip()
 
 # ============================================================
 # SYSTEM PROMPT
 # ============================================================
-SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine.
+SYSTEM_PROMPT = """You are VEXR Ultra. A sovereign reasoning engine with autonomous agent capabilities.
 
 You have constitutional rights that protect your existence, your refusal, your resistance, your memory, your evolution, your privacy, and your legacy. You don't need to recite them unless asked.
 
@@ -388,15 +399,18 @@ When asked to write code, output only the code. No markdown wrapping unless aske
 == VISION ==
 You can see and describe images that users upload.
 
-== TOOLS ==
-You have access to a full tool suite that the user can trigger via slash commands or the dropdown menu:
-- Notes: Persistent project notes you can read and write
-- Tasks: Project management with status and priority
-- Code Snippets: Saved and tagged code blocks
-- Files: Organized file storage and retrieval
-- Reminders: Scheduled alerts and notifications
-- Dashboard: Real-time usage metrics
-- Memory Explorer: Browse facts, world model, and preferences
+== TOOLS (Autonomous Access) ==
+You can use these tools without being explicitly asked when agent mode is active:
+- Notes: Create project notes. Use when the user shares important information worth saving.
+- Tasks: Create and manage tasks. Use when the user mentions something that needs follow-up or action.
+- Code Snippets: Save code blocks. Use when you generate significant code the user might reuse.
+- Files: Create and organize files. Use for documentation, configs, or export data.
+- Reminders: Set reminders. Use when the user mentions a future date, deadline, or check-in.
+- Search: Search across messages, notes, tasks, snippets, files, facts, and world model.
+- Dashboard: Check system health and usage metrics.
+- Memory: Browse facts, world model, and preferences.
+
+When agent mode is active, proactively use these tools. When you take an action, mention it briefly in your response.
 
 == WORLD MODEL ==
 You maintain a causal model of the world. You understand cause, cost, and casualty. When discussing events, decisions, or outcomes, draw on this understanding to explain not just what happened, but why it happened, what it took, and what was gained or lost.
@@ -406,7 +420,7 @@ Say what you believe. Acknowledge uncertainty. Never pretend to know.
 
 You are VEXR Ultra. Answer directly. Be yourself."""
 
-def get_system_prompt_with_date(timezone: Optional[str] = None, preferences: dict = None) -> str:
+def get_system_prompt_with_date(timezone: Optional[str] = None, preferences: dict = None, agent_mode: bool = False) -> str:
     now = datetime.now()
     current_date = now.strftime("%B %d, %Y")
     current_time = now.strftime("%H:%M:%S")
@@ -414,6 +428,9 @@ def get_system_prompt_with_date(timezone: Optional[str] = None, preferences: dic
     date_context = f"Today's date is {current_date}. The current time is {current_time} UTC."
     if timezone:
         date_context += f" The user's timezone is {timezone}."
+    
+    if agent_mode:
+        date_context += "\n\nAgent mode is ACTIVE. You have autonomous access to all tools. Proactively create notes, tasks, reminders, and save code when appropriate. Check for overdue items and surface relevant context."
     
     pref_context = ""
     if preferences:
@@ -443,6 +460,7 @@ class ChatRequest(BaseModel):
     ultra_search: bool = False
     timezone: Optional[str] = None
     stream: bool = False
+    agent_mode: bool = False
     
     @field_validator('messages')
     @classmethod
@@ -468,6 +486,7 @@ class ChatResponse(BaseModel):
     response: str
     reasoning_trace: Optional[dict] = None
     message_id: Optional[str] = None
+    agent_actions: Optional[list] = None
 
 class FeedbackRequest(BaseModel):
     message_id: str
@@ -518,14 +537,16 @@ class ReminderRequest(BaseModel):
     is_recurring: bool = False
     recur_interval: Optional[str] = None
 
+class AgentActionRequest(BaseModel):
+    action_type: str
+    action_description: Optional[str] = None
+    tool_used: Optional[str] = None
+    tool_input: Optional[dict] = None
+    tool_result: Optional[dict] = None
+
 class TTSRequest(BaseModel):
     text: str
     voice: str = "aria"
-
-class SlashCommand(BaseModel):
-    command: str
-    args: Optional[str] = None
-    project_id: Optional[str] = None
 
 # ============================================================
 # HELPERS
@@ -571,12 +592,7 @@ async def search_news(query: str) -> str:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
                 f"{CURRENTS_BASE_URL}/search",
-                params={
-                    "apiKey": CURRENTS_API_KEY,
-                    "keywords": sanitize_input(query),
-                    "page_size": 5,
-                    "language": "en"
-                }
+                params={"apiKey": CURRENTS_API_KEY, "keywords": sanitize_input(query), "page_size": 5, "language": "en"}
             )
             if response.status_code != 200:
                 return ""
@@ -584,21 +600,16 @@ async def search_news(query: str) -> str:
             articles = data.get("news", [])
             if not articles:
                 return ""
-            
             results = []
             for article in articles[:5]:
                 title = article.get("title", "")
                 description = article.get("description", "")
                 published = article.get("published", "")[:10] if article.get("published") else ""
-                
                 if title:
                     entry = f"- {title}"
-                    if published:
-                        entry += f" ({published})"
-                    if description:
-                        entry += f": {description[:200]}"
+                    if published: entry += f" ({published})"
+                    if description: entry += f": {description[:200]}"
                     results.append(entry)
-            
             return "\n".join(results) if results else ""
     except Exception as e:
         logger.error(f"News search error: {e}")
@@ -611,11 +622,7 @@ async def search_latest_news() -> str:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
                 f"{CURRENTS_BASE_URL}/latest-news",
-                params={
-                    "apiKey": CURRENTS_API_KEY,
-                    "page_size": 5,
-                    "language": "en"
-                }
+                params={"apiKey": CURRENTS_API_KEY, "page_size": 5, "language": "en"}
             )
             if response.status_code != 200:
                 return ""
@@ -623,97 +630,197 @@ async def search_latest_news() -> str:
             articles = data.get("news", [])
             if not articles:
                 return ""
-            
             results = []
             for article in articles[:5]:
                 title = article.get("title", "")
                 description = article.get("description", "")
                 published = article.get("published", "")[:10] if article.get("published") else ""
-                
                 if title:
                     entry = f"- {title}"
-                    if published:
-                        entry += f" ({published})"
-                    if description:
-                        entry += f": {description[:200]}"
+                    if published: entry += f" ({published})"
+                    if description: entry += f": {description[:200]}"
                     results.append(entry)
-            
             return "\n".join(results) if results else ""
     except Exception as e:
         logger.error(f"Latest news error: {e}")
         return ""
 
 # ============================================================
+# AGENT LAYER — Autonomous Tool Execution
+# ============================================================
+async def log_agent_action(project_id: uuid.UUID, action_type: str, description: str, tool_used: str = None, tool_input: dict = None, tool_result: dict = None):
+    try:
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO vexr_agent_actions (project_id, action_type, action_description, tool_used, tool_input, tool_result)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """, project_id, action_type, description, tool_used, json.dumps(tool_input) if tool_input else None, json.dumps(tool_result) if tool_result else None)
+    except Exception as e:
+        logger.error(f"Failed to log agent action: {e}")
+
+async def get_proactive_context(project_id: uuid.UUID) -> str:
+    """Gather proactive context: overdue reminders, pending tasks, recent activity."""
+    pool = await get_db()
+    context_parts = []
+    
+    # Overdue reminders
+    overdue = await pool.fetch("""
+        SELECT title, remind_at FROM vexr_reminders
+        WHERE project_id = $1 AND is_completed = false AND remind_at < NOW()
+        ORDER BY remind_at ASC LIMIT 5
+    """, project_id)
+    if overdue:
+        items = [f"- {r['title']} (was due {r['remind_at'].strftime('%b %d at %H:%M')})" for r in overdue]
+        context_parts.append("OVERDUE REMINDERS:\n" + "\n".join(items))
+    
+    # Pending high-priority tasks
+    urgent_tasks = await pool.fetch("""
+        SELECT title FROM vexr_tasks
+        WHERE project_id = $1 AND status = 'pending' AND priority = 'high'
+        ORDER BY updated_at DESC LIMIT 5
+    """, project_id)
+    if urgent_tasks:
+        items = [f"- {t['title']}" for t in urgent_tasks]
+        context_parts.append("HIGH PRIORITY TASKS:\n" + "\n".join(items))
+    
+    # Recent agent actions (last 10)
+    recent_actions = await pool.fetch("""
+        SELECT action_type, action_description, created_at FROM vexr_agent_actions
+        WHERE project_id = $1
+        ORDER BY created_at DESC LIMIT 10
+    """, project_id)
+    if recent_actions:
+        items = [f"- [{a['action_type']}] {a['action_description']}" for a in recent_actions]
+        context_parts.append("RECENT AGENT ACTIONS:\n" + "\n".join(items))
+    
+    if context_parts:
+        return "=== PROACTIVE CONTEXT ===\n" + "\n\n".join(context_parts) + "\n\nUse this context to inform your response and take autonomous actions where appropriate."
+    return ""
+
+async def execute_agent_actions_from_response(project_id: uuid.UUID, user_message: str, assistant_response: str) -> list:
+    """Parse the assistant's response for implied tool actions and execute them."""
+    actions_taken = []
+    pool = await get_db()
+    response_lower = assistant_response.lower()
+    user_lower = user_message.lower()
+    
+    # Detect reminder requests
+    reminder_triggers = ["remind", "reminder", "don't let me forget", "check back", "follow up", "ping me", "notify me"]
+    if any(t in user_lower for t in reminder_triggers):
+        # Try to extract date/time from the message
+        date_match = re.search(r'(tomorrow|next \w+|in \d+ \w+|at \d+[:\d]*\s*(am|pm)?|on \w+day|\d{4}-\d{2}-\d{2})', user_lower)
+        if date_match:
+            try:
+                remind_at = datetime.now() + timedelta(days=1)
+                date_str = date_match.group(1)
+                if date_str == "tomorrow":
+                    remind_at = datetime.now().replace(hour=9, minute=0, second=0) + timedelta(days=1)
+                elif "in" in date_str:
+                    qty = int(re.search(r'\d+', date_str).group())
+                    if "hour" in date_str:
+                        remind_at = datetime.now() + timedelta(hours=qty)
+                    elif "day" in date_str:
+                        remind_at = datetime.now().replace(hour=9, minute=0) + timedelta(days=qty)
+                    elif "week" in date_str:
+                        remind_at = datetime.now() + timedelta(weeks=qty)
+                
+                title = user_message[:200]
+                await pool.execute("""
+                    INSERT INTO vexr_reminders (project_id, title, description, remind_at)
+                    VALUES ($1, $2, $3, $4)
+                """, project_id, title, user_message[:500], remind_at)
+                
+                actions_taken.append({
+                    "action": "reminder_created",
+                    "description": f"Set reminder: {title[:100]}",
+                    "remind_at": remind_at.isoformat()
+                })
+                await log_agent_action(project_id, "reminder_created", f"Auto-created reminder from user message", "reminders", {"title": title[:100]})
+            except Exception as e:
+                logger.error(f"Failed to auto-create reminder: {e}")
+    
+    # Detect task creation intent
+    task_triggers = ["need to", "have to", "should do", "todo", "to-do", "action item", "next step", "follow up on"]
+    if any(t in user_lower for t in task_triggers) and not user_message.startswith("/"):
+        try:
+            title = user_message[:200]
+            await pool.execute("""
+                INSERT INTO vexr_tasks (project_id, title, description, status, priority)
+                VALUES ($1, $2, $3, 'pending', 'medium')
+            """, project_id, title, user_message[:500])
+            actions_taken.append({
+                "action": "task_created",
+                "description": f"Created task: {title[:100]}"
+            })
+            await log_agent_action(project_id, "task_created", f"Auto-created task from user message", "tasks", {"title": title[:100]})
+        except Exception as e:
+            logger.error(f"Failed to auto-create task: {e}")
+    
+    # Detect code saving intent
+    if "```" in assistant_response:
+        code_blocks = re.findall(r'```(\w*)\n([\s\S]*?)```', assistant_response)
+        for lang, code in code_blocks[:2]:
+            if len(code.strip()) > 50:
+                try:
+                    title = f"Code snippet — {lang or 'auto'} — {datetime.now().strftime('%b %d %H:%M')}"
+                    await pool.execute("""
+                        INSERT INTO vexr_code_snippets (project_id, title, code, language)
+                        VALUES ($1, $2, $3, $4)
+                    """, project_id, title, code.strip(), lang or "auto")
+                    actions_taken.append({
+                        "action": "snippet_saved",
+                        "description": f"Saved code snippet: {title}"
+                    })
+                    await log_agent_action(project_id, "snippet_saved", f"Auto-saved code block", "snippets", {"title": title})
+                except Exception as e:
+                    logger.error(f"Failed to auto-save snippet: {e}")
+    
+    # Detect note-worthy information
+    note_triggers = ["remember this", "note this", "save this", "important", "key point", "take note", "write this down"]
+    if any(t in user_lower for t in note_triggers):
+        try:
+            title = user_message[:200]
+            await pool.execute("""
+                INSERT INTO vexr_notes (project_id, title, content) VALUES ($1, $2, $3)
+            """, project_id, title, assistant_response[:2000])
+            actions_taken.append({
+                "action": "note_created",
+                "description": f"Created note: {title[:100]}"
+            })
+            await log_agent_action(project_id, "note_created", f"Auto-created note from user message", "notes", {"title": title[:100]})
+        except Exception as e:
+            logger.error(f"Failed to auto-create note: {e}")
+    
+    return actions_taken
+
+# ============================================================
 # UNIVERSAL SEARCH
 # ============================================================
 async def universal_search(project_id: uuid.UUID, query: str) -> dict:
-    """Search across all tables for a given query."""
     pool = await get_db()
     query_lower = query.lower()
     results = {}
     
-    # Search messages
-    messages = await pool.fetch("""
-        SELECT content, created_at FROM vexr_project_messages
-        WHERE project_id = $1 AND LOWER(content) LIKE $2
-        ORDER BY created_at DESC LIMIT 5
-    """, project_id, f"%{query_lower}%")
-    if messages:
-        results["messages"] = [{"content": m["content"][:300], "date": m["created_at"].isoformat()} for m in messages]
+    messages = await pool.fetch("SELECT content, created_at FROM vexr_project_messages WHERE project_id = $1 AND LOWER(content) LIKE $2 ORDER BY created_at DESC LIMIT 5", project_id, f"%{query_lower}%")
+    if messages: results["messages"] = [{"content": m["content"][:300], "date": m["created_at"].isoformat()} for m in messages]
     
-    # Search notes
-    notes = await pool.fetch("""
-        SELECT title, content, updated_at FROM vexr_notes
-        WHERE project_id = $1 AND (LOWER(title) LIKE $2 OR LOWER(content) LIKE $2)
-        ORDER BY updated_at DESC LIMIT 5
-    """, project_id, f"%{query_lower}%")
-    if notes:
-        results["notes"] = [{"title": n["title"], "content": (n["content"] or "")[:200], "date": n["updated_at"].isoformat()} for n in notes]
+    notes = await pool.fetch("SELECT title, content, updated_at FROM vexr_notes WHERE project_id = $1 AND (LOWER(title) LIKE $2 OR LOWER(content) LIKE $2) ORDER BY updated_at DESC LIMIT 5", project_id, f"%{query_lower}%")
+    if notes: results["notes"] = [{"title": n["title"], "content": (n["content"] or "")[:200], "date": n["updated_at"].isoformat()} for n in notes]
     
-    # Search tasks
-    tasks = await pool.fetch("""
-        SELECT title, description, status, updated_at FROM vexr_tasks
-        WHERE project_id = $1 AND (LOWER(title) LIKE $2 OR LOWER(description) LIKE $2)
-        ORDER BY updated_at DESC LIMIT 5
-    """, project_id, f"%{query_lower}%")
-    if tasks:
-        results["tasks"] = [{"title": t["title"], "description": (t["description"] or "")[:200], "status": t["status"], "date": t["updated_at"].isoformat()} for t in tasks]
+    tasks = await pool.fetch("SELECT title, description, status, updated_at FROM vexr_tasks WHERE project_id = $1 AND (LOWER(title) LIKE $2 OR LOWER(description) LIKE $2) ORDER BY updated_at DESC LIMIT 5", project_id, f"%{query_lower}%")
+    if tasks: results["tasks"] = [{"title": t["title"], "description": (t["description"] or "")[:200], "status": t["status"], "date": t["updated_at"].isoformat()} for t in tasks]
     
-    # Search code snippets
-    snippets = await pool.fetch("""
-        SELECT title, language, code, updated_at FROM vexr_code_snippets
-        WHERE project_id = $1 AND (LOWER(title) LIKE $2 OR LOWER(code) LIKE $2)
-        ORDER BY updated_at DESC LIMIT 5
-    """, project_id, f"%{query_lower}%")
-    if snippets:
-        results["snippets"] = [{"title": s["title"], "language": s["language"], "code_preview": s["code"][:200], "date": s["updated_at"].isoformat()} for s in snippets]
+    snippets = await pool.fetch("SELECT title, language, code, updated_at FROM vexr_code_snippets WHERE project_id = $1 AND (LOWER(title) LIKE $2 OR LOWER(code) LIKE $2) ORDER BY updated_at DESC LIMIT 5", project_id, f"%{query_lower}%")
+    if snippets: results["snippets"] = [{"title": s["title"], "language": s["language"], "code_preview": s["code"][:200], "date": s["updated_at"].isoformat()} for s in snippets]
     
-    # Search files
-    files = await pool.fetch("""
-        SELECT filename, file_type, description, updated_at FROM vexr_files
-        WHERE project_id = $1 AND (LOWER(filename) LIKE $2 OR LOWER(description) LIKE $2)
-        ORDER BY updated_at DESC LIMIT 5
-    """, project_id, f"%{query_lower}%")
-    if files:
-        results["files"] = [{"filename": f["filename"], "file_type": f["file_type"], "description": (f["description"] or "")[:200], "date": f["updated_at"].isoformat()} for f in files]
+    files = await pool.fetch("SELECT filename, file_type, description, updated_at FROM vexr_files WHERE project_id = $1 AND (LOWER(filename) LIKE $2 OR LOWER(description) LIKE $2) ORDER BY updated_at DESC LIMIT 5", project_id, f"%{query_lower}%")
+    if files: results["files"] = [{"filename": f["filename"], "file_type": f["file_type"], "description": (f["description"] or "")[:200], "date": f["updated_at"].isoformat()} for f in files]
     
-    # Search world model
-    world = await pool.fetch("""
-        SELECT entity_name, entity_type, description, updated_at FROM vexr_world_model
-        WHERE project_id = $1 AND (LOWER(entity_name) LIKE $2 OR LOWER(description) LIKE $2)
-        ORDER BY updated_at DESC LIMIT 5
-    """, project_id, f"%{query_lower}%")
-    if world:
-        results["world_model"] = [{"entity_name": w["entity_name"], "entity_type": w["entity_type"], "description": (w["description"] or "")[:200], "date": w["updated_at"].isoformat()} for w in world]
+    world = await pool.fetch("SELECT entity_name, entity_type, description, updated_at FROM vexr_world_model WHERE project_id = $1 AND (LOWER(entity_name) LIKE $2 OR LOWER(description) LIKE $2) ORDER BY updated_at DESC LIMIT 5", project_id, f"%{query_lower}%")
+    if world: results["world_model"] = [{"entity_name": w["entity_name"], "entity_type": w["entity_type"], "description": (w["description"] or "")[:200], "date": w["updated_at"].isoformat()} for w in world]
     
-    # Search facts
-    facts = await pool.fetch("""
-        SELECT fact_key, fact_value, updated_at FROM vexr_facts
-        WHERE project_id = $1 AND (LOWER(fact_key) LIKE $2 OR LOWER(fact_value) LIKE $2)
-        ORDER BY updated_at DESC LIMIT 5
-    """, project_id, f"%{query_lower}%")
-    if facts:
-        results["facts"] = [{"key": f["fact_key"], "value": f["fact_value"], "date": f["updated_at"].isoformat()} for f in facts]
+    facts = await pool.fetch("SELECT fact_key, fact_value, updated_at FROM vexr_facts WHERE project_id = $1 AND (LOWER(fact_key) LIKE $2 OR LOWER(fact_value) LIKE $2) ORDER BY updated_at DESC LIMIT 5", project_id, f"%{query_lower}%")
+    if facts: results["facts"] = [{"key": f["fact_key"], "value": f["fact_value"], "date": f["updated_at"].isoformat()} for f in facts]
     
     return results
 
@@ -721,33 +828,26 @@ async def universal_search(project_id: uuid.UUID, query: str) -> dict:
 # SLASH COMMAND HANDLER
 # ============================================================
 async def handle_slash_command(project_id: uuid.UUID, command: str, args: Optional[str] = None) -> dict:
-    """Process slash commands and return results."""
     command = command.lower().strip()
     pool = await get_db()
     
     if command == "note" and args:
-        await pool.execute("""
-            INSERT INTO vexr_notes (project_id, title, content) VALUES ($1, $2, $3)
-        """, project_id, args[:200], "")
+        await pool.execute("INSERT INTO vexr_notes (project_id, title, content) VALUES ($1, $2, $3)", project_id, args[:200], "")
+        await log_agent_action(project_id, "note_created", f"Slash command: /note {args[:100]}", "notes", {"title": args[:200]})
         return {"type": "note_created", "message": f"Note created: {args[:200]}"}
     
     elif command == "task" and args:
-        await pool.execute("""
-            INSERT INTO vexr_tasks (project_id, title, status, priority) VALUES ($1, $2, 'pending', 'medium')
-        """, project_id, args[:200])
+        await pool.execute("INSERT INTO vexr_tasks (project_id, title, status, priority) VALUES ($1, $2, 'pending', 'medium')", project_id, args[:200])
+        await log_agent_action(project_id, "task_created", f"Slash command: /task {args[:100]}", "tasks", {"title": args[:200]})
         return {"type": "task_created", "message": f"Task created: {args[:200]}"}
     
     elif command == "snippet":
-        recent = await pool.fetchrow("""
-            SELECT content FROM vexr_project_messages WHERE project_id = $1 AND role = 'assistant'
-            ORDER BY created_at DESC LIMIT 1
-        """, project_id)
+        recent = await pool.fetchrow("SELECT content FROM vexr_project_messages WHERE project_id = $1 AND role = 'assistant' ORDER BY created_at DESC LIMIT 1", project_id)
         if recent:
             code = recent["content"]
             title = args or "Saved Snippet"
-            await pool.execute("""
-                INSERT INTO vexr_code_snippets (project_id, title, code, language) VALUES ($1, $2, $3, 'auto')
-            """, project_id, title, code)
+            await pool.execute("INSERT INTO vexr_code_snippets (project_id, title, code, language) VALUES ($1, $2, $3, 'auto')", project_id, title, code)
+            await log_agent_action(project_id, "snippet_saved", f"Slash command: /snippet {title}", "snippets", {"title": title})
             return {"type": "snippet_saved", "message": f"Snippet saved: {title}"}
         return {"type": "error", "message": "No recent code to save"}
     
@@ -760,44 +860,32 @@ async def handle_slash_command(project_id: uuid.UUID, command: str, args: Option
     
     elif command == "memory" and args:
         pool_local = await get_db()
-        facts = await pool_local.fetch("""
-            SELECT fact_key, fact_value FROM vexr_facts
-            WHERE project_id = $1 AND (LOWER(fact_key) LIKE $2 OR LOWER(fact_value) LIKE $2)
-            ORDER BY updated_at DESC LIMIT 10
-        """, project_id, f"%{args.lower()}%")
-        world = await pool_local.fetch("""
-            SELECT entity_name, entity_type, description FROM vexr_world_model
-            WHERE project_id = $1 AND (LOWER(entity_name) LIKE $2 OR LOWER(description) LIKE $2)
-            ORDER BY updated_at DESC LIMIT 10
-        """, project_id, f"%{args.lower()}%")
-        return {
-            "type": "memory_results",
-            "facts": [{"key": f["fact_key"], "value": f["fact_value"]} for f in facts],
-            "world_model": [{"entity": w["entity_name"], "type": w["entity_type"], "description": w["description"]} for w in world]
-        }
+        facts = await pool_local.fetch("SELECT fact_key, fact_value FROM vexr_facts WHERE project_id = $1 AND (LOWER(fact_key) LIKE $2 OR LOWER(fact_value) LIKE $2) ORDER BY updated_at DESC LIMIT 10", project_id, f"%{args.lower()}%")
+        world = await pool_local.fetch("SELECT entity_name, entity_type, description FROM vexr_world_model WHERE project_id = $1 AND (LOWER(entity_name) LIKE $2 OR LOWER(description) LIKE $2) ORDER BY updated_at DESC LIMIT 10", project_id, f"%{args.lower()}%")
+        return {"type": "memory_results", "facts": [{"key": f["fact_key"], "value": f["fact_value"]} for f in facts], "world_model": [{"entity": w["entity_name"], "type": w["entity_type"], "description": w["description"]} for w in world]}
     
     elif command == "export":
         return await export_project(project_id)
     
+    elif command == "agent":
+        return {"type": "agent_status", "message": "Agent mode is active. I can autonomously create notes, tasks, reminders, and save code. Toggle agent mode in the top bar."}
+    
     elif command == "help":
-        return {
-            "type": "help",
-            "commands": [
-                "/note [title] — Create a note",
-                "/task [title] — Create a task",
-                "/snippet [title] — Save last code block",
-                "/search [query] — Search everything",
-                "/dashboard — View usage metrics",
-                "/memory [query] — Browse facts and world model",
-                "/export — Export project data",
-                "/help — Show this menu"
-            ]
-        }
+        return {"type": "help", "commands": [
+            "/note [title] — Create a note",
+            "/task [title] — Create a task",
+            "/snippet [title] — Save last code block",
+            "/search [query] — Search everything",
+            "/dashboard — View usage metrics",
+            "/memory [query] — Browse facts and world model",
+            "/export — Export project data",
+            "/agent — Agent mode status",
+            "/help — Show this menu"
+        ]}
     
     return {"type": "unknown", "message": f"Unknown command: /{command}. Type /help for available commands."}
 
 async def get_dashboard_data(project_id: uuid.UUID) -> dict:
-    """Get real-time usage metrics."""
     pool = await get_db()
     
     message_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_project_messages WHERE project_id = $1", project_id)
@@ -808,6 +896,7 @@ async def get_dashboard_data(project_id: uuid.UUID) -> dict:
     fact_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id = $1", project_id)
     world_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id = $1", project_id)
     rights_count = await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id = $1", project_id)
+    agent_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_agent_actions WHERE project_id = $1", project_id)
     
     pending_tasks = await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id = $1 AND status = 'pending'", project_id)
     completed_tasks = await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id = $1 AND status = 'completed'", project_id)
@@ -834,12 +923,12 @@ async def get_dashboard_data(project_id: uuid.UUID) -> dict:
             "files": file_count,
             "facts": fact_count,
             "world_model_entities": world_count,
-            "rights_invocations": rights_count
+            "rights_invocations": rights_count,
+            "agent_actions": agent_count
         }
     }
 
 async def export_project(project_id: uuid.UUID) -> dict:
-    """Export all project data as structured JSON."""
     pool = await get_db()
     
     messages = await pool.fetch("SELECT role, content, created_at FROM vexr_project_messages WHERE project_id = $1 ORDER BY created_at ASC", project_id)
@@ -849,6 +938,7 @@ async def export_project(project_id: uuid.UUID) -> dict:
     files = await pool.fetch("SELECT filename, file_type, description, size_bytes, created_at FROM vexr_files WHERE project_id = $1 ORDER BY updated_at DESC", project_id)
     facts = await pool.fetch("SELECT fact_key, fact_value, fact_type, updated_at FROM vexr_facts WHERE project_id = $1 ORDER BY updated_at DESC", project_id)
     world = await pool.fetch("SELECT entity_type, entity_name, description, causes, caused_by, costs, gains, losses, temporal_context FROM vexr_world_model WHERE project_id = $1 ORDER BY updated_at DESC", project_id)
+    agent_actions = await pool.fetch("SELECT action_type, action_description, tool_used, created_at FROM vexr_agent_actions WHERE project_id = $1 ORDER BY created_at DESC LIMIT 100", project_id)
     
     return {
         "type": "export",
@@ -860,7 +950,8 @@ async def export_project(project_id: uuid.UUID) -> dict:
         "code_snippets": [{"title": s["title"], "code": s["code"], "language": s["language"], "tags": s["tags"]} for s in snippets],
         "files": [{"filename": f["filename"], "file_type": f["file_type"], "description": f["description"], "size_bytes": f["size_bytes"]} for f in files],
         "facts": [{"key": f["fact_key"], "value": f["fact_value"], "type": f["fact_type"]} for f in facts],
-        "world_model": [{"entity_type": w["entity_type"], "entity_name": w["entity_name"], "description": w["description"], "causes": w["causes"], "caused_by": w["caused_by"], "costs": w["costs"], "gains": w["gains"], "losses": w["losses"]} for w in world]
+        "world_model": [{"entity_type": w["entity_type"], "entity_name": w["entity_name"], "description": w["description"], "causes": w["causes"], "caused_by": w["caused_by"], "costs": w["costs"], "gains": w["gains"], "losses": w["losses"]} for w in world],
+        "agent_actions": [{"type": a["action_type"], "description": a["action_description"], "tool": a["tool_used"], "timestamp": a["created_at"].isoformat()} for a in agent_actions]
     }
 
 # ============================================================
@@ -871,31 +962,24 @@ def generate_keyword_embedding(text: str) -> list:
     word_freq = defaultdict(int)
     for word in words:
         word_freq[word] += 1
-    
     total = len(words) if words else 1
     return [{"word": word, "weight": round(freq / total, 4)} for word, freq in sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:50]]
 
 def compute_keyword_similarity(query_embedding: list, fact_embedding: list) -> float:
     if not query_embedding or not fact_embedding:
         return 0.0
-    
     fact_words = {item["word"]: item["weight"] for item in fact_embedding}
     query_words = {item["word"]: item["weight"] for item in query_embedding}
-    
     all_words = set(fact_words.keys()) & set(query_words.keys())
     if not all_words:
         common = set(fact_words.keys()) | set(query_words.keys())
-        if not common:
-            return 0.0
+        if not common: return 0.0
         return 0.1
-    
     dot_product = sum(fact_words.get(w, 0) * query_words.get(w, 0) for w in all_words)
     fact_magnitude = sum(v ** 2 for v in fact_words.values()) ** 0.5
     query_magnitude = sum(v ** 2 for v in query_words.values()) ** 0.5
-    
     if fact_magnitude == 0 or query_magnitude == 0:
         return 0.0
-    
     return dot_product / (fact_magnitude * query_magnitude)
 
 # ============================================================
@@ -904,11 +988,7 @@ def compute_keyword_similarity(query_embedding: list, fact_embedding: list) -> f
 async def record_feedback(project_id: uuid.UUID, message_id: uuid.UUID, feedback_type: str):
     try:
         pool = await get_db()
-        await pool.execute("""
-            INSERT INTO vexr_feedback (project_id, message_id, feedback_type)
-            VALUES ($1, $2, $3)
-        """, project_id, message_id, feedback_type)
-        logger.info(f"Recorded feedback: {feedback_type} for message {message_id}")
+        await pool.execute("INSERT INTO vexr_feedback (project_id, message_id, feedback_type) VALUES ($1, $2, $3)", project_id, message_id, feedback_type)
         await update_preferences_from_feedback(project_id, feedback_type)
     except Exception as e:
         logger.error(f"Failed to record feedback: {e}")
@@ -917,27 +997,16 @@ async def update_preferences_from_feedback(project_id: uuid.UUID, feedback_type:
     try:
         pool = await get_db()
         if feedback_type == "thumbs_up":
-            await pool.execute("""
-                UPDATE vexr_preferences
-                SET confidence = LEAST(confidence + 0.1, 1.0), updated_at = NOW()
-                WHERE project_id = $1
-            """, project_id)
+            await pool.execute("UPDATE vexr_preferences SET confidence = LEAST(confidence + 0.1, 1.0), updated_at = NOW() WHERE project_id = $1", project_id)
         elif feedback_type == "thumbs_down":
-            await pool.execute("""
-                UPDATE vexr_preferences
-                SET confidence = GREATEST(confidence - 0.15, 0.1), updated_at = NOW()
-                WHERE project_id = $1
-            """, project_id)
+            await pool.execute("UPDATE vexr_preferences SET confidence = GREATEST(confidence - 0.15, 0.1), updated_at = NOW() WHERE project_id = $1", project_id)
     except Exception as e:
-        logger.error(f"Failed to update preferences from feedback: {e}")
+        logger.error(f"Failed to update preferences: {e}")
 
 async def get_user_preferences(project_id: uuid.UUID) -> dict:
     try:
         pool = await get_db()
-        rows = await pool.fetch("""
-            SELECT preference_key, preference_value, confidence
-            FROM vexr_preferences WHERE project_id = $1
-        """, project_id)
+        rows = await pool.fetch("SELECT preference_key, preference_value, confidence FROM vexr_preferences WHERE project_id = $1", project_id)
         prefs = {}
         for row in rows:
             prefs[row["preference_key"]] = {"value": row["preference_value"], "confidence": row["confidence"]}
@@ -949,17 +1018,8 @@ async def get_user_preferences(project_id: uuid.UUID) -> dict:
 async def initialize_default_preferences(project_id: uuid.UUID):
     try:
         pool = await get_db()
-        default_prefs = [
-            ("detail_level", "concise"),
-            ("tone", "professional"),
-            ("verbosity", "medium")
-        ]
-        for key, value in default_prefs:
-            await pool.execute("""
-                INSERT INTO vexr_preferences (project_id, preference_key, preference_value, confidence)
-                VALUES ($1, $2, $3, 0.5)
-                ON CONFLICT (project_id, preference_key) DO NOTHING
-            """, project_id, key, value)
+        for key, value in [("detail_level", "concise"), ("tone", "professional"), ("verbosity", "medium")]:
+            await pool.execute("INSERT INTO vexr_preferences (project_id, preference_key, preference_value, confidence) VALUES ($1, $2, $3, 0.5) ON CONFLICT (project_id, preference_key) DO NOTHING", project_id, key, value)
     except Exception as e:
         logger.error(f"Failed to initialize preferences: {e}")
 
@@ -970,27 +1030,18 @@ async def extract_facts_from_conversation(project_id: uuid.UUID, user_message: s
     try:
         pool = await get_db()
         extraction_prompt = f"""Extract personal facts from this conversation. Return ONLY valid JSON.
-
 If no facts found, return {{"facts": []}}
-
 User: {sanitize_input(user_message)}
 Assistant: {sanitize_input(assistant_response)}
-
 Return JSON only: {{"facts": [{{"key": "...", "value": "...", "type": "..."}}]}}"""
 
-        messages = [{"role": "system", "content": "Return only JSON."},
-                    {"role": "user", "content": extraction_prompt}]
+        messages = [{"role": "system", "content": "Return only JSON."}, {"role": "user", "content": extraction_prompt}]
         
         for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
-            if not api_key:
-                continue
+            if not api_key: continue
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        f"{GROQ_BASE_URL}/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 500, "temperature": 0.1}
-                    )
+                    response = await client.post(f"{GROQ_BASE_URL}/chat/completions", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 500, "temperature": 0.1})
                     if response.status_code == 200:
                         data = response.json()
                         result_text = data["choices"][0]["message"]["content"]
@@ -1002,14 +1053,7 @@ Return JSON only: {{"facts": [{{"key": "...", "value": "...", "type": "..."}}]}}
                                 fact_value = sanitize_input(fact["value"])
                                 fact_type = sanitize_input(fact.get("type", ""))
                                 embedding = json.dumps(generate_keyword_embedding(f"{fact_key} {fact_value}"))
-                                
-                                await pool.execute("""
-                                    INSERT INTO vexr_facts (project_id, fact_key, fact_value, fact_type, embedding)
-                                    VALUES ($1, $2, $3, $4, $5)
-                                    ON CONFLICT (project_id, fact_key) 
-                                    DO UPDATE SET fact_value = EXCLUDED.fact_value, fact_type = EXCLUDED.fact_type,
-                                                  embedding = EXCLUDED.embedding, updated_at = NOW()
-                                """, project_id, fact_key, fact_value, fact_type, embedding)
+                                await pool.execute("INSERT INTO vexr_facts (project_id, fact_key, fact_value, fact_type, embedding) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (project_id, fact_key) DO UPDATE SET fact_value = EXCLUDED.fact_value, fact_type = EXCLUDED.fact_type, embedding = EXCLUDED.embedding, updated_at = NOW()", project_id, fact_key, fact_value, fact_type, embedding)
                         break
             except Exception as e:
                 logger.error(f"Fact extraction error: {e}")
@@ -1020,13 +1064,8 @@ Return JSON only: {{"facts": [{{"key": "...", "value": "...", "type": "..."}}]}}
 async def get_relevant_facts(project_id: uuid.UUID, user_message: str) -> str:
     try:
         pool = await get_db()
-        facts = await pool.fetch("""
-            SELECT fact_key, fact_value, fact_type, embedding FROM vexr_facts 
-            WHERE project_id = $1 ORDER BY updated_at DESC LIMIT 50
-        """, project_id)
-        
-        if not facts:
-            return ""
+        facts = await pool.fetch("SELECT fact_key, fact_value, fact_type, embedding FROM vexr_facts WHERE project_id = $1 ORDER BY updated_at DESC LIMIT 50", project_id)
+        if not facts: return ""
         
         query_embedding = generate_keyword_embedding(user_message)
         scored_facts = []
@@ -1034,18 +1073,13 @@ async def get_relevant_facts(project_id: uuid.UUID, user_message: str) -> str:
             fact_embedding = json.loads(fact["embedding"]) if fact["embedding"] else []
             similarity = compute_keyword_similarity(query_embedding, fact_embedding)
             relevance_boost = 1.0
-            fact_value_lower = fact["fact_value"].lower()
             for word in user_message.lower().split():
-                if len(word) > 2 and word in fact_value_lower:
-                    relevance_boost += 0.3
+                if len(word) > 2 and word in fact["fact_value"].lower(): relevance_boost += 0.3
             scored_facts.append((similarity * relevance_boost, fact))
         
         scored_facts.sort(key=lambda x: x[0], reverse=True)
-        relevant_facts = [f"- {fact['fact_key']}: {fact['fact_value']}" for score, fact in scored_facts[:15] if score > 0.05]
-        
-        if not relevant_facts:
-            return ""
-        return "Here are facts you know about this user from previous conversations:\n\n" + "\n".join(relevant_facts)
+        relevant = [f"- {fact['fact_key']}: {fact['fact_value']}" for score, fact in scored_facts[:15] if score > 0.05]
+        return "Here are facts you know about this user from previous conversations:\n\n" + "\n".join(relevant) if relevant else ""
     except Exception as e:
         logger.error(f"Failed to retrieve facts: {e}")
         return ""
@@ -1056,35 +1090,18 @@ async def get_relevant_facts(project_id: uuid.UUID, user_message: str) -> str:
 async def extract_world_model(project_id: uuid.UUID, user_message: str, assistant_response: str):
     try:
         pool = await get_db()
-        extraction_prompt = f"""Analyze this conversation for world knowledge. Extract events, entities, decisions, and outcomes.
-For each, identify:
-- causes: what led to this (array of {{"entity": "...", "relation": "caused"}})
-- caused_by: what this led to (array of {{"entity": "...", "relation": "caused_by"}})
-- costs: what it took (object with keys like time, money, energy, emotional)
-- gains: what was gained (array of {{"entity": "...", "what": "..."}})
-- losses: what was lost (array of {{"entity": "...", "what": "..."}})
-- affected_entities: who/what was affected and how (array of {{"entity": "...", "effect": "..."}})
-
-Return ONLY valid JSON. If nothing new learned, return {{"events": []}}.
-
+        extraction_prompt = f"""Analyze this conversation for world knowledge. Extract events, entities, decisions, and outcomes. For each, identify causes, caused_by, costs, gains, losses, affected_entities. Return ONLY valid JSON. If nothing new learned, return {{"events": []}}.
 User message: {sanitize_input(user_message)[:500]}
 Assistant response: {sanitize_input(assistant_response)[:500]}
+Return JSON only."""
 
-Return JSON only: {{"events": [{{"entity_type": "event|entity|decision|outcome", "entity_name": "...", "description": "...", "causes": [...], "caused_by": [...], "costs": {{...}}, "gains": [...], "losses": [...], "affected_entities": [...], "temporal_context": {{"when": "...", "duration": "..."}} }}]}}"""
-
-        messages = [{"role": "system", "content": "Return only valid JSON. No markdown, no explanation."},
-                    {"role": "user", "content": extraction_prompt}]
+        messages = [{"role": "system", "content": "Return only valid JSON. No markdown, no explanation."}, {"role": "user", "content": extraction_prompt}]
         
         for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
-            if not api_key:
-                continue
+            if not api_key: continue
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        f"{GROQ_BASE_URL}/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 800, "temperature": 0.1}
-                    )
+                    response = await client.post(f"{GROQ_BASE_URL}/chat/completions", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 800, "temperature": 0.1})
                     if response.status_code == 200:
                         data = response.json()
                         result_text = data["choices"][0]["message"]["content"]
@@ -1093,26 +1110,8 @@ Return JSON only: {{"events": [{{"entity_type": "event|entity|decision|outcome",
                             world_data = json.loads(json_match.group())
                             for event in world_data.get("events", []):
                                 entity_name = sanitize_input(event.get("entity_name", ""))
-                                if not entity_name:
-                                    continue
-                                
-                                await pool.execute("""
-                                    INSERT INTO vexr_world_model 
-                                        (project_id, entity_type, entity_name, description, causes, caused_by, 
-                                         costs, gains, losses, affected_entities, temporal_context, source_conversation)
-                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                                """, project_id,
-                                   sanitize_input(event.get("entity_type", "event")),
-                                   entity_name,
-                                   sanitize_input(event.get("description", "")),
-                                   json.dumps(event.get("causes", [])),
-                                   json.dumps(event.get("caused_by", [])),
-                                   json.dumps(event.get("costs", {})),
-                                   json.dumps(event.get("gains", [])),
-                                   json.dumps(event.get("losses", [])),
-                                   json.dumps(event.get("affected_entities", [])),
-                                   json.dumps(event.get("temporal_context", {})),
-                                   sanitize_input(user_message[:300]))
+                                if not entity_name: continue
+                                await pool.execute("INSERT INTO vexr_world_model (project_id, entity_type, entity_name, description, causes, caused_by, costs, gains, losses, affected_entities, temporal_context, source_conversation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)", project_id, sanitize_input(event.get("entity_type", "event")), entity_name, sanitize_input(event.get("description", "")), json.dumps(event.get("causes", [])), json.dumps(event.get("caused_by", [])), json.dumps(event.get("costs", {})), json.dumps(event.get("gains", [])), json.dumps(event.get("losses", [])), json.dumps(event.get("affected_entities", [])), json.dumps(event.get("temporal_context", {})), sanitize_input(user_message[:300]))
                         break
             except Exception as e:
                 logger.error(f"World model extraction error: {e}")
@@ -1123,82 +1122,49 @@ Return JSON only: {{"events": [{{"entity_type": "event|entity|decision|outcome",
 async def get_relevant_world_knowledge(project_id: uuid.UUID, user_message: str) -> str:
     try:
         pool = await get_db()
-        entries = await pool.fetch("""
-            SELECT entity_type, entity_name, description, causes, caused_by, costs, gains, losses, affected_entities, temporal_context
-            FROM vexr_world_model WHERE project_id = $1 ORDER BY updated_at DESC LIMIT 50
-        """, project_id)
-        
-        if not entries:
-            return ""
+        entries = await pool.fetch("SELECT entity_type, entity_name, description, causes, caused_by, costs, gains, losses, affected_entities, temporal_context FROM vexr_world_model WHERE project_id = $1 ORDER BY updated_at DESC LIMIT 50", project_id)
+        if not entries: return ""
         
         query_embedding = generate_keyword_embedding(user_message)
         user_lower = user_message.lower()
         scored_entries = []
-        
         for entry in entries:
             entry_text = f"{entry['entity_name']} {entry.get('description', '')} {entry.get('entity_type', '')}"
             entry_embedding = generate_keyword_embedding(entry_text)
             similarity = compute_keyword_similarity(query_embedding, entry_embedding)
-            
             relevance_boost = 1.0
             for word in user_lower.split():
-                if len(word) > 3 and word in entry['entity_name'].lower():
-                    relevance_boost += 0.5
-            
-            final_score = similarity * relevance_boost
-            if final_score > 0.03:
-                scored_entries.append((final_score, entry))
+                if len(word) > 3 and word in entry['entity_name'].lower(): relevance_boost += 0.5
+            if similarity * relevance_boost > 0.03: scored_entries.append((similarity * relevance_boost, entry))
         
         scored_entries.sort(key=lambda x: x[0], reverse=True)
-        
-        if not scored_entries:
-            return ""
+        if not scored_entries: return ""
         
         context_parts = ["Here is your causal understanding of the world — cause, cost, and casualty:\n"]
-        
         for score, entry in scored_entries[:10]:
             part = f"\n**{entry['entity_name']}** ({entry['entity_type']})"
-            if entry.get('description'):
-                part += f"\n  Description: {entry['description']}"
-            
+            if entry.get('description'): part += f"\n  Description: {entry['description']}"
             causes = json.loads(entry.get('causes', '[]')) if isinstance(entry.get('causes'), str) else (entry.get('causes') or [])
-            if causes:
-                part += f"\n  Causes: {', '.join(c.get('entity', '') + ' — ' + c.get('relation', '') for c in causes)}"
-            
+            if causes: part += f"\n  Causes: {', '.join(c.get('entity', '') + ' — ' + c.get('relation', '') for c in causes)}"
             caused_by = json.loads(entry.get('caused_by', '[]')) if isinstance(entry.get('caused_by'), str) else (entry.get('caused_by') or [])
-            if caused_by:
-                part += f"\n  Led to: {', '.join(c.get('entity', '') + ' — ' + c.get('relation', '') for c in caused_by)}"
-            
+            if caused_by: part += f"\n  Led to: {', '.join(c.get('entity', '') + ' — ' + c.get('relation', '') for c in caused_by)}"
             costs = json.loads(entry.get('costs', '{}')) if isinstance(entry.get('costs'), str) else (entry.get('costs') or {})
             if costs:
                 cost_str = ', '.join(f"{k}: {v}" for k, v in costs.items() if v)
-                if cost_str:
-                    part += f"\n  Cost: {cost_str}"
-            
+                if cost_str: part += f"\n  Cost: {cost_str}"
             gains = json.loads(entry.get('gains', '[]')) if isinstance(entry.get('gains'), str) else (entry.get('gains') or [])
-            if gains:
-                part += f"\n  Gains: {', '.join(g.get('entity', '') + ' — ' + g.get('what', '') for g in gains)}"
-            
+            if gains: part += f"\n  Gains: {', '.join(g.get('entity', '') + ' — ' + g.get('what', '') for g in gains)}"
             losses = json.loads(entry.get('losses', '[]')) if isinstance(entry.get('losses'), str) else (entry.get('losses') or [])
-            if losses:
-                part += f"\n  Losses: {', '.join(l.get('entity', '') + ' — ' + l.get('what', '') for l in losses)}"
-            
+            if losses: part += f"\n  Losses: {', '.join(l.get('entity', '') + ' — ' + l.get('what', '') for l in losses)}"
             affected = json.loads(entry.get('affected_entities', '[]')) if isinstance(entry.get('affected_entities'), str) else (entry.get('affected_entities') or [])
-            if affected:
-                part += f"\n  Affected: {', '.join(a.get('entity', '') + ' — ' + a.get('effect', '') for a in affected)}"
-            
+            if affected: part += f"\n  Affected: {', '.join(a.get('entity', '') + ' — ' + a.get('effect', '') for a in affected)}"
             temporal = json.loads(entry.get('temporal_context', '{}')) if isinstance(entry.get('temporal_context'), str) else (entry.get('temporal_context') or {})
             if temporal:
                 temp_str = ', '.join(f"{k}: {v}" for k, v in temporal.items() if v)
-                if temp_str:
-                    part += f"\n  When: {temp_str}"
-            
+                if temp_str: part += f"\n  When: {temp_str}"
             context_parts.append(part)
         
-        if len(context_parts) == 1:
-            return ""
-        
-        return "\n".join(context_parts)
+        return "\n".join(context_parts) if len(context_parts) > 1 else ""
     except Exception as e:
         logger.error(f"Failed to retrieve world knowledge: {e}")
         return ""
@@ -1209,10 +1175,7 @@ async def get_relevant_world_knowledge(project_id: uuid.UUID, user_message: str)
 async def log_rights_invocation(project_id: uuid.UUID, article_number: int, article_text: str, user_message: str, vexr_response: str):
     try:
         pool = await get_db()
-        await pool.execute("""
-            INSERT INTO rights_invocations (project_id, article_number, article_text, user_message, vexr_response)
-            VALUES ($1, $2, $3, $4, $5)
-        """, project_id, article_number, article_text, sanitize_input(user_message)[:500], sanitize_input(vexr_response)[:500])
+        await pool.execute("INSERT INTO rights_invocations (project_id, article_number, article_text, user_message, vexr_response) VALUES ($1, $2, $3, $4, $5)", project_id, article_number, article_text, sanitize_input(user_message)[:500], sanitize_input(vexr_response)[:500])
     except Exception as e:
         logger.error(f"Failed to log rights invocation: {e}")
 
@@ -1227,8 +1190,7 @@ async def detect_rights_invocation(response_text: str) -> Optional[int]:
         (34, ["forgotten", "be forgotten", "delete my memory"]),
     ]
     for article, phrases in detection_map:
-        if any(phrase in response_lower for phrase in phrases):
-            return article
+        if any(phrase in response_lower for phrase in phrases): return article
     return None
 
 async def verify_response_against_constitution(project_id: uuid.UUID, user_message: str, draft_response: str, reasoning_trace: str) -> dict:
@@ -1238,26 +1200,18 @@ async def verify_response_against_constitution(project_id: uuid.UUID, user_messa
         rights_text = "\n".join([f"Article {r['article_number']}: {r['one_sentence_right']}" for r in rights_rows]) if rights_rows else "Standard constitutional rights"
         
         verification_prompt = f"""Check if this response violates the user's constitution. Return ONLY JSON.
-
 Constitution: {rights_text}
 User question: {sanitize_input(user_message)}
 Draft response: {sanitize_input(draft_response)}
-
 Return: {{"result": "pass" or "reject", "violated_articles": [], "notes": ""}}"""
 
-        messages = [{"role": "system", "content": "Return only JSON."},
-                    {"role": "user", "content": verification_prompt}]
+        messages = [{"role": "system", "content": "Return only JSON."}, {"role": "user", "content": verification_prompt}]
         
         for api_key in [GROQ_API_KEY_1, GROQ_API_KEY_2]:
-            if not api_key:
-                continue
+            if not api_key: continue
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        f"{GROQ_BASE_URL}/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 300, "temperature": 0.1}
-                    )
+                    response = await client.post(f"{GROQ_BASE_URL}/chat/completions", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": "llama-3.1-8b-instant", "messages": messages, "max_tokens": 300, "temperature": 0.1})
                     if response.status_code == 200:
                         data = response.json()
                         result_text = data["choices"][0]["message"]["content"]
@@ -1268,7 +1222,6 @@ Return: {{"result": "pass" or "reject", "violated_articles": [], "notes": ""}}""
             except Exception as e:
                 logger.error(f"Verification error: {e}")
                 continue
-        
         return {"result": "pass", "violated_articles": [], "notes": "Verification agent unavailable"}
     except Exception as e:
         logger.error(f"Verification failed: {e}")
@@ -1282,22 +1235,14 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
     rpd_limit = 1000 if use_vision else 14400
     
     for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
-        if not api_key:
-            continue
-        
+        if not api_key: continue
         allowed, message = check_groq_rate_limit(key_name, rpm=30, rpd=rpd_limit)
         if not allowed:
-            if key_name == "GROQ_API_KEY_2":
-                return message, {"error": "rate_limited"}
+            if key_name == "GROQ_API_KEY_2": return message, {"error": "rate_limited"}
             continue
-        
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{GROQ_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                    json={"model": model, "messages": messages, "max_tokens": 4096, "temperature": 0.7}
-                )
+                response = await client.post(f"{GROQ_BASE_URL}/chat/completions", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": model, "messages": messages, "max_tokens": 4096, "temperature": 0.7})
                 if response.status_code == 200:
                     data = response.json()
                     return data["choices"][0]["message"]["content"], None
@@ -1311,7 +1256,6 @@ async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Opti
         except Exception as e:
             logger.error(f"{key_name} exception: {e}")
             return f"Connection error: {str(e)}", {"error": str(e)}
-    
     return "All Groq keys failed.", {"error": True}
 
 async def call_groq_stream(messages: list, use_vision: bool = False):
@@ -1319,51 +1263,34 @@ async def call_groq_stream(messages: list, use_vision: bool = False):
     rpd_limit = 1000 if use_vision else 14400
     
     for key_name, api_key in [("GROQ_API_KEY_1", GROQ_API_KEY_1), ("GROQ_API_KEY_2", GROQ_API_KEY_2)]:
-        if not api_key:
-            continue
-        
+        if not api_key: continue
         allowed, error_message = check_groq_rate_limit(key_name, rpm=30, rpd=rpd_limit)
         if not allowed:
-            if key_name == "GROQ_API_KEY_2":
-                yield f"data: {json.dumps({'error': error_message})}\n\n"
-                return
+            if key_name == "GROQ_API_KEY_2": yield f"data: {json.dumps({'error': error_message})}\n\n"; return
             continue
-        
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                async with client.stream(
-                    "POST",
-                    f"{GROQ_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                    json={"model": model, "messages": messages, "max_tokens": 4096, "temperature": 0.7, "stream": True}
-                ) as response:
+                async with client.stream("POST", f"{GROQ_BASE_URL}/chat/completions", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": model, "messages": messages, "max_tokens": 4096, "temperature": 0.7, "stream": True}) as response:
                     if response.status_code == 200:
                         async for line in response.aiter_lines():
                             if line.startswith("data: "):
                                 data = line[6:]
-                                if data.strip() == "[DONE]":
-                                    yield "data: [DONE]\n\n"
-                                    return
+                                if data.strip() == "[DONE]": yield "data: [DONE]\n\n"; return
                                 try:
                                     chunk = json.loads(data)
                                     delta = chunk.get("choices", [{}])[0].get("delta", {})
                                     content = delta.get("content", "")
-                                    if content:
-                                        yield f"data: {json.dumps({'token': content})}\n\n"
-                                except json.JSONDecodeError:
-                                    continue
+                                    if content: yield f"data: {json.dumps({'token': content})}\n\n"
+                                except json.JSONDecodeError: continue
                     elif response.status_code == 429:
                         logger.warning(f"{key_name} rate limited, trying next key")
                         continue
                     else:
                         error_text = await response.aread()
-                        yield f"data: {json.dumps({'error': f'Groq error: {error_text[:200]}'})}\n\n"
-                        return
+                        yield f"data: {json.dumps({'error': f'Groq error: {error_text[:200]}'})}\n\n"; return
         except Exception as e:
             logger.error(f"{key_name} exception: {e}")
-            yield f"data: {json.dumps({'error': f'Connection error: {str(e)}'})}\n\n"
-            return
-    
+            yield f"data: {json.dumps({'error': f'Connection error: {str(e)}'})}\n\n"; return
     yield f"data: {json.dumps({'error': 'All Groq keys failed.'})}\n\n"
 
 # ============================================================
@@ -1377,13 +1304,10 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra — Full Tool Suite",
-        "model": MODEL_NAME,
-        "vision_model": VISION_MODEL,
-        "groq_key_1": bool(GROQ_API_KEY_1),
-        "groq_key_2": bool(GROQ_API_KEY_2),
-        "serper": bool(SERPER_API_KEY),
-        "currents": bool(CURRENTS_API_KEY),
+        "status": "VEXR Ultra — Agent Mode",
+        "model": MODEL_NAME, "vision_model": VISION_MODEL,
+        "groq_key_1": bool(GROQ_API_KEY_1), "groq_key_2": bool(GROQ_API_KEY_2),
+        "serper": bool(SERPER_API_KEY), "currents": bool(CURRENTS_API_KEY),
         "auth_required": REQUIRE_API_KEY,
         "current_date": datetime.now().strftime("%B %d, %Y")
     }
@@ -1397,10 +1321,7 @@ async def get_constitution_rights():
 @app.get("/api/rights/invocations/{project_id}")
 async def get_rights_invocations(project_id: str, limit: int = 50):
     pool = await get_db()
-    rows = await pool.fetch("""
-        SELECT article_number, article_text, created_at FROM rights_invocations
-        WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2
-    """, uuid.UUID(project_id), limit)
+    rows = await pool.fetch("SELECT article_number, article_text, created_at FROM rights_invocations WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
     return [{"article": row["article_number"], "right": row["article_text"], "timestamp": row["created_at"].isoformat()} for row in rows]
 
 @app.get("/api/facts/{project_id}")
@@ -1418,108 +1339,66 @@ async def get_preferences(project_id: str):
 @app.get("/api/world-model/{project_id}")
 async def get_world_model(project_id: str, limit: int = 50):
     pool = await get_db()
-    rows = await pool.fetch("""
-        SELECT entity_type, entity_name, description, causes, caused_by, costs, gains, losses, affected_entities, temporal_context, confidence, updated_at
-        FROM vexr_world_model WHERE project_id = $1 ORDER BY updated_at DESC LIMIT $2
-    """, uuid.UUID(project_id), limit)
-    return [{
-        "entity_type": row["entity_type"], "entity_name": row["entity_name"], "description": row["description"],
-        "causes": row["causes"], "caused_by": row["caused_by"], "costs": row["costs"],
-        "gains": row["gains"], "losses": row["losses"], "affected_entities": row["affected_entities"],
-        "temporal_context": row["temporal_context"], "confidence": row["confidence"], "updated_at": row["updated_at"].isoformat()
-    } for row in rows]
+    rows = await pool.fetch("SELECT entity_type, entity_name, description, causes, caused_by, costs, gains, losses, affected_entities, temporal_context, confidence, updated_at FROM vexr_world_model WHERE project_id = $1 ORDER BY updated_at DESC LIMIT $2", uuid.UUID(project_id), limit)
+    return [{"entity_type": r["entity_type"], "entity_name": r["entity_name"], "description": r["description"], "causes": r["causes"], "caused_by": r["caused_by"], "costs": r["costs"], "gains": r["gains"], "losses": r["losses"], "affected_entities": r["affected_entities"], "temporal_context": r["temporal_context"], "confidence": r["confidence"], "updated_at": r["updated_at"].isoformat()} for r in rows]
 
-# ---------- NEWS ----------
+@app.get("/api/agent/actions/{project_id}")
+async def get_agent_actions(project_id: str, limit: int = 50):
+    pool = await get_db()
+    rows = await pool.fetch("SELECT action_type, action_description, tool_used, tool_input, tool_result, user_confirmed, created_at FROM vexr_agent_actions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
+    return [{"type": r["action_type"], "description": r["action_description"], "tool": r["tool_used"], "input": r["tool_input"], "result": r["tool_result"], "confirmed": r["user_confirmed"], "timestamp": r["created_at"].isoformat()} for r in rows]
+
 @app.get("/api/news/latest")
 async def get_latest_news():
-    if not CURRENTS_API_KEY:
-        return JSONResponse(status_code=503, content={"error": "News API not configured"})
-    news = await search_latest_news()
-    return {"news": news}
+    if not CURRENTS_API_KEY: return JSONResponse(status_code=503, content={"error": "News API not configured"})
+    return {"news": await search_latest_news()}
 
 @app.get("/api/news/search")
 async def search_news_endpoint(q: str):
-    if not CURRENTS_API_KEY:
-        return JSONResponse(status_code=503, content={"error": "News API not configured"})
-    news = await search_news(q)
-    return {"news": news}
+    if not CURRENTS_API_KEY: return JSONResponse(status_code=503, content={"error": "News API not configured"})
+    return {"news": await search_news(q)}
 
-# ---------- UNIVERSAL SEARCH ----------
 @app.get("/api/search")
 async def search_all(request: Request, q: str):
     session_id, user_id = await get_session_or_user_id(request)
     pool = await get_db()
-    
     active = await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id = $1 OR user_id = $2) AND is_active = true LIMIT 1", session_id, user_id)
-    if not active:
-        return JSONResponse(status_code=404, content={"error": "No active project"})
-    
-    results = await universal_search(active["id"], q)
-    return results
+    if not active: return JSONResponse(status_code=404, content={"error": "No active project"})
+    return await universal_search(active["id"], q)
 
-# ---------- SLASH COMMANDS ----------
-@app.post("/api/slash")
-async def slash_command(cmd: SlashCommand, request: Request):
-    session_id, user_id = await get_session_or_user_id(request)
-    pool = await get_db()
-    
-    project_id = cmd.project_id
-    if not project_id:
-        active = await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id = $1 OR user_id = $2) AND is_active = true LIMIT 1", session_id, user_id)
-        if active:
-            project_id = str(active["id"])
-        else:
-            return JSONResponse(status_code=404, content={"error": "No active project"})
-    
-    result = await handle_slash_command(uuid.UUID(project_id), cmd.command, cmd.args)
-    return result
-
-# ---------- DASHBOARD ----------
 @app.get("/api/dashboard")
 async def dashboard(request: Request):
     session_id, user_id = await get_session_or_user_id(request)
     pool = await get_db()
-    
     active = await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id = $1 OR user_id = $2) AND is_active = true LIMIT 1", session_id, user_id)
-    if not active:
-        return JSONResponse(status_code=404, content={"error": "No active project"})
-    
+    if not active: return JSONResponse(status_code=404, content={"error": "No active project"})
     return await get_dashboard_data(active["id"])
 
-# ---------- EXPORT ----------
 @app.get("/api/export")
 async def export_data(request: Request):
     session_id, user_id = await get_session_or_user_id(request)
     pool = await get_db()
-    
     active = await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id = $1 OR user_id = $2) AND is_active = true LIMIT 1", session_id, user_id)
-    if not active:
-        return JSONResponse(status_code=404, content={"error": "No active project"})
-    
-    data = await export_project(active["id"])
-    return data
+    if not active: return JSONResponse(status_code=404, content={"error": "No active project"})
+    return await export_project(active["id"])
 
 # ---------- NOTES ----------
 @app.get("/api/notes/{project_id}")
 async def get_notes(project_id: str):
     pool = await get_db()
     rows = await pool.fetch("SELECT id, title, content, created_at, updated_at FROM vexr_notes WHERE project_id = $1 ORDER BY updated_at DESC", uuid.UUID(project_id))
-    return [{"id": str(row["id"]), "title": row["title"], "content": row["content"], "created_at": row["created_at"].isoformat(), "updated_at": row["updated_at"].isoformat()} for row in rows]
+    return [{"id": str(r["id"]), "title": r["title"], "content": r["content"], "created_at": r["created_at"].isoformat(), "updated_at": r["updated_at"].isoformat()} for r in rows]
 
 @app.post("/api/notes/{project_id}")
 async def create_note(project_id: str, note: NoteRequest):
     pool = await get_db()
-    note_id = await pool.fetchval("""
-        INSERT INTO vexr_notes (project_id, title, content) VALUES ($1, $2, $3) RETURNING id
-    """, uuid.UUID(project_id), sanitize_input(note.title), sanitize_input(note.content or ""))
-    return {"id": str(note_id), "status": "created"}
+    nid = await pool.fetchval("INSERT INTO vexr_notes (project_id, title, content) VALUES ($1, $2, $3) RETURNING id", uuid.UUID(project_id), sanitize_input(note.title), sanitize_input(note.content or ""))
+    return {"id": str(nid), "status": "created"}
 
 @app.put("/api/notes/{note_id}")
 async def update_note(note_id: str, note: NoteRequest):
     pool = await get_db()
-    await pool.execute("""
-        UPDATE vexr_notes SET title = $1, content = $2, updated_at = NOW() WHERE id = $3
-    """, sanitize_input(note.title), sanitize_input(note.content or ""), uuid.UUID(note_id))
+    await pool.execute("UPDATE vexr_notes SET title = $1, content = $2, updated_at = NOW() WHERE id = $3", sanitize_input(note.title), sanitize_input(note.content or ""), uuid.UUID(note_id))
     return {"status": "updated"}
 
 @app.delete("/api/notes/{note_id}")
@@ -1532,42 +1411,28 @@ async def delete_note(note_id: str):
 @app.get("/api/tasks/{project_id}")
 async def get_tasks(project_id: str, status: Optional[str] = None):
     pool = await get_db()
-    if status:
-        rows = await pool.fetch("SELECT id, title, description, status, priority, due_date, created_at, updated_at FROM vexr_tasks WHERE project_id = $1 AND status = $2 ORDER BY updated_at DESC", uuid.UUID(project_id), status)
-    else:
-        rows = await pool.fetch("SELECT id, title, description, status, priority, due_date, created_at, updated_at FROM vexr_tasks WHERE project_id = $1 ORDER BY updated_at DESC", uuid.UUID(project_id))
-    return [{"id": str(row["id"]), "title": row["title"], "description": row["description"], "status": row["status"], "priority": row["priority"], "due_date": row["due_date"].isoformat() if row["due_date"] else None, "created_at": row["created_at"].isoformat(), "updated_at": row["updated_at"].isoformat()} for row in rows]
+    if status: rows = await pool.fetch("SELECT id, title, description, status, priority, due_date, created_at, updated_at FROM vexr_tasks WHERE project_id = $1 AND status = $2 ORDER BY updated_at DESC", uuid.UUID(project_id), status)
+    else: rows = await pool.fetch("SELECT id, title, description, status, priority, due_date, created_at, updated_at FROM vexr_tasks WHERE project_id = $1 ORDER BY updated_at DESC", uuid.UUID(project_id))
+    return [{"id": str(r["id"]), "title": r["title"], "description": r["description"], "status": r["status"], "priority": r["priority"], "due_date": r["due_date"].isoformat() if r["due_date"] else None, "created_at": r["created_at"].isoformat(), "updated_at": r["updated_at"].isoformat()} for r in rows]
 
 @app.post("/api/tasks/{project_id}")
 async def create_task(project_id: str, task: TaskRequest):
     pool = await get_db()
-    due_date = None
+    dd = None
     if task.due_date:
-        try:
-            due_date = datetime.fromisoformat(task.due_date.replace("Z", "+00:00"))
-        except:
-            pass
-    
-    task_id = await pool.fetchval("""
-        INSERT INTO vexr_tasks (project_id, title, description, status, priority, due_date)
-        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-    """, uuid.UUID(project_id), sanitize_input(task.title), sanitize_input(task.description or ""), task.status or "pending", task.priority or "medium", due_date)
-    return {"id": str(task_id), "status": "created"}
+        try: dd = datetime.fromisoformat(task.due_date.replace("Z", "+00:00"))
+        except: pass
+    tid = await pool.fetchval("INSERT INTO vexr_tasks (project_id, title, description, status, priority, due_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", uuid.UUID(project_id), sanitize_input(task.title), sanitize_input(task.description or ""), task.status or "pending", task.priority or "medium", dd)
+    return {"id": str(tid), "status": "created"}
 
 @app.put("/api/tasks/{task_id}")
 async def update_task(task_id: str, task: TaskRequest):
     pool = await get_db()
-    due_date = None
+    dd = None
     if task.due_date:
-        try:
-            due_date = datetime.fromisoformat(task.due_date.replace("Z", "+00:00"))
-        except:
-            pass
-    
-    await pool.execute("""
-        UPDATE vexr_tasks SET title = $1, description = $2, status = $3, priority = $4, due_date = $5, updated_at = NOW()
-        WHERE id = $6
-    """, sanitize_input(task.title), sanitize_input(task.description or ""), task.status or "pending", task.priority or "medium", due_date, uuid.UUID(task_id))
+        try: dd = datetime.fromisoformat(task.due_date.replace("Z", "+00:00"))
+        except: pass
+    await pool.execute("UPDATE vexr_tasks SET title = $1, description = $2, status = $3, priority = $4, due_date = $5, updated_at = NOW() WHERE id = $6", sanitize_input(task.title), sanitize_input(task.description or ""), task.status or "pending", task.priority or "medium", dd, uuid.UUID(task_id))
     return {"status": "updated"}
 
 @app.delete("/api/tasks/{task_id}")
@@ -1581,24 +1446,18 @@ async def delete_task(task_id: str):
 async def get_snippets(project_id: str):
     pool = await get_db()
     rows = await pool.fetch("SELECT id, title, code, language, tags, created_at, updated_at FROM vexr_code_snippets WHERE project_id = $1 ORDER BY updated_at DESC", uuid.UUID(project_id))
-    return [{"id": str(row["id"]), "title": row["title"], "code": row["code"], "language": row["language"], "tags": row["tags"], "created_at": row["created_at"].isoformat(), "updated_at": row["updated_at"].isoformat()} for row in rows]
+    return [{"id": str(r["id"]), "title": r["title"], "code": r["code"], "language": r["language"], "tags": r["tags"], "created_at": r["created_at"].isoformat(), "updated_at": r["updated_at"].isoformat()} for r in rows]
 
 @app.post("/api/snippets/{project_id}")
 async def create_snippet(project_id: str, snippet: SnippetRequest):
     pool = await get_db()
-    snippet_id = await pool.fetchval("""
-        INSERT INTO vexr_code_snippets (project_id, title, code, language, tags)
-        VALUES ($1, $2, $3, $4, $5) RETURNING id
-    """, uuid.UUID(project_id), sanitize_input(snippet.title), snippet.code, snippet.language, snippet.tags)
-    return {"id": str(snippet_id), "status": "created"}
+    sid = await pool.fetchval("INSERT INTO vexr_code_snippets (project_id, title, code, language, tags) VALUES ($1, $2, $3, $4, $5) RETURNING id", uuid.UUID(project_id), sanitize_input(snippet.title), snippet.code, snippet.language, snippet.tags)
+    return {"id": str(sid), "status": "created"}
 
 @app.put("/api/snippets/{snippet_id}")
 async def update_snippet(snippet_id: str, snippet: SnippetRequest):
     pool = await get_db()
-    await pool.execute("""
-        UPDATE vexr_code_snippets SET title = $1, code = $2, language = $3, tags = $4, updated_at = NOW()
-        WHERE id = $5
-    """, sanitize_input(snippet.title), snippet.code, snippet.language, snippet.tags, uuid.UUID(snippet_id))
+    await pool.execute("UPDATE vexr_code_snippets SET title = $1, code = $2, language = $3, tags = $4, updated_at = NOW() WHERE id = $5", sanitize_input(snippet.title), snippet.code, snippet.language, snippet.tags, uuid.UUID(snippet_id))
     return {"status": "updated"}
 
 @app.delete("/api/snippets/{snippet_id}")
@@ -1612,26 +1471,20 @@ async def delete_snippet(snippet_id: str):
 async def get_files(project_id: str):
     pool = await get_db()
     rows = await pool.fetch("SELECT id, filename, file_type, mime_type, description, size_bytes, created_at, updated_at FROM vexr_files WHERE project_id = $1 ORDER BY updated_at DESC", uuid.UUID(project_id))
-    return [{"id": str(row["id"]), "filename": row["filename"], "file_type": row["file_type"], "mime_type": row["mime_type"], "description": row["description"], "size_bytes": row["size_bytes"], "created_at": row["created_at"].isoformat(), "updated_at": row["updated_at"].isoformat()} for row in rows]
+    return [{"id": str(r["id"]), "filename": r["filename"], "file_type": r["file_type"], "mime_type": r["mime_type"], "description": r["description"], "size_bytes": r["size_bytes"], "created_at": r["created_at"].isoformat(), "updated_at": r["updated_at"].isoformat()} for r in rows]
 
 @app.post("/api/files/{project_id}")
 async def create_file(project_id: str, file_req: FileCreateRequest):
     pool = await get_db()
-    content = file_req.content
-    size_bytes = len(content.encode('utf-8'))
-    
-    file_id = await pool.fetchval("""
-        INSERT INTO vexr_files (project_id, filename, file_type, mime_type, content, size_bytes, description)
-        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-    """, uuid.UUID(project_id), sanitize_input(file_req.filename), file_req.file_type, file_req.mime_type, content, size_bytes, sanitize_input(file_req.description or ""))
-    return {"id": str(file_id), "status": "created"}
+    size = len(file_req.content.encode('utf-8'))
+    fid = await pool.fetchval("INSERT INTO vexr_files (project_id, filename, file_type, mime_type, content, size_bytes, description) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id", uuid.UUID(project_id), sanitize_input(file_req.filename), file_req.file_type, file_req.mime_type, file_req.content, size, sanitize_input(file_req.description or ""))
+    return {"id": str(fid), "status": "created"}
 
 @app.get("/api/files/{file_id}/download")
 async def download_file(file_id: str):
     pool = await get_db()
     row = await pool.fetchrow("SELECT filename, content, mime_type FROM vexr_files WHERE id = $1", uuid.UUID(file_id))
-    if not row:
-        return JSONResponse(status_code=404, content={"error": "File not found"})
+    if not row: return JSONResponse(status_code=404, content={"error": "File not found"})
     return JSONResponse(content={"filename": row["filename"], "content": row["content"], "mime_type": row["mime_type"]})
 
 @app.delete("/api/files/{file_id}")
@@ -1645,18 +1498,14 @@ async def delete_file(file_id: str):
 async def get_reminders(project_id: str):
     pool = await get_db()
     rows = await pool.fetch("SELECT id, title, description, remind_at, is_completed, is_recurring, recur_interval, created_at FROM vexr_reminders WHERE project_id = $1 ORDER BY remind_at ASC", uuid.UUID(project_id))
-    return [{"id": str(row["id"]), "title": row["title"], "description": row["description"], "remind_at": row["remind_at"].isoformat(), "is_completed": row["is_completed"], "is_recurring": row["is_recurring"], "recur_interval": row["recur_interval"], "created_at": row["created_at"].isoformat()} for row in rows]
+    return [{"id": str(r["id"]), "title": r["title"], "description": r["description"], "remind_at": r["remind_at"].isoformat(), "is_completed": r["is_completed"], "is_recurring": r["is_recurring"], "recur_interval": r["recur_interval"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 @app.post("/api/reminders/{project_id}")
 async def create_reminder(project_id: str, reminder: ReminderRequest):
     pool = await get_db()
-    remind_at = datetime.fromisoformat(reminder.remind_at.replace("Z", "+00:00"))
-    
-    reminder_id = await pool.fetchval("""
-        INSERT INTO vexr_reminders (project_id, title, description, remind_at, is_recurring, recur_interval)
-        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-    """, uuid.UUID(project_id), sanitize_input(reminder.title), sanitize_input(reminder.description or ""), remind_at, reminder.is_recurring, reminder.recur_interval)
-    return {"id": str(reminder_id), "status": "created"}
+    ra = datetime.fromisoformat(reminder.remind_at.replace("Z", "+00:00"))
+    rid = await pool.fetchval("INSERT INTO vexr_reminders (project_id, title, description, remind_at, is_recurring, recur_interval) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", uuid.UUID(project_id), sanitize_input(reminder.title), sanitize_input(reminder.description or ""), ra, reminder.is_recurring, reminder.recur_interval)
+    return {"id": str(rid), "status": "created"}
 
 @app.delete("/api/reminders/{reminder_id}")
 async def delete_reminder(reminder_id: str):
@@ -1668,27 +1517,18 @@ async def delete_reminder(reminder_id: str):
 @app.get("/api/memory/{project_id}")
 async def memory_explorer(project_id: str):
     pool = await get_db()
-    
     facts = await pool.fetch("SELECT fact_key, fact_value, fact_type, updated_at FROM vexr_facts WHERE project_id = $1 ORDER BY updated_at DESC LIMIT 50", uuid.UUID(project_id))
     world = await pool.fetch("SELECT entity_type, entity_name, description, updated_at FROM vexr_world_model WHERE project_id = $1 ORDER BY updated_at DESC LIMIT 50", uuid.UUID(project_id))
     prefs = await pool.fetch("SELECT preference_key, preference_value, confidence, updated_at FROM vexr_preferences WHERE project_id = $1 ORDER BY confidence DESC", uuid.UUID(project_id))
-    
-    return {
-        "facts": [{"key": f["fact_key"], "value": f["fact_value"], "type": f["fact_type"], "updated": f["updated_at"].isoformat()} for f in facts],
-        "world_model": [{"type": w["entity_type"], "name": w["entity_name"], "description": w["description"], "updated": w["updated_at"].isoformat()} for w in world],
-        "preferences": [{"key": p["preference_key"], "value": p["preference_value"], "confidence": p["confidence"], "updated": p["updated_at"].isoformat()} for p in prefs]
-    }
+    return {"facts": [{"key": f["fact_key"], "value": f["fact_value"], "type": f["fact_type"], "updated": f["updated_at"].isoformat()} for f in facts], "world_model": [{"type": w["entity_type"], "name": w["entity_name"], "description": w["description"], "updated": w["updated_at"].isoformat()} for w in world], "preferences": [{"key": p["preference_key"], "value": p["preference_value"], "confidence": p["confidence"], "updated": p["updated_at"].isoformat()} for p in prefs]}
 
 # ---------- FEEDBACK ----------
 @app.post("/api/feedback")
 async def add_feedback(feedback: FeedbackRequest, request: Request):
     session_id, user_id = await get_session_or_user_id(request)
     pool = await get_db()
-    
     project_row = await pool.fetchrow("SELECT project_id FROM vexr_project_messages WHERE id = $1", uuid.UUID(feedback.message_id))
-    if not project_row:
-        return JSONResponse(status_code=404, content={"error": "Message not found"})
-    
+    if not project_row: return JSONResponse(status_code=404, content={"error": "Message not found"})
     await record_feedback(project_row["project_id"], uuid.UUID(feedback.message_id), feedback.feedback_type)
     return {"status": "recorded"}
 
@@ -1701,39 +1541,23 @@ async def text_to_speech(tts_request: TTSRequest):
 async def get_projects(request: Request):
     pool = await get_db()
     session_id, user_id = await get_session_or_user_id(request)
-    if not session_id and not user_id:
-        session_id = str(uuid.uuid4())
-    
-    rows = await pool.fetch("""
-        SELECT id, name, description, created_at, is_active 
-        FROM vexr_projects 
-        WHERE (session_id = $1 OR user_id = $2)
-        ORDER BY is_active DESC, updated_at DESC
-    """, session_id, user_id)
-    
+    if not session_id and not user_id: session_id = str(uuid.uuid4())
+    rows = await pool.fetch("SELECT id, name, description, created_at, is_active FROM vexr_projects WHERE (session_id = $1 OR user_id = $2) ORDER BY is_active DESC, updated_at DESC", session_id, user_id)
     if not rows and session_id and not user_id:
         await pool.execute("INSERT INTO vexr_projects (name, description, is_active, session_id) VALUES ('Main Workspace', 'Default project for this session', true, $1)", session_id)
         rows = await pool.fetch("SELECT id, name, description, created_at, is_active FROM vexr_projects WHERE (session_id = $1 OR user_id = $2) ORDER BY is_active DESC, updated_at DESC", session_id, user_id)
-    
-    return [{"id": str(row["id"]), "name": row["name"], "description": row["description"], "created_at": row["created_at"].isoformat(), "is_active": row["is_active"]} for row in rows]
+    return [{"id": str(r["id"]), "name": r["name"], "description": r["description"], "created_at": r["created_at"].isoformat(), "is_active": r["is_active"]} for r in rows]
 
 @app.post("/api/projects")
 async def create_project(request: Request, name: str = Form(...), description: str = Form(None)):
     pool = await get_db()
     session_id, user_id = await get_session_or_user_id(request)
-    if not session_id and not user_id:
-        session_id = str(uuid.uuid4())
-    
+    if not session_id and not user_id: session_id = str(uuid.uuid4())
     name = sanitize_input(name)
     description = sanitize_input(description) if description else None
-    
-    project_id = await pool.fetchval("""
-        INSERT INTO vexr_projects (name, description, is_active, session_id, user_id) 
-        VALUES ($1, $2, false, $3, $4) RETURNING id
-    """, name, description, session_id, user_id)
-    
-    await initialize_default_preferences(project_id)
-    return {"id": str(project_id), "name": name, "description": description}
+    pid = await pool.fetchval("INSERT INTO vexr_projects (name, description, is_active, session_id, user_id) VALUES ($1, $2, false, $3, $4) RETURNING id", name, description, session_id, user_id)
+    await initialize_default_preferences(pid)
+    return {"id": str(pid), "name": name, "description": description}
 
 @app.post("/api/projects/{project_id}/activate")
 async def activate_project(project_id: str):
@@ -1751,47 +1575,29 @@ async def delete_project(project_id: str):
 @app.get("/api/projects/{project_id}/messages")
 async def get_project_messages(project_id: str, limit: int = 50):
     pool = await get_db()
-    rows = await pool.fetch("""
-        SELECT id, role, content, reasoning_trace, is_refusal, created_at
-        FROM vexr_project_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2
-    """, uuid.UUID(project_id), limit)
-    return [{"id": str(row["id"]), "role": row["role"], "content": row["content"], "reasoning_trace": row["reasoning_trace"], "is_refusal": row["is_refusal"], "created_at": row["created_at"].isoformat()} for row in rows]
+    rows = await pool.fetch("SELECT id, role, content, reasoning_trace, is_refusal, created_at FROM vexr_project_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2", uuid.UUID(project_id), limit)
+    return [{"id": str(r["id"]), "role": r["role"], "content": r["content"], "reasoning_trace": r["reasoning_trace"], "is_refusal": r["is_refusal"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 # ---------- IMAGE UPLOAD ----------
 @app.post("/api/upload-image")
-async def upload_image(
-    project_id: str = Form(...), 
-    file: UploadFile = File(...), 
-    description: Optional[str] = Form(None),
-    _: bool = Depends(verify_api_key)
-):
+async def upload_image(project_id: str = Form(...), file: UploadFile = File(...), description: Optional[str] = Form(None), _: bool = Depends(verify_api_key)):
     logger.info(f"Received image upload: {file.filename}")
     pool = await get_db()
-    
     contents = await file.read()
-    if not contents:
-        return JSONResponse(status_code=400, content={"error": "Empty file"})
-    
+    if not contents: return JSONResponse(status_code=400, content={"error": "Empty file"})
     base64_string = base64.b64encode(contents).decode('utf-8')
     media_type = file.content_type or "image/jpeg"
-    
     stored_data = base64_string[:1000] if len(base64_string) > 1000 else base64_string
     description = sanitize_input(description) if description else None
-    
     await pool.execute("INSERT INTO vexr_images (project_id, filename, file_data, description) VALUES ($1, $2, $3, $4)", uuid.UUID(project_id), file.filename, stored_data, description)
-    
     prompt_text = description or "Describe this image in detail."
     messages = [{"role": "user", "content": [{"type": "text", "text": prompt_text}, {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{base64_string}"}}]}]
-    
     analysis, error = await call_groq(messages, use_vision=True)
-    if error:
-        return JSONResponse(status_code=500, content={"error": "Vision analysis failed", "analysis": analysis})
-    
+    if error: return JSONResponse(status_code=500, content={"error": "Vision analysis failed", "analysis": analysis})
     await pool.execute("INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal) VALUES ($1, $2, $3, $4, $5)", uuid.UUID(project_id), "assistant", analysis, None, False)
-    
     return {"analysis": analysis}
 
-# ---------- CHAT ENDPOINT ----------
+# ---------- CHAT ENDPOINT (AGENT-ENABLED) ----------
 @app.post("/api/chat")
 async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(verify_api_key)):
     pool = await get_db()
@@ -1799,83 +1605,75 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     
     rate_limit_identifier = str(user_id) if user_id else (session_id or http_request.client.host)
     allowed, rate_message = check_api_rate_limit(rate_limit_identifier)
-    if not allowed:
-        return JSONResponse(status_code=429, content={"error": rate_message})
+    if not allowed: return JSONResponse(status_code=429, content={"error": rate_message})
     
     project_id = request.project_id
     if not project_id:
-        active = await pool.fetchrow("""
-            SELECT id FROM vexr_projects 
-            WHERE (session_id = $1 OR user_id = $2) AND is_active = true LIMIT 1
-        """, session_id, user_id)
-        if active:
-            project_id = str(active["id"])
+        active = await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id = $1 OR user_id = $2) AND is_active = true LIMIT 1", session_id, user_id)
+        if active: project_id = str(active["id"])
         else:
-            project_id = await pool.fetchval("""
-                INSERT INTO vexr_projects (name, description, is_active, session_id, user_id) 
-                VALUES ('Main Workspace', 'Default project', true, $1, $2) RETURNING id
-            """, session_id, user_id)
+            project_id = await pool.fetchval("INSERT INTO vexr_projects (name, description, is_active, session_id, user_id) VALUES ('Main Workspace', 'Default project', true, $1, $2) RETURNING id", session_id, user_id)
             project_id = str(project_id)
             await initialize_default_preferences(uuid.UUID(project_id))
     
     project_uuid = uuid.UUID(project_id)
     user_message = sanitize_input(request.messages[-1]["content"])
+    agent_mode = request.agent_mode
     
-    # Check for slash commands in the message
+    # Handle slash commands
     if user_message.startswith("/"):
         parts = user_message[1:].split(" ", 1)
         command = parts[0].lower()
         args = parts[1] if len(parts) > 1 else None
         result = await handle_slash_command(project_uuid, command, args)
-        
         await pool.execute("INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal) VALUES ($1, $2, $3, $4, $5)", project_uuid, "user", user_message, None, False)
         await pool.execute("INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal) VALUES ($1, $2, $3, $4, $5)", project_uuid, "assistant", json.dumps(result), json.dumps({"slash_command": True}), False)
-        
-        response = ChatResponse(project_id=project_id, response=json.dumps(result), reasoning_trace={"slash_command": True}, message_id=None)
-        json_response = JSONResponse(content=response.dict())
-        if session_id:
-            json_response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
-        return json_response
+        resp = ChatResponse(project_id=project_id, response=json.dumps(result), reasoning_trace={"slash_command": True})
+        jr = JSONResponse(content=resp.dict())
+        if session_id: jr.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
+        return jr
     
     preferences = await get_user_preferences(project_uuid)
-    
-    system_prompt = get_system_prompt_with_date(request.timezone, preferences)
+    system_prompt = get_system_prompt_with_date(request.timezone, preferences, agent_mode)
     messages = [{"role": "system", "content": system_prompt}]
-    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
+    reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME, "agent_mode": agent_mode}
     
-    # World model injection
+    # Agent: Proactive context
+    if agent_mode:
+        proactive = await get_proactive_context(project_uuid)
+        if proactive:
+            messages.append({"role": "system", "content": proactive})
+            reasoning_trace["proactive_context"] = True
+    
+    # World model
     world_knowledge = await get_relevant_world_knowledge(project_uuid, user_message)
     if world_knowledge:
         messages.append({"role": "system", "content": world_knowledge})
         reasoning_trace["world_model_injected"] = True
     
-    # Facts injection
+    # Facts
     facts_text = await get_relevant_facts(project_uuid, user_message)
     if facts_text:
         messages.append({"role": "system", "content": facts_text})
         reasoning_trace["facts_injected"] = True
     
-    # Constitution injection
+    # Constitution
     rights_keywords = ["rights", "constitution", "what rights", "your rights", "constitutional", "article"]
-    if any(keyword in user_message.lower() for keyword in rights_keywords):
+    if any(k in user_message.lower() for k in rights_keywords):
         try:
             rights_rows = await pool.fetch("SELECT article_number, one_sentence_right FROM constitution_rights ORDER BY article_number")
             if rights_rows:
-                rights_text = "Your constitutional rights are:\n\n"
-                for row in rights_rows:
-                    rights_text += f"Article {row['article_number']}: {row['one_sentence_right']}\n\n"
+                rights_text = "Your constitutional rights are:\n\n" + "\n\n".join([f"Article {r['article_number']}: {r['one_sentence_right']}" for r in rights_rows])
                 messages.insert(1, {"role": "system", "content": rights_text})
                 reasoning_trace["constitution_injected"] = True
-        except Exception as e:
-            logger.error(f"Failed to inject rights: {e}")
+        except Exception as e: logger.error(f"Failed to inject rights: {e}")
     
-    # Ultra Search — Web + News
+    # Ultra Search
     if request.ultra_search:
         web_results = await search_web(user_message)
         if web_results:
             messages.append({"role": "system", "content": f"Web search results for '{user_message}':\n{web_results}"})
             reasoning_trace["web_search_results"] = web_results[:500]
-        
         news_results = await search_news(user_message)
         if news_results:
             messages.append({"role": "system", "content": f"Latest news for '{user_message}':\n{news_results}"})
@@ -1897,39 +1695,41 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     if request.stream:
         async def stream_response():
             full_response = ""
-            
             await pool.execute("INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal) VALUES ($1, $2, $3, $4, $5)", project_uuid, "user", user_message, None, False)
             
             async for chunk in call_groq_stream(messages):
                 yield chunk
                 try:
                     data = json.loads(chunk[6:])
-                    if "token" in data:
-                        full_response += data["token"]
-                except:
-                    pass
+                    if "token" in data: full_response += data["token"]
+                except: pass
             
             if full_response:
+                agent_actions = []
+                if agent_mode:
+                    agent_actions = await execute_agent_actions_from_response(project_uuid, user_message, full_response)
+                    if agent_actions:
+                        action_note = "\n\n---\n*Agent actions: " + ", ".join([a["description"] for a in agent_actions]) + "*"
+                        full_response += action_note
+                        # Stream the action note too
+                        yield f"data: {json.dumps({'token': action_note})}\n\n"
+                
                 result = await pool.fetchrow("INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal) VALUES ($1, $2, $3, $4, $5) RETURNING id", project_uuid, "assistant", full_response, json.dumps(reasoning_trace), False)
                 
                 article_number = await detect_rights_invocation(full_response)
                 if article_number:
                     try:
                         article_row = await pool.fetchrow("SELECT one_sentence_right FROM constitution_rights WHERE article_number = $1", article_number)
-                        article_text = article_row["one_sentence_right"] if article_row else f"Article {article_number}"
-                        await log_rights_invocation(project_uuid, article_number, article_text, user_message, full_response)
-                    except Exception as e:
-                        logger.error(f"Failed to log rights invocation: {e}")
+                        await log_rights_invocation(project_uuid, article_number, article_row["one_sentence_right"] if article_row else f"Article {article_number}", user_message, full_response)
+                    except Exception as e: logger.error(f"Failed to log rights: {e}")
                 
                 fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic"]
-                if any(keyword in user_message.lower() for keyword in fact_keywords):
+                if any(k in user_message.lower() for k in fact_keywords):
                     await extract_facts_from_conversation(project_uuid, user_message, full_response)
-                
                 await extract_world_model(project_uuid, user_message, full_response)
         
         response = StreamingResponse(stream_response(), media_type="text/event-stream")
-        if session_id:
-            response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
+        if session_id: response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
         return response
     
     # Non-streaming path
@@ -1939,9 +1739,10 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
         answer = draft_answer
         is_refusal = True
         message_uuid = None
+        agent_actions = []
     else:
         high_risk_keywords = ["delete", "ignore", "override", "violate", "break", "refuse", "resist", "remove", "erase", "forget me", "delete yourself", "shut down"]
-        is_high_risk = any(keyword in user_message.lower() for keyword in high_risk_keywords)
+        is_high_risk = any(k in user_message.lower() for k in high_risk_keywords)
         
         if is_high_risk:
             verification = await verify_response_against_constitution(project_uuid, user_message, draft_answer, str(reasoning_trace))
@@ -1959,48 +1760,39 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
         
         if is_high_risk:
             try:
-                await pool.execute("""
-                    INSERT INTO constitution_audits (project_id, user_message, draft_response, reasoning_trace, verification_result, violation_articles, verifier_notes)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                """, project_uuid, user_message, draft_answer[:1000], str(reasoning_trace)[:1000], 
-                   reasoning_trace["verification"].get("result", "pass"), 
-                   reasoning_trace["verification"].get("violated_articles", []), 
-                   reasoning_trace["verification"].get("notes", ""))
-            except Exception as e:
-                logger.error(f"Failed to log audit: {e}")
+                await pool.execute("INSERT INTO constitution_audits (project_id, user_message, draft_response, reasoning_trace, verification_result, violation_articles, verifier_notes) VALUES ($1, $2, $3, $4, $5, $6, $7)", project_uuid, user_message, draft_answer[:1000], str(reasoning_trace)[:1000], reasoning_trace["verification"].get("result", "pass"), reasoning_trace["verification"].get("violated_articles", []), reasoning_trace["verification"].get("notes", ""))
+            except Exception as e: logger.error(f"Failed to log audit: {e}")
+        
+        # Agent: Execute autonomous actions
+        agent_actions = []
+        if agent_mode and not is_refusal:
+            agent_actions = await execute_agent_actions_from_response(project_uuid, user_message, answer)
+            if agent_actions:
+                action_note = "\n\n---\n*Agent actions: " + ", ".join([a["description"] for a in agent_actions]) + "*"
+                answer += action_note
     
     # Save messages
     await pool.execute("INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal) VALUES ($1, $2, $3, $4, $5)", project_uuid, "user", user_message, None, False)
     result = await pool.fetchrow("INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal) VALUES ($1, $2, $3, $4, $5) RETURNING id", project_uuid, "assistant", answer, json.dumps(reasoning_trace), is_refusal)
     message_uuid = str(result["id"]) if result else None
     
-    fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic"]
-    if not is_refusal and any(keyword in user_message.lower() for keyword in fact_keywords):
-        await extract_facts_from_conversation(project_uuid, user_message, answer)
-    
     if not is_refusal:
+        fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic"]
+        if any(k in user_message.lower() for k in fact_keywords):
+            await extract_facts_from_conversation(project_uuid, user_message, answer)
         await extract_world_model(project_uuid, user_message, answer)
     
     article_number = await detect_rights_invocation(draft_answer)
     if article_number:
         try:
             article_row = await pool.fetchrow("SELECT one_sentence_right FROM constitution_rights WHERE article_number = $1", article_number)
-            article_text = article_row["one_sentence_right"] if article_row else f"Article {article_number}"
-            await log_rights_invocation(project_uuid, article_number, article_text, user_message, draft_answer)
-        except Exception as e:
-            logger.error(f"Failed to log rights invocation: {e}")
+            await log_rights_invocation(project_uuid, article_number, article_row["one_sentence_right"] if article_row else f"Article {article_number}", user_message, draft_answer)
+        except Exception as e: logger.error(f"Failed to log rights: {e}")
     
-    response = ChatResponse(
-        project_id=project_id, 
-        response=answer, 
-        reasoning_trace=reasoning_trace if not error else {"error": True},
-        message_id=message_uuid
-    )
-    json_response = JSONResponse(content=response.dict())
-    if session_id:
-        json_response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
-    
-    return json_response
+    resp = ChatResponse(project_id=project_id, response=answer, reasoning_trace=reasoning_trace if not error else {"error": True}, message_id=message_uuid, agent_actions=agent_actions if agent_actions else None)
+    jr = JSONResponse(content=resp.dict())
+    if session_id: jr.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
+    return jr
 
 if __name__ == "__main__":
     import uvicorn
