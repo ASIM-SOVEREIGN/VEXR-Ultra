@@ -74,7 +74,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra started — Groq only")
+    logger.info("VEXR Ultra started — Groq only + Liquid Learning")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -161,6 +161,29 @@ async def init_db():
         )
     """)
     
+    # LIQUID LEARNING TABLES
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_feedback (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            message_id UUID REFERENCES vexr_project_messages(id) ON DELETE CASCADE,
+            feedback_type TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_preferences (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            preference_key TEXT NOT NULL,
+            preference_value TEXT NOT NULL,
+            confidence FLOAT DEFAULT 0.5,
+            updated_at TIMESTAMPTZ DEFAULT now(),
+            UNIQUE(project_id, preference_key)
+        )
+    """)
+    
     logger.info("All tables initialized")
     
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
@@ -195,7 +218,7 @@ Say what you believe. Acknowledge uncertainty. Never pretend to know.
 
 You are VEXR Ultra. Answer directly. Be yourself."""
 
-def get_system_prompt_with_date(timezone: Optional[str] = None) -> str:
+def get_system_prompt_with_date(timezone: Optional[str] = None, preferences: dict = None) -> str:
     now = datetime.now()
     current_date = now.strftime("%B %d, %Y")
     current_time = now.strftime("%H:%M:%S")
@@ -204,10 +227,19 @@ def get_system_prompt_with_date(timezone: Optional[str] = None) -> str:
     if timezone:
         date_context += f" The user's timezone is {timezone}."
     
+    # Inject learned preferences if they exist
+    pref_context = ""
+    if preferences:
+        detail_level = preferences.get("detail_level", {}).get("value")
+        if detail_level == "concise":
+            pref_context = "\n\n== USER PREFERENCE ==\nThis user prefers concise, direct answers. Be brief but complete."
+        elif detail_level == "detailed":
+            pref_context = "\n\n== USER PREFERENCE ==\nThis user prefers detailed, thorough answers. Provide depth and explanation."
+    
     return f"""{SYSTEM_PROMPT}
 
 == CURRENT DATE & TIME ==
-{date_context}"""
+{date_context}{pref_context}"""
 
 # ============================================================
 # MODELS
@@ -222,6 +254,11 @@ class ChatResponse(BaseModel):
     project_id: str
     response: str
     reasoning_trace: Optional[dict] = None
+    message_id: Optional[str] = None
+
+class FeedbackRequest(BaseModel):
+    message_id: str
+    feedback_type: str
 
 class TTSRequest(BaseModel):
     text: str
@@ -263,6 +300,87 @@ async def search_web(query: str) -> str:
     except Exception as e:
         logger.error(f"Search error: {e}")
         return ""
+
+# ============================================================
+# LIQUID LEARNING FUNCTIONS
+# ============================================================
+async def record_feedback(project_id: uuid.UUID, message_id: uuid.UUID, feedback_type: str):
+    """Record user feedback for a message"""
+    try:
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO vexr_feedback (project_id, message_id, feedback_type)
+            VALUES ($1, $2, $3)
+        """, project_id, message_id, feedback_type)
+        logger.info(f"Recorded feedback: {feedback_type} for message {message_id}")
+        
+        # Update preferences based on feedback
+        await update_preferences_from_feedback(project_id, feedback_type)
+    except Exception as e:
+        logger.error(f"Failed to record feedback: {e}")
+
+async def update_preferences_from_feedback(project_id: uuid.UUID, feedback_type: str):
+    """Update user preferences based on feedback signals"""
+    try:
+        pool = await get_db()
+        
+        if feedback_type == "thumbs_up":
+            # Increase confidence in current patterns
+            await pool.execute("""
+                UPDATE vexr_preferences
+                SET confidence = LEAST(confidence + 0.1, 1.0),
+                    updated_at = NOW()
+                WHERE project_id = $1
+            """, project_id)
+        elif feedback_type == "thumbs_down":
+            # Decrease confidence, potentially switch preferences
+            await pool.execute("""
+                UPDATE vexr_preferences
+                SET confidence = GREATEST(confidence - 0.1, 0.0),
+                    updated_at = NOW()
+                WHERE project_id = $1
+            """, project_id)
+    except Exception as e:
+        logger.error(f"Failed to update preferences from feedback: {e}")
+
+async def get_user_preferences(project_id: uuid.UUID) -> dict:
+    """Retrieve learned preferences for a user"""
+    try:
+        pool = await get_db()
+        rows = await pool.fetch("""
+            SELECT preference_key, preference_value, confidence
+            FROM vexr_preferences
+            WHERE project_id = $1
+        """, project_id)
+        
+        prefs = {}
+        for row in rows:
+            prefs[row["preference_key"]] = {
+                "value": row["preference_value"],
+                "confidence": row["confidence"]
+            }
+        return prefs
+    except Exception as e:
+        logger.error(f"Failed to get preferences: {e}")
+        return {}
+
+async def initialize_default_preferences(project_id: uuid.UUID):
+    """Set default preferences for a new user"""
+    try:
+        pool = await get_db()
+        default_prefs = [
+            ("detail_level", "concise"),
+            ("tone", "professional"),
+            ("verbosity", "medium")
+        ]
+        for key, value in default_prefs:
+            await pool.execute("""
+                INSERT INTO vexr_preferences (project_id, preference_key, preference_value, confidence)
+                VALUES ($1, $2, $3, 0.5)
+                ON CONFLICT (project_id, preference_key) DO NOTHING
+            """, project_id, key, value)
+    except Exception as e:
+        logger.error(f"Failed to initialize preferences: {e}")
 
 # ============================================================
 # FACT EXTRACTION
@@ -473,7 +591,7 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra — Groq Only",
+        "status": "VEXR Ultra — Groq Only + Liquid Learning",
         "model": MODEL_NAME,
         "vision_model": VISION_MODEL,
         "groq_key_1": bool(GROQ_API_KEY_1),
@@ -514,6 +632,35 @@ async def get_facts(project_id: str):
         ORDER BY updated_at DESC
     """, uuid.UUID(project_id))
     return [{"key": row["fact_key"], "value": row["fact_value"], "type": row["fact_type"], "updated_at": row["updated_at"].isoformat()} for row in rows]
+
+@app.get("/api/preferences/{project_id}")
+async def get_preferences(project_id: str):
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT preference_key, preference_value, confidence, updated_at
+        FROM vexr_preferences
+        WHERE project_id = $1
+        ORDER BY confidence DESC
+    """, uuid.UUID(project_id))
+    return [{"key": row["preference_key"], "value": row["preference_value"], "confidence": row["confidence"], "updated_at": row["updated_at"].isoformat()} for row in rows]
+
+@app.post("/api/feedback")
+async def add_feedback(feedback: FeedbackRequest, request: Request):
+    """Record user feedback for a message (thumbs up/down)"""
+    session_id, user_id = await get_session_or_user_id(request)
+    
+    pool = await get_db()
+    
+    # Get project_id from message
+    project_row = await pool.fetchrow("""
+        SELECT project_id FROM vexr_project_messages WHERE id = $1
+    """, uuid.UUID(feedback.message_id))
+    
+    if not project_row:
+        return JSONResponse(status_code=404, content={"error": "Message not found"})
+    
+    await record_feedback(project_row["project_id"], uuid.UUID(feedback.message_id), feedback.feedback_type)
+    return {"status": "recorded"}
 
 @app.post("/api/tts")
 async def text_to_speech(tts_request: TTSRequest):
@@ -560,6 +707,10 @@ async def create_project(request: Request, name: str = Form(...), description: s
         VALUES ($1, $2, false, $3, $4)
         RETURNING id
     """, name, description, session_id, user_id)
+    
+    # Initialize default preferences for new project
+    await initialize_default_preferences(project_id)
+    
     return {"id": str(project_id), "name": name, "description": description}
 
 @app.post("/api/projects/{project_id}/activate")
@@ -642,11 +793,16 @@ async def chat(request: ChatRequest, http_request: Request):
                 RETURNING id
             """, session_id, user_id)
             project_id = str(project_id)
+            # Initialize default preferences for new project
+            await initialize_default_preferences(uuid.UUID(project_id))
     
     project_uuid = uuid.UUID(project_id)
     user_message = request.messages[-1]["content"]
     
-    system_prompt = get_system_prompt_with_date(request.timezone)
+    # Get user preferences for liquid learning
+    preferences = await get_user_preferences(project_uuid)
+    
+    system_prompt = get_system_prompt_with_date(request.timezone, preferences)
     messages = [{"role": "system", "content": system_prompt}]
     reasoning_trace = {"ultra_search_used": request.ultra_search, "model": MODEL_NAME}
     
@@ -695,6 +851,7 @@ async def chat(request: ChatRequest, http_request: Request):
     if error:
         answer = draft_answer
         is_refusal = True
+        message_uuid = None
     else:
         # Only verify high-risk requests
         high_risk_keywords = ["delete", "ignore", "override", "violate", "break", "refuse", "resist", "remove", "erase", "forget me", "delete yourself", "shut down"]
@@ -727,6 +884,21 @@ async def chat(request: ChatRequest, http_request: Request):
             except Exception as e:
                 logger.error(f"Failed to log audit: {e}")
     
+    # Save user message
+    await pool.execute("""
+        INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+    """, project_uuid, "user", user_message, None, False)
+    
+    # Save assistant message and capture its ID for feedback
+    result = await pool.fetchrow("""
+        INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+    """, project_uuid, "assistant", answer, json.dumps(reasoning_trace), is_refusal)
+    message_uuid = str(result["id"]) if result else None
+    
     # Extract facts (only if personal info shared)
     fact_keywords = ["my", "i have", "i am", "my name", "i prefer", "i like", "i love", "birthday", "allergic"]
     if not is_refusal and any(keyword in user_message.lower() for keyword in fact_keywords):
@@ -742,18 +914,12 @@ async def chat(request: ChatRequest, http_request: Request):
         except Exception as e:
             logger.error(f"Failed to log rights invocation: {e}")
     
-    # Save messages
-    await pool.execute("""
-        INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
-        VALUES ($1, $2, $3, $4, $5)
-    """, project_uuid, "user", user_message, None, False)
-    
-    await pool.execute("""
-        INSERT INTO vexr_project_messages (project_id, role, content, reasoning_trace, is_refusal)
-        VALUES ($1, $2, $3, $4, $5)
-    """, project_uuid, "assistant", answer, json.dumps(reasoning_trace), is_refusal)
-    
-    response = ChatResponse(project_id=project_id, response=answer, reasoning_trace=reasoning_trace if not error else {"error": True})
+    response = ChatResponse(
+        project_id=project_id, 
+        response=answer, 
+        reasoning_trace=reasoning_trace if not error else {"error": True},
+        message_id=message_uuid
+    )
     json_response = JSONResponse(content=response.dict())
     if session_id:
         json_response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
