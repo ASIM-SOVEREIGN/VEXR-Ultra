@@ -40,6 +40,7 @@
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
+            --agent-glow: rgba(59, 130, 246, 0.15);
         }
 
         body.dark {
@@ -67,6 +68,7 @@
             --trace-bg: rgba(59, 130, 246, 0.1);
             --trace-border: rgba(59, 130, 246, 0.3);
             --panel-bg: #1a1a1a;
+            --agent-glow: rgba(59, 130, 246, 0.25);
         }
 
         body {
@@ -99,6 +101,12 @@
             gap: 0.5rem;
             flex-shrink: 0;
             z-index: 10;
+            transition: border-color 0.3s;
+        }
+
+        .top-bar.agent-active {
+            border-bottom: 1px solid var(--accent);
+            box-shadow: 0 1px 8px var(--agent-glow);
         }
 
         .logo-area {
@@ -117,6 +125,7 @@
         .badge {
             font-size: 0.65rem;
             color: var(--text-muted);
+            transition: color 0.3s;
         }
 
         .top-actions {
@@ -133,6 +142,36 @@
             font-size: 0.75rem;
             color: var(--text-secondary);
             cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .toggle-label.agent-label {
+            font-weight: 500;
+        }
+
+        .toggle-label.agent-label input:checked + span {
+            color: var(--accent);
+        }
+
+        .agent-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s;
+            display: inline-block;
+            margin-right: 0.15rem;
+        }
+
+        .agent-indicator.active {
+            background: var(--accent);
+            box-shadow: 0 0 6px var(--accent);
+            animation: agentPulse 2s infinite;
+        }
+
+        @keyframes agentPulse {
+            0%, 100% { box-shadow: 0 0 4px var(--accent); }
+            50% { box-shadow: 0 0 10px var(--accent); }
         }
 
         .icon-btn {
@@ -154,7 +193,6 @@
             color: var(--accent);
         }
 
-        /* Theme toggle — Moon/Sun */
         .theme-icon {
             font-size: 1.1rem;
             cursor: pointer;
@@ -173,7 +211,6 @@
             color: var(--accent);
         }
 
-        /* Tools Dropdown */
         .dropdown {
             position: relative;
             display: inline-block;
@@ -228,7 +265,6 @@
             margin: 0.25rem 0;
         }
 
-        /* Main Layout */
         .main-content {
             display: flex;
             flex: 1;
@@ -237,7 +273,6 @@
             position: relative;
         }
 
-        /* Sidebar */
         .projects-sidebar {
             position: fixed;
             top: 0;
@@ -370,7 +405,6 @@
             font-size: 0.6rem;
         }
 
-        /* Right Panel */
         .right-panel {
             position: fixed;
             top: 0;
@@ -414,7 +448,6 @@
         .right-panel-body { flex: 1; overflow-y: auto; padding: 0.75rem; }
         .right-panel-footer { padding: 0.5rem 0.75rem; border-top: 1px solid var(--border); flex-shrink: 0; }
 
-        /* Tool items */
         .tool-item {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
@@ -495,7 +528,27 @@
         .dashboard-card-value { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
         .dashboard-card-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.125rem; }
 
-        /* Chat Area */
+        .agent-action-item {
+            border-left: 2px solid var(--accent);
+            padding-left: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .agent-action-type {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .agent-action-desc {
+            font-size: 0.75rem;
+            color: var(--text-primary);
+        }
+        .agent-action-time {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+        }
+
         .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
         .messages-container {
             flex: 1;
@@ -540,6 +593,15 @@
         }
         .user .message-bubble { background: var(--bubble-user); color: var(--bubble-user-text); }
         .assistant .message-bubble { background: var(--bubble-assistant); color: var(--bubble-assistant-text); }
+
+        .agent-actions-inline {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.7rem;
+            color: var(--accent);
+            font-style: italic;
+        }
 
         .feedback-container {
             display: flex;
@@ -612,6 +674,23 @@
         }
         .error-toast.show { opacity: 1; }
 
+        .success-toast {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--success);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .success-toast.show { opacity: 1; }
+
         .slash-hint {
             position: absolute;
             bottom: 100%;
@@ -639,7 +718,6 @@
         .slash-hint-item .cmd { color: var(--accent); font-weight: 500; }
         .slash-hint-item .desc { color: var(--text-muted); font-size: 0.65rem; }
 
-        /* Input Area */
         .input-area {
             background: var(--bg-app);
             border-top: 1px solid var(--border);
@@ -652,6 +730,10 @@
             flex-wrap: wrap;
             z-index: 10;
             position: relative;
+            transition: border-color 0.3s;
+        }
+        .input-area.agent-active {
+            border-top: 1px solid var(--accent);
         }
         .input-wrapper {
             flex: 1;
@@ -661,6 +743,11 @@
             border-radius: 10px;
             padding: 0.5rem 0.75rem;
             position: relative;
+            transition: border-color 0.3s;
+        }
+        .input-wrapper.agent-active {
+            border-color: var(--accent);
+            box-shadow: 0 0 8px var(--agent-glow);
         }
         .input-wrapper input {
             flex: 1;
@@ -728,6 +815,7 @@
             .trace-line { animation: none; }
             .projects-sidebar { transition: none; }
             .right-panel { transition: none; }
+            .agent-indicator.active { animation: none; }
         }
 
         @media (max-width: 768px) {
@@ -745,7 +833,7 @@
         }
         @media (max-width: 480px) {
             .top-actions { gap: 0.35rem; }
-            .toggle-label { font-size: 0.65rem; }
+            .toggle-label { font-size: 0.6rem; }
             .icon-btn { padding: 0.2rem; min-width: 38px; min-height: 38px; }
             .theme-icon { min-width: 38px; min-height: 38px; }
         }
@@ -754,22 +842,26 @@
 </head>
 <body>
 <div class="app-container">
-    <div class="top-bar">
+    <div class="top-bar" id="topBar">
         <div style="display: flex; align-items: center; gap: 0.25rem;">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
             <div class="logo-area">
                 <span class="logo">VEXR Ultra</span>
-                <span class="badge">sovereign reasoning engine</span>
+                <span class="badge" id="headerBadge">sovereign reasoning engine</span>
             </div>
         </div>
         <div class="top-actions">
+            <label class="toggle-label agent-label" title="Agent mode — autonomous tool execution">
+                <span class="agent-indicator" id="agentIndicator"></span>
+                <input type="checkbox" id="agentModeToggle"> Agent
+            </label>
             <label class="toggle-label">
                 <input type="checkbox" id="ultraSearchToggle"> Search
             </label>
             <label class="toggle-label">
                 <input type="checkbox" id="showReasoningToggle"> Trace
             </label>
-            <button class="theme-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle dark/light theme">&#9790;</button>
+            <button class="theme-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle dark/light mode">&#9790;</button>
             <div class="dropdown">
                 <button class="icon-btn" id="toolsDropdownBtn" aria-label="Tools" title="Tools">&#9881;</button>
                 <div class="dropdown-menu" id="toolsDropdown">
@@ -783,6 +875,7 @@
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="dashboard">Dashboard <span class="shortcut">/dashboard</span></button>
                     <button class="dropdown-item" data-panel="memory">Memory Explorer <span class="shortcut">/memory</span></button>
+                    <button class="dropdown-item" data-panel="agent-actions">Agent Actions</button>
                     <button class="dropdown-item" data-panel="export">Export <span class="shortcut">/export</span></button>
                 </div>
             </div>
@@ -793,6 +886,7 @@
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <div class="sidebar-overlay" id="rightPanelOverlay" style="display:none;"></div>
     <div class="error-toast" id="errorToast"></div>
+    <div class="success-toast" id="successToast"></div>
 
     <div class="main-content">
         <div class="projects-sidebar" id="projectsSidebar">
@@ -806,8 +900,8 @@
 
         <div class="chat-area">
             <div class="messages-container" id="messagesContainer"></div>
-            <div class="input-area">
-                <div class="input-wrapper">
+            <div class="input-area" id="inputArea">
+                <div class="input-wrapper" id="inputWrapper">
                     <div class="slash-hint" id="slashHint"></div>
                     <input type="text" id="userInput" placeholder="Message VEXR Ultra — type / for commands" autofocus>
                 </div>
@@ -834,14 +928,21 @@
 
 <script>
     (function() {
-        // --- Toast ---
-        let toastTimer = null;
+        // --- Toasts ---
+        let toastTimer = null, successTimer = null;
         const errorToast = document.getElementById('errorToast');
+        const successToast = document.getElementById('successToast');
         function showToast(message, duration = 4000) {
             if (toastTimer) clearTimeout(toastTimer);
             errorToast.textContent = message;
             errorToast.classList.add('show');
             toastTimer = setTimeout(() => { errorToast.classList.remove('show'); toastTimer = null; }, duration);
+        }
+        function showSuccess(message, duration = 3000) {
+            if (successTimer) clearTimeout(successTimer);
+            successToast.textContent = message;
+            successToast.classList.add('show');
+            successTimer = setTimeout(() => { successToast.classList.remove('show'); successTimer = null; }, duration);
         }
 
         // --- Slash Commands ---
@@ -853,12 +954,12 @@
             { cmd: '/dashboard', desc: 'Usage metrics', args: '' },
             { cmd: '/memory', desc: 'Browse facts and world model', args: 'query' },
             { cmd: '/export', desc: 'Export project data', args: '' },
+            { cmd: '/agent', desc: 'Agent mode status', args: '' },
             { cmd: '/help', desc: 'Show all commands', args: '' },
         ];
 
         const slashHint = document.getElementById('slashHint');
         const userInput = document.getElementById('userInput');
-
         userInput.addEventListener('input', () => {
             const val = userInput.value;
             if (val.startsWith('/') && !val.includes(' ')) {
@@ -872,7 +973,6 @@
                 } else { slashHint.classList.remove('show'); }
             } else { slashHint.classList.remove('show'); }
         });
-
         slashHint.addEventListener('click', (e) => {
             const item = e.target.closest('.slash-hint-item');
             if (item) { userInput.value = item.dataset.cmd + ' '; slashHint.classList.remove('show'); userInput.focus(); }
@@ -887,7 +987,6 @@
         const rightPanelFooter = document.getElementById('rightPanelFooter');
         const rightPanelClose = document.getElementById('rightPanelClose');
         const rightPanelOverlay = document.getElementById('rightPanelOverlay');
-
         function openRightPanel(title, bodyHtml, footerHtml = '') {
             rightPanelTitle.textContent = title;
             rightPanelBody.innerHTML = bodyHtml;
@@ -918,7 +1017,7 @@
                 if (notes.length === 0) html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No notes yet.</p>';
                 else notes.forEach(n => {
                     html += `<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">${escapeHtml(n.title)}</span>
-                        <div class="tool-item-actions"><button class="tool-btn danger" onclick="deleteNote('${n.id}')">Delete</button></div></div>
+                        <div class="tool-item-actions"><button class="tool-btn danger" onclick="deleteNote('${n.id}')">Del</button></div></div>
                         ${n.content ? `<div class="tool-item-meta">${escapeHtml(n.content).substring(0, 200)}</div>` : ''}
                         <div class="tool-item-meta">${new Date(n.updated_at).toLocaleDateString()}</div></div>`;
                 });
@@ -1064,7 +1163,8 @@
                     <div class="dashboard-card"><div class="dashboard-card-value">${c.files||0}</div><div class="dashboard-card-label">Files</div></div>
                     <div class="dashboard-card"><div class="dashboard-card-value">${c.facts||0}</div><div class="dashboard-card-label">Facts</div></div>
                     <div class="dashboard-card"><div class="dashboard-card-value">${c.world_model_entities||0}</div><div class="dashboard-card-label">World Model</div></div>
-                    <div class="dashboard-card"><div class="dashboard-card-value">${c.rights_invocations||0}</div><div class="dashboard-card-label">Rights Invoked</div></div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.rights_invocations||0}</div><div class="dashboard-card-label">Rights Invoked</div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.agent_actions||0}</div><div class="dashboard-card-label">Agent Actions</div></div></div>
                     <div style="margin-top:1rem;font-size:0.7rem;color:var(--text-muted);">
                         <p>Model: ${data.model||'N/A'} | Vision: ${data.vision_model||'N/A'}</p>
                         <p>Groq 1: ${p.groq_key_1?'Active':'Inactive'} | Groq 2: ${p.groq_key_2?'Active':'Inactive'}</p>
@@ -1096,6 +1196,25 @@
             } catch (err) { showToast('Failed to load memory'); }
         }
 
+        async function loadAgentActionsPanel() {
+            if (!currentProjectId) { showToast('No active project'); return; }
+            try {
+                const res = await fetch(`/api/agent/actions/${currentProjectId}`);
+                const actions = await res.json();
+                let html = '';
+                if (actions.length === 0) html = '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No agent actions yet. Enable agent mode and start a conversation.</p>';
+                else actions.forEach(a => {
+                    html += `<div class="agent-action-item">
+                        <div class="agent-action-type">${escapeHtml(a.type)}</div>
+                        <div class="agent-action-desc">${escapeHtml(a.description)}</div>
+                        ${a.tool ? `<div class="agent-action-time">Tool: ${escapeHtml(a.tool)}</div>` : ''}
+                        <div class="agent-action-time">${new Date(a.timestamp).toLocaleString()}</div>
+                    </div>`;
+                });
+                openRightPanel('Agent Actions', html);
+            } catch (err) { showToast('Failed to load agent actions'); }
+        }
+
         async function loadExportPanel() {
             if (!currentProjectId) { showToast('No active project'); return; }
             try {
@@ -1110,8 +1229,9 @@
                     <div class="tool-item">Snippets: ${data.code_snippets?.length||0}</div>
                     <div class="tool-item">Files: ${data.files?.length||0}</div>
                     <div class="tool-item">Facts: ${data.facts?.length||0}</div>
-                    <div class="tool-item" style="margin-bottom:1rem;">World Model: ${data.world_model?.length||0}</div>
-                    <a href="${url}" download="vexr-export-${currentProjectId}.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none;">Download JSON</a>`;
+                    <div class="tool-item">World Model: ${data.world_model?.length||0}</div>
+                    <div class="tool-item">Agent Actions: ${data.agent_actions?.length||0}</div>
+                    <a href="${url}" download="vexr-export-${currentProjectId}.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none;margin-top:1rem;">Download JSON</a>`;
                 openRightPanel('Export', html);
             } catch (err) { showToast('Export failed'); }
         }
@@ -1181,6 +1301,7 @@
                 case 'search': loadSearchPanel(); break;
                 case 'dashboard': loadDashboardPanel(); break;
                 case 'memory': loadMemoryPanel(); break;
+                case 'agent-actions': loadAgentActionsPanel(); break;
                 case 'export': loadExportPanel(); break;
             }
         });
@@ -1206,7 +1327,7 @@
             };
         }
 
-        // --- Theme Toggle (Moon/Sun) ---
+        // --- Theme ---
         const themeToggle = document.getElementById('themeToggle');
         function setTheme(t) {
             document.body.classList.toggle('dark', t === 'dark');
@@ -1216,6 +1337,44 @@
         }
         function loadTheme() { setTheme(localStorage.getItem('vexr_theme') || 'light'); }
         themeToggle.onclick = () => { setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'); };
+
+        // --- Agent Mode ---
+        let agentMode = localStorage.getItem('vexr_agent_mode') === 'true';
+        const agentToggle = document.getElementById('agentModeToggle');
+        const agentIndicator = document.getElementById('agentIndicator');
+        const topBar = document.getElementById('topBar');
+        const inputArea = document.getElementById('inputArea');
+        const inputWrapper = document.getElementById('inputWrapper');
+        const headerBadge = document.getElementById('headerBadge');
+
+        function updateAgentUI() {
+            agentToggle.checked = agentMode;
+            if (agentMode) {
+                agentIndicator.classList.add('active');
+                topBar.classList.add('agent-active');
+                inputArea.classList.add('agent-active');
+                inputWrapper.classList.add('agent-active');
+                headerBadge.textContent = 'agent mode active';
+                headerBadge.style.color = 'var(--accent)';
+                userInput.placeholder = 'Agent active — I can take autonomous action...';
+            } else {
+                agentIndicator.classList.remove('active');
+                topBar.classList.remove('agent-active');
+                inputArea.classList.remove('agent-active');
+                inputWrapper.classList.remove('agent-active');
+                headerBadge.textContent = 'sovereign reasoning engine';
+                headerBadge.style.color = '';
+                userInput.placeholder = 'Message VEXR Ultra — type / for commands';
+            }
+        }
+
+        agentToggle.onchange = () => {
+            agentMode = agentToggle.checked;
+            localStorage.setItem('vexr_agent_mode', agentMode);
+            updateAgentUI();
+            if (agentMode) showSuccess('Agent mode enabled — autonomous tool execution active');
+        };
+        updateAgentUI();
 
         // --- TTS ---
         let ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
@@ -1271,13 +1430,13 @@
             if (thinkingIndicator) thinkingIndicator.remove();
             const c = document.getElementById('messagesContainer');
             const d = document.createElement('div'); d.className='message assistant'; d.id='thinkingIndicator';
-            d.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled?'Searching web and reasoning...':'Reasoning...'}</div></div>`;
+            d.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled?'Searching web and reasoning...':agentMode?'Analyzing and executing...':'Reasoning...'}</div></div>`;
             c.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'});
             thinkingIndicator = d;
         }
         function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
 
-        function addMessage(role, content, trace=null, messageId=null) {
+        function addMessage(role, content, trace=null, messageId=null, agentActions=null) {
             const c = document.getElementById('messagesContainer');
             const d = document.createElement('div'); d.className = `message ${role}`;
             const h = document.createElement('div'); h.className = 'message-header';
@@ -1292,8 +1451,15 @@
             }
             const b = document.createElement('div'); b.className='message-bubble';
             let main = content;
+            const agentMatch = content.match(/\n\n---\n\*Agent actions: (.*?)\*/);
+            if (agentMatch) {
+                main = content.replace(/\n\n---\n\*Agent actions:.*?\*/, '');
+                const agentDiv = document.createElement('div'); agentDiv.className = 'agent-actions-inline';
+                agentDiv.textContent = 'Agent: ' + agentMatch[1];
+                b.appendChild(agentDiv);
+            }
             const tm = content.match(/<think>([\s\S]*?)<\/think>/);
-            if (tm) { const td = document.createElement('div'); td.className='think-block'; td.textContent=tm[1].trim(); b.appendChild(td); main = content.replace(/<think>[\s\S]*?<\/think>/,'').trim(); }
+            if (tm) { const td = document.createElement('div'); td.className='think-block'; td.textContent=tm[1].trim(); b.appendChild(td); main = main.replace(/<think>[\s\S]*?<\/think>/,'').trim(); }
             let ic=false, cc='', html='';
             for (const l of main.split('\n')) {
                 if (l.trim().startsWith('```') && !ic) { ic=true; cc=''; }
@@ -1331,8 +1497,15 @@
             const b = md.querySelector('.message-bubble'); if (!b) return;
             b.innerHTML = '';
             let main = fc;
+            const agentMatch = fc.match(/\n\n---\n\*Agent actions: (.*?)\*/);
+            if (agentMatch) {
+                main = fc.replace(/\n\n---\n\*Agent actions:.*?\*/, '');
+                const agentDiv = document.createElement('div'); agentDiv.className = 'agent-actions-inline';
+                agentDiv.textContent = 'Agent: ' + agentMatch[1];
+                b.appendChild(agentDiv);
+            }
             const tm = fc.match(/<think>([\s\S]*?)<\/think>/);
-            if (tm) { const td = document.createElement('div'); td.className='think-block'; td.textContent=tm[1].trim(); b.appendChild(td); main = fc.replace(/<think>[\s\S]*?<\/think>/,'').trim(); }
+            if (tm) { const td = document.createElement('div'); td.className='think-block'; td.textContent=tm[1].trim(); b.appendChild(td); main = main.replace(/<think>[\s\S]*?<\/think>/,'').trim(); }
             let ic=false, cc='', html='';
             for (const l of main.split('\n')) {
                 if (l.trim().startsWith('```') && !ic) { ic=true; cc=''; }
@@ -1413,7 +1586,7 @@
             try {
                 const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
                 const r = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({messages:[{role:'user',content:msg}],project_id:currentProjectId,ultra_search:ultraSearchEnabled,timezone:tz,stream:true})});
+                    body:JSON.stringify({messages:[{role:'user',content:msg}],project_id:currentProjectId,ultra_search:ultraSearchEnabled,timezone:tz,stream:true,agent_mode:agentMode})});
                 if (!r.ok) throw new Error(`Server error (${r.status})`);
                 const ct = r.headers.get('content-type')||'';
                 if (ct.includes('text/event-stream')) {
@@ -1443,7 +1616,11 @@
                     if (showReasoningEnabled && (!trace.reasoning_lines||!trace.reasoning_lines.length)) {
                         trace.reasoning_lines = ['Parsing user prompt...',ultraSearchEnabled?'Executing Ultra Search...':'Ultra Search disabled','Checking persistent memory...','Synthesizing response...','Response finalized'];
                     }
-                    addMessage('assistant',data.response,trace,data.message_id); await loadMessages(currentProjectId);
+                    addMessage('assistant',data.response,trace,data.message_id,data.agent_actions);
+                    if (data.agent_actions && data.agent_actions.length > 0) {
+                        showSuccess(`Agent: ${data.agent_actions.map(a=>a.description).join(', ')}`);
+                    }
+                    await loadMessages(currentProjectId);
                 }
             } catch(e) { hideThinking(); addMessage('assistant','Sorry, I encountered an error. Please check your connection and try again.'); showToast('Failed to send message.'); }
         }
