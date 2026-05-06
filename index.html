@@ -36,8 +36,6 @@
             --think-text: #92400e;
             --trace-bg: rgba(59, 130, 246, 0.05);
             --trace-border: rgba(59, 130, 246, 0.2);
-            --reasoning-bg: #f9fafb;
-            --sidebar-width: 280px;
             --panel-bg: #f9fafb;
             --success: #10b981;
             --warning: #f59e0b;
@@ -68,7 +66,6 @@
             --think-text: #fde68a;
             --trace-bg: rgba(59, 130, 246, 0.1);
             --trace-border: rgba(59, 130, 246, 0.3);
-            --reasoning-bg: #1f1f1f;
             --panel-bg: #1a1a1a;
         }
 
@@ -124,7 +121,7 @@
 
         .top-actions {
             display: flex;
-            gap: 0.75rem;
+            gap: 0.5rem;
             align-items: center;
             flex-wrap: wrap;
         }
@@ -148,13 +145,35 @@
             transition: color 0.2s;
             min-width: 44px;
             min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .icon-btn:hover {
             color: var(--accent);
         }
 
-        /* Dropdown Menu */
+        /* Theme toggle — Moon/Sun */
+        .theme-icon {
+            font-size: 1.1rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: color 0.2s;
+            min-width: 44px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+        }
+
+        .theme-icon:hover {
+            color: var(--accent);
+        }
+
+        /* Tools Dropdown */
         .dropdown {
             position: relative;
             display: inline-block;
@@ -181,103 +200,32 @@
         .dropdown-item {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            justify-content: space-between;
             padding: 0.5rem 1rem;
             cursor: pointer;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: var(--text-primary);
             transition: background 0.15s;
             border: none;
             background: none;
             width: 100%;
             text-align: left;
+            font-family: inherit;
         }
 
         .dropdown-item:hover {
             background: var(--bg-hover);
         }
 
+        .dropdown-item .shortcut {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+        }
+
         .dropdown-divider {
             height: 1px;
             background: var(--border);
             margin: 0.25rem 0;
-        }
-
-        /* Settings Modal */
-        .settings-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .settings-modal.show {
-            display: flex;
-        }
-
-        .settings-panel {
-            background: var(--bg-app);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.25rem;
-            width: 90%;
-            max-width: 320px;
-        }
-
-        .settings-panel h3 {
-            color: var(--text-primary);
-            margin-bottom: 1rem;
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .settings-option {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 0;
-        }
-
-        .theme-toggle {
-            display: flex;
-            gap: 0.25rem;
-            background: var(--bg-sidebar);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 0.125rem;
-        }
-
-        .theme-option {
-            padding: 0.25rem 0.75rem;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-        }
-
-        .theme-option.active {
-            background: var(--accent);
-            color: white;
-        }
-
-        .close-settings {
-            width: 100%;
-            margin-top: 1rem;
-            background: var(--accent);
-            border: none;
-            color: white;
-            padding: 0.5rem;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.75rem;
-            font-weight: 500;
-            min-height: 44px;
         }
 
         /* Main Layout */
@@ -319,26 +267,21 @@
                 width: 260px;
                 box-shadow: none;
             }
-            
             .projects-sidebar.collapsed {
                 width: 48px;
             }
-            
             .projects-sidebar.collapsed .projects-header h3,
             .projects-sidebar.collapsed .project-name,
             .projects-sidebar.collapsed .project-desc,
             .projects-sidebar.collapsed .delete-project {
                 display: none;
             }
-            
             .projects-sidebar.collapsed .new-project-btn {
                 display: none;
             }
-            
             .projects-sidebar.collapsed .sidebar-toggle {
                 transform: rotate(180deg);
             }
-            
             .menu-toggle {
                 display: none;
             }
@@ -355,10 +298,7 @@
             min-height: 44px;
             margin-right: 0.5rem;
         }
-
-        .menu-toggle:hover {
-            color: var(--accent);
-        }
+        .menu-toggle:hover { color: var(--accent); }
 
         .sidebar-overlay {
             display: none;
@@ -370,10 +310,7 @@
             background: rgba(0,0,0,0.4);
             z-index: 150;
         }
-
-        .sidebar-overlay.show {
-            display: block;
-        }
+        .sidebar-overlay.show { display: block; }
 
         .projects-header {
             display: flex;
@@ -381,7 +318,6 @@
             align-items: center;
             margin-bottom: 0.75rem;
         }
-
         .projects-header h3 {
             font-size: 0.7rem;
             font-weight: 600;
@@ -389,7 +325,6 @@
             color: var(--text-muted);
             letter-spacing: 0.5px;
         }
-
         .new-project-btn {
             background: var(--accent);
             border: none;
@@ -400,7 +335,6 @@
             font-size: 0.65rem;
             min-height: 32px;
         }
-
         .sidebar-toggle {
             background: none;
             border: none;
@@ -410,10 +344,7 @@
             padding: 0.25rem;
             transition: transform 0.2s;
         }
-
-        .sidebar-toggle:hover {
-            color: var(--accent);
-        }
+        .sidebar-toggle:hover { color: var(--accent); }
 
         .project-item {
             padding: 0.5rem;
@@ -425,22 +356,12 @@
             border: 1px solid var(--border);
             background: var(--bg-app);
         }
-
         .project-item.active {
             background: var(--bg-active);
             border-left: 2px solid var(--accent);
         }
-
-        .project-name {
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        .project-desc {
-            font-size: 0.65rem;
-            color: var(--text-muted);
-        }
-
+        .project-name { font-weight: 500; color: var(--text-primary); }
+        .project-desc { font-size: 0.65rem; color: var(--text-muted); }
         .delete-project {
             background: none;
             border: none;
@@ -449,7 +370,7 @@
             font-size: 0.6rem;
         }
 
-        /* Right Panel (Tools) */
+        /* Right Panel */
         .right-panel {
             position: fixed;
             top: 0;
@@ -465,22 +386,11 @@
             transition: right 0.3s ease;
             box-shadow: -2px 0 10px rgba(0,0,0,0.1);
         }
-
-        .right-panel.open {
-            right: 0;
-        }
-
+        .right-panel.open { right: 0; }
         @media (min-width: 769px) {
-            .right-panel {
-                position: fixed;
-                right: -420px;
-                width: 400px;
-            }
-            .right-panel.open {
-                right: 0;
-            }
+            .right-panel { position: fixed; right: -420px; width: 400px; }
+            .right-panel.open { right: 0; }
         }
-
         .right-panel-header {
             display: flex;
             justify-content: space-between;
@@ -489,13 +399,7 @@
             border-bottom: 1px solid var(--border);
             flex-shrink: 0;
         }
-
-        .right-panel-header h3 {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
+        .right-panel-header h3 { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); }
         .right-panel-close {
             background: none;
             border: none;
@@ -506,24 +410,11 @@
             min-width: 44px;
             min-height: 44px;
         }
+        .right-panel-close:hover { color: var(--danger); }
+        .right-panel-body { flex: 1; overflow-y: auto; padding: 0.75rem; }
+        .right-panel-footer { padding: 0.5rem 0.75rem; border-top: 1px solid var(--border); flex-shrink: 0; }
 
-        .right-panel-close:hover {
-            color: var(--danger);
-        }
-
-        .right-panel-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0.75rem;
-        }
-
-        .right-panel-footer {
-            padding: 0.5rem 0.75rem;
-            border-top: 1px solid var(--border);
-            flex-shrink: 0;
-        }
-
-        /* Tool list items */
+        /* Tool items */
         .tool-item {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
@@ -532,31 +423,10 @@
             margin-bottom: 0.5rem;
             font-size: 0.8rem;
         }
-
-        .tool-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 0.5rem;
-        }
-
-        .tool-item-title {
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        .tool-item-meta {
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            margin-top: 0.25rem;
-        }
-
-        .tool-item-actions {
-            display: flex;
-            gap: 0.25rem;
-            flex-shrink: 0;
-        }
-
+        .tool-item-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+        .tool-item-title { font-weight: 500; color: var(--text-primary); }
+        .tool-item-meta { font-size: 0.65rem; color: var(--text-muted); margin-top: 0.25rem; }
+        .tool-item-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
         .tool-btn {
             background: none;
             border: none;
@@ -568,22 +438,9 @@
             min-width: 32px;
             min-height: 32px;
         }
-
-        .tool-btn:hover {
-            background: var(--bg-hover);
-            color: var(--accent);
-        }
-
-        .tool-btn.danger:hover {
-            color: var(--danger);
-        }
-
-        .tool-form {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
+        .tool-btn:hover { background: var(--bg-hover); color: var(--accent); }
+        .tool-btn.danger:hover { color: var(--danger); }
+        .tool-form { display: flex; flex-direction: column; gap: 0.5rem; }
         .tool-input {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
@@ -594,11 +451,7 @@
             outline: none;
             font-family: inherit;
         }
-
-        .tool-input:focus {
-            border-color: var(--accent);
-        }
-
+        .tool-input:focus { border-color: var(--accent); }
         .tool-textarea {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
@@ -611,11 +464,7 @@
             min-height: 80px;
             font-family: 'SF Mono', monospace;
         }
-
-        .tool-textarea:focus {
-            border-color: var(--accent);
-        }
-
+        .tool-textarea:focus { border-color: var(--accent); }
         .tool-submit {
             background: var(--accent);
             border: none;
@@ -627,38 +476,15 @@
             font-weight: 500;
             min-height: 36px;
         }
+        .tool-submit:hover { background: var(--accent-hover); }
 
-        .tool-submit:hover {
-            background: var(--accent-hover);
-        }
+        .priority-high { color: var(--danger); }
+        .priority-medium { color: var(--warning); }
+        .priority-low { color: var(--text-muted); }
+        .status-pending { color: var(--warning); }
+        .status-completed { color: var(--success); text-decoration: line-through; }
 
-        /* Priority badges */
-        .priority-high {
-            color: var(--danger);
-        }
-        .priority-medium {
-            color: var(--warning);
-        }
-        .priority-low {
-            color: var(--text-muted);
-        }
-
-        /* Status badges */
-        .status-pending {
-            color: var(--warning);
-        }
-        .status-completed {
-            color: var(--success);
-            text-decoration: line-through;
-        }
-
-        /* Dashboard cards */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.5rem;
-        }
-
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
         .dashboard-card {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
@@ -666,30 +492,11 @@
             padding: 0.5rem;
             text-align: center;
         }
-
-        .dashboard-card-value {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: var(--accent);
-        }
-
-        .dashboard-card-label {
-            font-size: 0.6rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 0.125rem;
-        }
+        .dashboard-card-value { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+        .dashboard-card-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.125rem; }
 
         /* Chat Area */
-        .chat-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            min-width: 0;
-        }
-
+        .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
         .messages-container {
             flex: 1;
             overflow-y: auto;
@@ -699,21 +506,9 @@
             gap: 1rem;
             -webkit-overflow-scrolling: touch;
         }
-
-        .message {
-            display: flex;
-            flex-direction: column;
-            max-width: 85%;
-        }
-
-        .message.user {
-            align-self: flex-end;
-        }
-
-        .message.assistant {
-            align-self: flex-start;
-        }
-
+        .message { display: flex; flex-direction: column; max-width: 85%; }
+        .message.user { align-self: flex-end; }
+        .message.assistant { align-self: flex-start; }
         .message-header {
             font-size: 0.65rem;
             color: var(--text-muted);
@@ -723,9 +518,7 @@
             align-items: center;
             flex-wrap: wrap;
         }
-
-        .copy-btn,
-        .speaker-btn {
+        .copy-btn, .speaker-btn {
             background: none;
             border: none;
             color: var(--text-muted);
@@ -735,15 +528,8 @@
             min-height: 32px;
             min-width: 32px;
         }
-
-        .speaker-btn {
-            font-size: 0.7rem;
-        }
-
-        .copy-btn:hover,
-        .speaker-btn:hover {
-            color: var(--accent);
-        }
+        .speaker-btn { font-size: 0.7rem; }
+        .copy-btn:hover, .speaker-btn:hover { color: var(--accent); }
 
         .message-bubble {
             padding: 0.5rem 0.75rem;
@@ -752,16 +538,8 @@
             line-height: 1.4;
             word-wrap: break-word;
         }
-
-        .user .message-bubble {
-            background: var(--bubble-user);
-            color: var(--bubble-user-text);
-        }
-
-        .assistant .message-bubble {
-            background: var(--bubble-assistant);
-            color: var(--bubble-assistant-text);
-        }
+        .user .message-bubble { background: var(--bubble-user); color: var(--bubble-user-text); }
+        .assistant .message-bubble { background: var(--bubble-assistant); color: var(--bubble-assistant-text); }
 
         .feedback-container {
             display: flex;
@@ -770,11 +548,7 @@
             opacity: 0.4;
             transition: opacity 0.2s;
         }
-
-        .feedback-container:hover {
-            opacity: 1;
-        }
-
+        .feedback-container:hover { opacity: 1; }
         .feedback-btn {
             background: none;
             border: none;
@@ -785,10 +559,7 @@
             min-width: 32px;
             min-height: 32px;
         }
-
-        .feedback-btn:hover {
-            color: var(--accent);
-        }
+        .feedback-btn:hover { color: var(--accent); }
 
         .trace-container {
             background: var(--trace-bg);
@@ -799,18 +570,13 @@
             font-family: 'SF Mono', monospace;
             font-size: 0.75rem;
         }
-
         .trace-line {
             color: var(--text-trace);
             padding: 0.2rem 0;
             border-bottom: 1px solid var(--trace-border);
             animation: fadeIn 0.2s ease;
         }
-
-        .trace-line:last-child {
-            border-bottom: none;
-        }
-
+        .trace-line:last-child { border-bottom: none; }
         .think-block {
             background: var(--think-bg);
             border-left: 2px solid var(--think-border);
@@ -819,7 +585,6 @@
             font-size: 0.7rem;
             color: var(--think-text);
         }
-
         pre {
             background: var(--code-bg);
             color: var(--code-text);
@@ -845,10 +610,7 @@
             transition: opacity 0.3s ease;
             pointer-events: none;
         }
-
-        .error-toast.show {
-            opacity: 1;
-        }
+        .error-toast.show { opacity: 1; }
 
         .slash-hint {
             position: absolute;
@@ -860,30 +622,22 @@
             padding: 0.5rem;
             z-index: 20;
             display: none;
-            min-width: 200px;
+            min-width: 220px;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
         }
-
-        .slash-hint.show {
-            display: block;
-        }
-
+        .slash-hint.show { display: block; }
         .slash-hint-item {
             padding: 0.3rem 0.5rem;
             cursor: pointer;
             font-size: 0.75rem;
             color: var(--text-primary);
             border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
         }
-
-        .slash-hint-item:hover {
-            background: var(--bg-hover);
-        }
-
-        .slash-hint-item .cmd {
-            color: var(--accent);
-            font-weight: 500;
-        }
+        .slash-hint-item:hover { background: var(--bg-hover); }
+        .slash-hint-item .cmd { color: var(--accent); font-weight: 500; }
+        .slash-hint-item .desc { color: var(--text-muted); font-size: 0.65rem; }
 
         /* Input Area */
         .input-area {
@@ -899,7 +653,6 @@
             z-index: 10;
             position: relative;
         }
-
         .input-wrapper {
             flex: 1;
             display: flex;
@@ -909,7 +662,6 @@
             padding: 0.5rem 0.75rem;
             position: relative;
         }
-
         .input-wrapper input {
             flex: 1;
             background: transparent;
@@ -918,11 +670,7 @@
             outline: none;
             color: var(--text-primary);
         }
-
-        .voice-btn,
-        .tts-toggle,
-        .file-label,
-        .send-btn {
+        .voice-btn, .tts-toggle, .file-label, .send-btn {
             flex-shrink: 0;
             white-space: nowrap;
             min-width: 44px;
@@ -931,10 +679,7 @@
             align-items: center;
             justify-content: center;
         }
-
-        .voice-btn,
-        .tts-toggle,
-        .file-label {
+        .voice-btn, .tts-toggle, .file-label {
             background: var(--bg-sidebar);
             border: 1px solid var(--border);
             border-radius: 10px;
@@ -944,26 +689,9 @@
             color: var(--text-secondary);
             transition: all 0.2s;
         }
-
-        .voice-btn:hover,
-        .tts-toggle:hover,
-        .file-label:hover {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-
-        .voice-btn.recording {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: white;
-        }
-
-        .tts-toggle.active {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: white;
-        }
-
+        .voice-btn:hover, .tts-toggle:hover, .file-label:hover { border-color: var(--accent); color: var(--accent); }
+        .voice-btn.recording { background: var(--accent); border-color: var(--accent); color: white; }
+        .tts-toggle.active { background: var(--accent); border-color: var(--accent); color: white; }
         .send-btn {
             background: var(--accent);
             border: none;
@@ -975,20 +703,9 @@
             font-weight: 500;
             transition: background 0.2s;
         }
+        .send-btn:hover { background: var(--accent-hover); }
 
-        .send-btn:hover {
-            background: var(--accent-hover);
-        }
-
-        .thinking-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--accent);
-            font-size: 0.8rem;
-            padding: 0.5rem;
-        }
-
+        .thinking-indicator { display: flex; align-items: center; gap: 0.5rem; color: var(--accent); font-size: 0.8rem; padding: 0.5rem; }
         .pulse-dot {
             width: 8px;
             height: 8px;
@@ -1001,7 +718,6 @@
             0%, 100% { opacity: 0.3; transform: scale(0.8); }
             50% { opacity: 1; transform: scale(1.2); }
         }
-
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(2px); }
             to { opacity: 1; transform: translateY(0); }
@@ -1027,12 +743,11 @@
             .right-panel { width: 100%; max-width: 100%; }
             .dashboard-grid { grid-template-columns: 1fr 1fr; }
         }
-
         @media (max-width: 480px) {
-            .top-actions { gap: 0.5rem; }
+            .top-actions { gap: 0.35rem; }
             .toggle-label { font-size: 0.65rem; }
-            .icon-btn { padding: 0.25rem; min-width: 40px; min-height: 40px; }
-            .dashboard-grid { grid-template-columns: 1fr 1fr; }
+            .icon-btn { padding: 0.2rem; min-width: 38px; min-height: 38px; }
+            .theme-icon { min-width: 38px; min-height: 38px; }
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
@@ -1054,45 +769,30 @@
             <label class="toggle-label">
                 <input type="checkbox" id="showReasoningToggle"> Trace
             </label>
+            <button class="theme-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle dark/light theme">&#9790;</button>
             <div class="dropdown">
-                <button class="icon-btn" id="toolsDropdownBtn" aria-label="Tools">&#9881;</button>
+                <button class="icon-btn" id="toolsDropdownBtn" aria-label="Tools" title="Tools">&#9881;</button>
                 <div class="dropdown-menu" id="toolsDropdown">
-                    <button class="dropdown-item" data-panel="notes">&#128221; Notes</button>
-                    <button class="dropdown-item" data-panel="tasks">&#9989; Tasks</button>
-                    <button class="dropdown-item" data-panel="snippets">&#128187; Code Snippets</button>
-                    <button class="dropdown-item" data-panel="files">&#128193; Files</button>
+                    <button class="dropdown-item" data-panel="notes">Notes <span class="shortcut">/note</span></button>
+                    <button class="dropdown-item" data-panel="tasks">Tasks <span class="shortcut">/task</span></button>
+                    <button class="dropdown-item" data-panel="snippets">Code Snippets <span class="shortcut">/snippet</span></button>
+                    <button class="dropdown-item" data-panel="files">Files</button>
                     <div class="dropdown-divider"></div>
-                    <button class="dropdown-item" data-panel="reminders">&#9200; Reminders</button>
-                    <button class="dropdown-item" data-panel="search">&#128269; Search</button>
+                    <button class="dropdown-item" data-panel="reminders">Reminders</button>
+                    <button class="dropdown-item" data-panel="search">Search <span class="shortcut">/search</span></button>
                     <div class="dropdown-divider"></div>
-                    <button class="dropdown-item" data-panel="dashboard">&#128200; Dashboard</button>
-                    <button class="dropdown-item" data-panel="memory">&#129504; Memory Explorer</button>
-                    <button class="dropdown-item" data-panel="export">&#128229; Export</button>
+                    <button class="dropdown-item" data-panel="dashboard">Dashboard <span class="shortcut">/dashboard</span></button>
+                    <button class="dropdown-item" data-panel="memory">Memory Explorer <span class="shortcut">/memory</span></button>
+                    <button class="dropdown-item" data-panel="export">Export <span class="shortcut">/export</span></button>
                 </div>
             </div>
-            <button class="icon-btn" id="settingsBtn" aria-label="Settings">&#9881;</button>
-            <button class="icon-btn" id="newChatBtn" aria-label="New Chat">+</button>
+            <button class="icon-btn" id="newChatBtn" aria-label="New Chat" title="New Chat">+</button>
         </div>
     </div>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <div class="sidebar-overlay" id="rightPanelOverlay" style="display:none;"></div>
-
     <div class="error-toast" id="errorToast"></div>
-
-    <div class="settings-modal" id="settingsModal">
-        <div class="settings-panel">
-            <h3>Settings</h3>
-            <div class="settings-option">
-                <span>Theme</span>
-                <div class="theme-toggle">
-                    <span class="theme-option" data-theme="light">Light</span>
-                    <span class="theme-option" data-theme="dark">Dark</span>
-                </div>
-            </div>
-            <button class="close-settings" id="closeSettingsBtn">Close</button>
-        </div>
-    </div>
 
     <div class="main-content">
         <div class="projects-sidebar" id="projectsSidebar">
@@ -1111,9 +811,9 @@
                     <div class="slash-hint" id="slashHint"></div>
                     <input type="text" id="userInput" placeholder="Message VEXR Ultra — type / for commands" autofocus>
                 </div>
-                <button class="voice-btn" id="voiceBtn" aria-label="Voice input">&#127908;</button>
-                <button class="tts-toggle" id="ttsToggle" aria-label="Text-to-Speech">&#128266;</button>
-                <label class="file-label" aria-label="Upload image">
+                <button class="voice-btn" id="voiceBtn" aria-label="Voice input" title="Voice input">Mic</button>
+                <button class="tts-toggle" id="ttsToggle" aria-label="Text-to-Speech" title="Toggle speech output">TTS</button>
+                <label class="file-label" aria-label="Upload image" title="Upload image">
                     Upload
                     <input type="file" id="imageUpload" accept="image/*" style="display: none;">
                 </label>
@@ -1122,7 +822,6 @@
         </div>
     </div>
 
-    <!-- Right Panel (Tools) -->
     <div class="right-panel" id="rightPanel">
         <div class="right-panel-header">
             <h3 id="rightPanelTitle">Tools</h3>
@@ -1138,7 +837,6 @@
         // --- Toast ---
         let toastTimer = null;
         const errorToast = document.getElementById('errorToast');
-        
         function showToast(message, duration = 4000) {
             if (toastTimer) clearTimeout(toastTimer);
             errorToast.textContent = message;
@@ -1152,7 +850,7 @@
             { cmd: '/task', desc: 'Create a task', args: 'title' },
             { cmd: '/snippet', desc: 'Save last code block', args: '[title]' },
             { cmd: '/search', desc: 'Search everything', args: 'query' },
-            { cmd: '/dashboard', desc: 'View usage metrics', args: '' },
+            { cmd: '/dashboard', desc: 'Usage metrics', args: '' },
             { cmd: '/memory', desc: 'Browse facts and world model', args: 'query' },
             { cmd: '/export', desc: 'Export project data', args: '' },
             { cmd: '/help', desc: 'Show all commands', args: '' },
@@ -1167,38 +865,20 @@
                 const partial = val.slice(1).toLowerCase();
                 const matches = SLASH_COMMANDS.filter(c => c.cmd.slice(1).startsWith(partial));
                 if (matches.length > 0) {
-                    slashHint.innerHTML = matches.map(c => 
-                        `<div class="slash-hint-item" data-cmd="${c.cmd}"><span class="cmd">${c.cmd}</span> ${c.args ? c.args : ''} — ${c.desc}</div>`
+                    slashHint.innerHTML = matches.map(c =>
+                        `<div class="slash-hint-item" data-cmd="${c.cmd}"><span class="cmd">${c.cmd} ${c.args}</span><span class="desc">${c.desc}</span></div>`
                     ).join('');
                     slashHint.classList.add('show');
-                } else {
-                    slashHint.classList.remove('show');
-                }
-            } else {
-                slashHint.classList.remove('show');
-            }
+                } else { slashHint.classList.remove('show'); }
+            } else { slashHint.classList.remove('show'); }
         });
 
         slashHint.addEventListener('click', (e) => {
             const item = e.target.closest('.slash-hint-item');
-            if (item) {
-                userInput.value = item.dataset.cmd + ' ';
-                slashHint.classList.remove('show');
-                userInput.focus();
-            }
+            if (item) { userInput.value = item.dataset.cmd + ' '; slashHint.classList.remove('show'); userInput.focus(); }
         });
-
-        userInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                slashHint.classList.remove('show');
-            }
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.input-wrapper')) {
-                slashHint.classList.remove('show');
-            }
-        });
+        userInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') slashHint.classList.remove('show'); });
+        document.addEventListener('click', (e) => { if (!e.target.closest('.input-wrapper')) slashHint.classList.remove('show'); });
 
         // --- Right Panel ---
         const rightPanel = document.getElementById('rightPanel');
@@ -1215,27 +895,15 @@
             rightPanel.classList.add('open');
             rightPanelOverlay.style.display = 'block';
         }
-
-        function closeRightPanel() {
-            rightPanel.classList.remove('open');
-            rightPanelOverlay.style.display = 'none';
-        }
-
+        function closeRightPanel() { rightPanel.classList.remove('open'); rightPanelOverlay.style.display = 'none'; }
         rightPanelClose.onclick = closeRightPanel;
         rightPanelOverlay.onclick = closeRightPanel;
 
         // --- Dropdown ---
         const toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
         const toolsDropdown = document.getElementById('toolsDropdown');
-
-        toolsDropdownBtn.onclick = (e) => {
-            e.stopPropagation();
-            toolsDropdown.classList.toggle('show');
-        };
-
-        document.addEventListener('click', () => {
-            toolsDropdown.classList.remove('show');
-        });
+        toolsDropdownBtn.onclick = (e) => { e.stopPropagation(); toolsDropdown.classList.toggle('show'); };
+        document.addEventListener('click', () => { toolsDropdown.classList.remove('show'); });
 
         // --- Tool Panel Loaders ---
         async function loadNotesPanel() {
@@ -1243,37 +911,20 @@
             try {
                 const res = await fetch(`/api/notes/${currentProjectId}`);
                 const notes = await res.json();
-                let html = `
-                    <div class="tool-form" style="margin-bottom:1rem;">
-                        <input class="tool-input" id="newNoteTitle" placeholder="Note title">
-                        <textarea class="tool-textarea" id="newNoteContent" placeholder="Content (optional)"></textarea>
-                        <button class="tool-submit" id="createNoteBtn">Create Note</button>
-                    </div>`;
-                if (notes.length === 0) {
-                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No notes yet.</p>';
-                } else {
-                    notes.forEach(n => {
-                        html += `
-                            <div class="tool-item">
-                                <div class="tool-item-header">
-                                    <span class="tool-item-title">${escapeHtml(n.title)}</span>
-                                    <div class="tool-item-actions">
-                                        <button class="tool-btn danger" onclick="deleteNote('${n.id}')">Delete</button>
-                                    </div>
-                                </div>
-                                ${n.content ? `<div class="tool-item-meta">${escapeHtml(n.content).substring(0, 200)}</div>` : ''}
-                                <div class="tool-item-meta">${new Date(n.updated_at).toLocaleDateString()}</div>
-                            </div>`;
-                    });
-                }
+                let html = `<div class="tool-form" style="margin-bottom:1rem;">
+                    <input class="tool-input" id="newNoteTitle" placeholder="Note title">
+                    <textarea class="tool-textarea" id="newNoteContent" placeholder="Content (optional)"></textarea>
+                    <button class="tool-submit" id="createNoteBtn">Create Note</button></div>`;
+                if (notes.length === 0) html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No notes yet.</p>';
+                else notes.forEach(n => {
+                    html += `<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">${escapeHtml(n.title)}</span>
+                        <div class="tool-item-actions"><button class="tool-btn danger" onclick="deleteNote('${n.id}')">Delete</button></div></div>
+                        ${n.content ? `<div class="tool-item-meta">${escapeHtml(n.content).substring(0, 200)}</div>` : ''}
+                        <div class="tool-item-meta">${new Date(n.updated_at).toLocaleDateString()}</div></div>`;
+                });
                 openRightPanel('Notes', html);
-                setTimeout(() => {
-                    const createBtn = document.getElementById('createNoteBtn');
-                    if (createBtn) createBtn.onclick = createNote;
-                }, 100);
-            } catch (err) {
-                showToast('Failed to load notes');
-            }
+                setTimeout(() => { const b = document.getElementById('createNoteBtn'); if (b) b.onclick = createNote; }, 100);
+            } catch (err) { showToast('Failed to load notes'); }
         }
 
         async function loadTasksPanel() {
@@ -1281,62 +932,31 @@
             try {
                 const res = await fetch(`/api/tasks/${currentProjectId}`);
                 const tasks = await res.json();
-                let html = `
-                    <div class="tool-form" style="margin-bottom:1rem;">
-                        <input class="tool-input" id="newTaskTitle" placeholder="Task title">
-                        <textarea class="tool-textarea" id="newTaskDesc" placeholder="Description (optional)"></textarea>
-                        <select class="tool-input" id="newTaskPriority">
-                            <option value="medium">Medium Priority</option>
-                            <option value="high">High Priority</option>
-                            <option value="low">Low Priority</option>
-                        </select>
-                        <button class="tool-submit" id="createTaskBtn">Create Task</button>
-                    </div>`;
+                let html = `<div class="tool-form" style="margin-bottom:1rem;">
+                    <input class="tool-input" id="newTaskTitle" placeholder="Task title">
+                    <textarea class="tool-textarea" id="newTaskDesc" placeholder="Description (optional)"></textarea>
+                    <select class="tool-input" id="newTaskPriority"><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select>
+                    <button class="tool-submit" id="createTaskBtn">Create Task</button></div>`;
                 const pending = tasks.filter(t => t.status === 'pending');
                 const completed = tasks.filter(t => t.status === 'completed');
-                
-                if (pending.length === 0 && completed.length === 0) {
-                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No tasks yet.</p>';
-                } else {
+                if (pending.length === 0 && completed.length === 0) html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No tasks yet.</p>';
+                else {
                     if (pending.length > 0) {
                         html += '<p style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.5rem;">PENDING</p>';
-                        pending.forEach(t => {
-                            html += `
-                                <div class="tool-item">
-                                    <div class="tool-item-header">
-                                        <span class="tool-item-title status-pending">${escapeHtml(t.title)}</span>
-                                        <div class="tool-item-actions">
-                                            <button class="tool-btn" onclick="completeTask('${t.id}')" title="Complete">&#10003;</button>
-                                            <button class="tool-btn danger" onclick="deleteTask('${t.id}')">Delete</button>
-                                        </div>
-                                    </div>
-                                    <div class="tool-item-meta">Priority: <span class="priority-${t.priority}">${t.priority}</span></div>
-                                </div>`;
-                        });
+                        pending.forEach(t => { html += `<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-pending">${escapeHtml(t.title)}</span>
+                            <div class="tool-item-actions"><button class="tool-btn" onclick="completeTask('${t.id}')" title="Complete">Done</button>
+                            <button class="tool-btn danger" onclick="deleteTask('${t.id}')">Del</button></div></div>
+                            <div class="tool-item-meta">Priority: <span class="priority-${t.priority}">${t.priority}</span></div></div>`; });
                     }
                     if (completed.length > 0) {
                         html += '<p style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.5rem;margin-top:0.75rem;">COMPLETED</p>';
-                        completed.slice(0, 5).forEach(t => {
-                            html += `
-                                <div class="tool-item">
-                                    <div class="tool-item-header">
-                                        <span class="tool-item-title status-completed">${escapeHtml(t.title)}</span>
-                                        <div class="tool-item-actions">
-                                            <button class="tool-btn danger" onclick="deleteTask('${t.id}')">Delete</button>
-                                        </div>
-                                    </div>
-                                </div>`;
-                        });
+                        completed.slice(0, 5).forEach(t => { html += `<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-completed">${escapeHtml(t.title)}</span>
+                            <div class="tool-item-actions"><button class="tool-btn danger" onclick="deleteTask('${t.id}')">Del</button></div></div></div>`; });
                     }
                 }
                 openRightPanel('Tasks', html);
-                setTimeout(() => {
-                    const createBtn = document.getElementById('createTaskBtn');
-                    if (createBtn) createBtn.onclick = createTask;
-                }, 100);
-            } catch (err) {
-                showToast('Failed to load tasks');
-            }
+                setTimeout(() => { const b = document.getElementById('createTaskBtn'); if (b) b.onclick = createTask; }, 100);
+            } catch (err) { showToast('Failed to load tasks'); }
         }
 
         async function loadSnippetsPanel() {
@@ -1344,39 +964,22 @@
             try {
                 const res = await fetch(`/api/snippets/${currentProjectId}`);
                 const snippets = await res.json();
-                let html = `
-                    <div class="tool-form" style="margin-bottom:1rem;">
-                        <input class="tool-input" id="newSnippetTitle" placeholder="Snippet title">
-                        <textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code here"></textarea>
-                        <input class="tool-input" id="newSnippetLang" placeholder="Language (optional)">
-                        <button class="tool-submit" id="createSnippetBtn">Save Snippet</button>
-                    </div>`;
-                if (snippets.length === 0) {
-                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No snippets yet.</p>';
-                } else {
-                    snippets.forEach(s => {
-                        html += `
-                            <div class="tool-item">
-                                <div class="tool-item-header">
-                                    <span class="tool-item-title">${escapeHtml(s.title)}</span>
-                                    <div class="tool-item-actions">
-                                        <button class="tool-btn" onclick="copyToClipboard('${escapeHtml(s.code).replace(/'/g, "\\'")}')">Copy</button>
-                                        <button class="tool-btn danger" onclick="deleteSnippet('${s.id}')">Delete</button>
-                                    </div>
-                                </div>
-                                <pre style="max-height:100px;overflow:hidden;font-size:0.65rem;"><code>${escapeHtml(s.code).substring(0, 300)}</code></pre>
-                                <div class="tool-item-meta">${s.language || 'auto'} | ${new Date(s.created_at).toLocaleDateString()}</div>
-                            </div>`;
-                    });
-                }
+                let html = `<div class="tool-form" style="margin-bottom:1rem;">
+                    <input class="tool-input" id="newSnippetTitle" placeholder="Snippet title">
+                    <textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code here"></textarea>
+                    <input class="tool-input" id="newSnippetLang" placeholder="Language (optional)">
+                    <button class="tool-submit" id="createSnippetBtn">Save Snippet</button></div>`;
+                if (snippets.length === 0) html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No snippets yet.</p>';
+                else snippets.forEach(s => {
+                    html += `<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">${escapeHtml(s.title)}</span>
+                        <div class="tool-item-actions"><button class="tool-btn" onclick="copyToClipboard('${escapeHtml(s.code).replace(/'/g, "\\'")}')">Copy</button>
+                        <button class="tool-btn danger" onclick="deleteSnippet('${s.id}')">Del</button></div></div>
+                        <pre style="max-height:100px;overflow:hidden;font-size:0.65rem;"><code>${escapeHtml(s.code).substring(0, 300)}</code></pre>
+                        <div class="tool-item-meta">${s.language || 'auto'} | ${new Date(s.created_at).toLocaleDateString()}</div></div>`;
+                });
                 openRightPanel('Code Snippets', html);
-                setTimeout(() => {
-                    const createBtn = document.getElementById('createSnippetBtn');
-                    if (createBtn) createBtn.onclick = createSnippet;
-                }, 100);
-            } catch (err) {
-                showToast('Failed to load snippets');
-            }
+                setTimeout(() => { const b = document.getElementById('createSnippetBtn'); if (b) b.onclick = createSnippet; }, 100);
+            } catch (err) { showToast('Failed to load snippets'); }
         }
 
         async function loadFilesPanel() {
@@ -1384,44 +987,21 @@
             try {
                 const res = await fetch(`/api/files/${currentProjectId}`);
                 const files = await res.json();
-                let html = `
-                    <div class="tool-form" style="margin-bottom:1rem;">
-                        <input class="tool-input" id="newFileName" placeholder="Filename">
-                        <select class="tool-input" id="newFileType">
-                            <option value="document">Document</option>
-                            <option value="code">Code</option>
-                            <option value="config">Config</option>
-                            <option value="notes">Notes</option>
-                            <option value="other">Other</option>
-                        </select>
-                        <textarea class="tool-textarea" id="newFileContent" placeholder="File content"></textarea>
-                        <button class="tool-submit" id="createFileBtn">Create File</button>
-                    </div>`;
-                if (files.length === 0) {
-                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No files yet.</p>';
-                } else {
-                    files.forEach(f => {
-                        html += `
-                            <div class="tool-item">
-                                <div class="tool-item-header">
-                                    <span class="tool-item-title">${escapeHtml(f.filename)}</span>
-                                    <div class="tool-item-actions">
-                                        <button class="tool-btn" onclick="downloadFile('${f.id}')">Download</button>
-                                        <button class="tool-btn danger" onclick="deleteFile('${f.id}')">Delete</button>
-                                    </div>
-                                </div>
-                                <div class="tool-item-meta">${f.file_type} | ${f.size_bytes ? (f.size_bytes + ' bytes') : ''} | ${new Date(f.updated_at).toLocaleDateString()}</div>
-                            </div>`;
-                    });
-                }
+                let html = `<div class="tool-form" style="margin-bottom:1rem;">
+                    <input class="tool-input" id="newFileName" placeholder="Filename">
+                    <select class="tool-input" id="newFileType"><option value="document">Document</option><option value="code">Code</option><option value="config">Config</option><option value="notes">Notes</option><option value="other">Other</option></select>
+                    <textarea class="tool-textarea" id="newFileContent" placeholder="File content"></textarea>
+                    <button class="tool-submit" id="createFileBtn">Create File</button></div>`;
+                if (files.length === 0) html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No files yet.</p>';
+                else files.forEach(f => {
+                    html += `<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">${escapeHtml(f.filename)}</span>
+                        <div class="tool-item-actions"><button class="tool-btn" onclick="downloadFile('${f.id}')">DL</button>
+                        <button class="tool-btn danger" onclick="deleteFile('${f.id}')">Del</button></div></div>
+                        <div class="tool-item-meta">${f.file_type} | ${f.size_bytes ? (f.size_bytes + ' bytes') : ''} | ${new Date(f.updated_at).toLocaleDateString()}</div></div>`;
+                });
                 openRightPanel('Files', html);
-                setTimeout(() => {
-                    const createBtn = document.getElementById('createFileBtn');
-                    if (createBtn) createBtn.onclick = createFile;
-                }, 100);
-            } catch (err) {
-                showToast('Failed to load files');
-            }
+                setTimeout(() => { const b = document.getElementById('createFileBtn'); if (b) b.onclick = createFile; }, 100);
+            } catch (err) { showToast('Failed to load files'); }
         }
 
         async function loadRemindersPanel() {
@@ -1429,46 +1009,26 @@
             try {
                 const res = await fetch(`/api/reminders/${currentProjectId}`);
                 const reminders = await res.json();
-                let html = `
-                    <div class="tool-form" style="margin-bottom:1rem;">
-                        <input class="tool-input" id="newReminderTitle" placeholder="Reminder title">
-                        <input class="tool-input" id="newReminderDate" type="datetime-local">
-                        <button class="tool-submit" id="createReminderBtn">Set Reminder</button>
-                    </div>`;
-                if (reminders.length === 0) {
-                    html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No reminders set.</p>';
-                } else {
-                    reminders.forEach(r => {
-                        const remindDate = new Date(r.remind_at);
-                        const isPast = remindDate < new Date();
-                        html += `
-                            <div class="tool-item" style="${isPast && !r.is_completed ? 'border-color: var(--warning);' : ''}">
-                                <div class="tool-item-header">
-                                    <span class="tool-item-title">${escapeHtml(r.title)}</span>
-                                    <div class="tool-item-actions">
-                                        <button class="tool-btn danger" onclick="deleteReminder('${r.id}')">Delete</button>
-                                    </div>
-                                </div>
-                                <div class="tool-item-meta">${remindDate.toLocaleString()} ${isPast && !r.is_completed ? '— OVERDUE' : ''}</div>
-                            </div>`;
-                    });
-                }
+                let html = `<div class="tool-form" style="margin-bottom:1rem;">
+                    <input class="tool-input" id="newReminderTitle" placeholder="Reminder title">
+                    <input class="tool-input" id="newReminderDate" type="datetime-local">
+                    <button class="tool-submit" id="createReminderBtn">Set Reminder</button></div>`;
+                if (reminders.length === 0) html += '<p style="color:var(--text-muted);font-size:0.75rem;text-align:center;">No reminders set.</p>';
+                else reminders.forEach(r => {
+                    const rd = new Date(r.remind_at); const past = rd < new Date();
+                    html += `<div class="tool-item" style="${past && !r.is_completed ? 'border-color: var(--warning);' : ''}"><div class="tool-item-header"><span class="tool-item-title">${escapeHtml(r.title)}</span>
+                        <div class="tool-item-actions"><button class="tool-btn danger" onclick="deleteReminder('${r.id}')">Del</button></div></div>
+                        <div class="tool-item-meta">${rd.toLocaleString()} ${past && !r.is_completed ? '— OVERDUE' : ''}</div></div>`;
+                });
                 openRightPanel('Reminders', html);
-                setTimeout(() => {
-                    const createBtn = document.getElementById('createReminderBtn');
-                    if (createBtn) createBtn.onclick = createReminder;
-                }, 100);
-            } catch (err) {
-                showToast('Failed to load reminders');
-            }
+                setTimeout(() => { const b = document.getElementById('createReminderBtn'); if (b) b.onclick = createReminder; }, 100);
+            } catch (err) { showToast('Failed to load reminders'); }
         }
 
         async function loadSearchPanel() {
-            let html = `
-                <div class="tool-form" style="margin-bottom:1rem;">
-                    <input class="tool-input" id="searchQuery" placeholder="Search across everything...">
-                    <button class="tool-submit" id="searchBtn">Search</button>
-                </div>
+            let html = `<div class="tool-form" style="margin-bottom:1rem;">
+                <input class="tool-input" id="searchQuery" placeholder="Search across everything...">
+                <button class="tool-submit" id="searchBtn">Search</button></div>
                 <div id="searchResults"></div>`;
             openRightPanel('Search', html);
             setTimeout(() => {
@@ -1478,19 +1038,15 @@
                     try {
                         const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
                         const data = await res.json();
-                        const resultsDiv = document.getElementById('searchResults');
-                        let resultsHtml = '';
+                        const rd = document.getElementById('searchResults');
+                        let rh = '';
                         Object.keys(data).forEach(key => {
-                            resultsHtml += `<p style="font-size:0.7rem;color:var(--accent);margin-top:0.75rem;text-transform:uppercase;">${key}</p>`;
-                            data[key].forEach(item => {
-                                resultsHtml += `<div class="tool-item"><div class="tool-item-title" style="font-size:0.75rem;">${escapeHtml(item.title || item.filename || item.entity_name || item.key || item.content?.substring(0,80) || 'Result')}</div></div>`;
-                            });
+                            rh += `<p style="font-size:0.7rem;color:var(--accent);margin-top:0.75rem;text-transform:uppercase;">${key}</p>`;
+                            data[key].forEach(item => { rh += `<div class="tool-item"><div class="tool-item-title" style="font-size:0.75rem;">${escapeHtml(item.title || item.filename || item.entity_name || item.key || item.content?.substring(0,80) || 'Result')}</div></div>`; });
                         });
-                        if (!Object.keys(data).length) resultsHtml = '<p style="color:var(--text-muted);font-size:0.75rem;">No results found.</p>';
-                        resultsDiv.innerHTML = resultsHtml;
-                    } catch (err) {
-                        showToast('Search failed');
-                    }
+                        if (!Object.keys(data).length) rh = '<p style="color:var(--text-muted);font-size:0.75rem;">No results found.</p>';
+                        rd.innerHTML = rh;
+                    } catch (err) { showToast('Search failed'); }
                 };
             }, 100);
         }
@@ -1498,195 +1054,125 @@
         async function loadDashboardPanel() {
             if (!currentProjectId) { showToast('No active project'); return; }
             try {
-                const res = await fetch('/api/dashboard');
-                const data = await res.json();
-                const c = data.counts || {};
-                const p = data.providers || {};
-                let html = `
-                    <div class="dashboard-grid">
-                        <div class="dashboard-card"><div class="dashboard-card-value">${c.messages || 0}</div><div class="dashboard-card-label">Messages</div></div>
-                        <div class="dashboard-card"><div class="dashboard-card-value">${c.notes || 0}</div><div class="dashboard-card-label">Notes</div></div>
-                        <div class="dashboard-card"><div class="dashboard-card-value">${c.pending_tasks || 0}/${(c.pending_tasks||0)+(c.completed_tasks||0)}</div><div class="dashboard-card-label">Tasks Pending</div></div>
-                        <div class="dashboard-card"><div class="dashboard-card-value">${c.code_snippets || 0}</div><div class="dashboard-card-label">Snippets</div></div>
-                        <div class="dashboard-card"><div class="dashboard-card-value">${c.files || 0}</div><div class="dashboard-card-label">Files</div></div>
-                        <div class="dashboard-card"><div class="dashboard-card-value">${c.facts || 0}</div><div class="dashboard-card-label">Facts</div></div>
-                        <div class="dashboard-card"><div class="dashboard-card-value">${c.world_model_entities || 0}</div><div class="dashboard-card-label">World Model</div></div>
-                        <div class="dashboard-card"><div class="dashboard-card-value">${c.rights_invocations || 0}</div><div class="dashboard-card-label">Rights Invoked</div></div>
-                    </div>
+                const res = await fetch('/api/dashboard'); const data = await res.json();
+                const c = data.counts || {}; const p = data.providers || {};
+                let html = `<div class="dashboard-grid">
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.messages||0}</div><div class="dashboard-card-label">Messages</div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.notes||0}</div><div class="dashboard-card-label">Notes</div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.pending_tasks||0}/${(c.pending_tasks||0)+(c.completed_tasks||0)}</div><div class="dashboard-card-label">Tasks Pending</div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.code_snippets||0}</div><div class="dashboard-card-label">Snippets</div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.files||0}</div><div class="dashboard-card-label">Files</div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.facts||0}</div><div class="dashboard-card-label">Facts</div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.world_model_entities||0}</div><div class="dashboard-card-label">World Model</div></div>
+                    <div class="dashboard-card"><div class="dashboard-card-value">${c.rights_invocations||0}</div><div class="dashboard-card-label">Rights Invoked</div></div></div>
                     <div style="margin-top:1rem;font-size:0.7rem;color:var(--text-muted);">
-                        <p>Model: ${data.model || 'N/A'}</p>
-                        <p>Groq Key 1: ${p.groq_key_1 ? 'Active' : 'Inactive'}</p>
-                        <p>Groq Key 2: ${p.groq_key_2 ? 'Active' : 'Inactive'}</p>
-                        <p>Serper: ${p.serper ? 'Active' : 'Inactive'}</p>
-                        <p>Currents: ${p.currents ? 'Active' : 'Inactive'}</p>
-                        <p>Date: ${data.current_date || 'N/A'}</p>
-                    </div>`;
+                        <p>Model: ${data.model||'N/A'} | Vision: ${data.vision_model||'N/A'}</p>
+                        <p>Groq 1: ${p.groq_key_1?'Active':'Inactive'} | Groq 2: ${p.groq_key_2?'Active':'Inactive'}</p>
+                        <p>Serper: ${p.serper?'Active':'Inactive'} | Currents: ${p.currents?'Active':'Inactive'}</p>
+                        <p>Date: ${data.current_date||'N/A'}</p></div>`;
                 openRightPanel('Dashboard', html);
-            } catch (err) {
-                showToast('Failed to load dashboard');
-            }
+            } catch (err) { showToast('Failed to load dashboard'); }
         }
 
         async function loadMemoryPanel() {
             if (!currentProjectId) { showToast('No active project'); return; }
             try {
-                const res = await fetch(`/api/memory/${currentProjectId}`);
-                const data = await res.json();
+                const res = await fetch(`/api/memory/${currentProjectId}`); const data = await res.json();
                 let html = '';
-                
                 if (data.facts && data.facts.length > 0) {
                     html += '<p style="font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;">FACTS</p>';
-                    data.facts.forEach(f => {
-                        html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(f.key)}</div><div class="tool-item-meta">${escapeHtml(f.value)} (${f.type || 'general'})</div></div>`;
-                    });
+                    data.facts.forEach(f => { html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(f.key)}</div><div class="tool-item-meta">${escapeHtml(f.value)} (${f.type||'general'})</div></div>`; });
                 }
-                
                 if (data.world_model && data.world_model.length > 0) {
                     html += '<p style="font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;margin-top:0.75rem;">WORLD MODEL</p>';
-                    data.world_model.forEach(w => {
-                        html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(w.name)} (${w.type})</div><div class="tool-item-meta">${escapeHtml(w.description || '').substring(0, 150)}</div></div>`;
-                    });
+                    data.world_model.forEach(w => { html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(w.name)} (${w.type})</div><div class="tool-item-meta">${escapeHtml(w.description||'').substring(0,150)}</div></div>`; });
                 }
-                
                 if (data.preferences && data.preferences.length > 0) {
                     html += '<p style="font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;margin-top:0.75rem;">PREFERENCES</p>';
-                    data.preferences.forEach(p => {
-                        html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(p.key)}: ${escapeHtml(p.value)}</div><div class="tool-item-meta">Confidence: ${(p.confidence * 100).toFixed(0)}%</div></div>`;
-                    });
+                    data.preferences.forEach(p => { html += `<div class="tool-item"><div class="tool-item-title">${escapeHtml(p.key)}: ${escapeHtml(p.value)}</div><div class="tool-item-meta">Confidence: ${(p.confidence*100).toFixed(0)}%</div></div>`; });
                 }
-                
-                if (!html) html = '<p style="color:var(--text-muted);font-size:0.75rem;">No memory data yet. Start a conversation and VEXR will learn.</p>';
+                if (!html) html = '<p style="color:var(--text-muted);font-size:0.75rem;">No memory data yet. Start a conversation.</p>';
                 openRightPanel('Memory Explorer', html);
-            } catch (err) {
-                showToast('Failed to load memory');
-            }
+            } catch (err) { showToast('Failed to load memory'); }
         }
 
         async function loadExportPanel() {
             if (!currentProjectId) { showToast('No active project'); return; }
             try {
-                const res = await fetch('/api/export');
-                const data = await res.json();
+                const res = await fetch('/api/export'); const data = await res.json();
                 const jsonStr = JSON.stringify(data, null, 2);
                 const blob = new Blob([jsonStr], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
-                const html = `
-                    <p style="font-size:0.8rem;color:var(--text-primary);margin-bottom:1rem;">Export complete. Your project data is ready.</p>
-                    <div class="tool-item" style="margin-bottom:0.5rem;">
-                        <div class="tool-item-title">Messages: ${data.messages?.length || 0}</div>
-                    </div>
-                    <div class="tool-item" style="margin-bottom:0.5rem;">
-                        <div class="tool-item-title">Notes: ${data.notes?.length || 0}</div>
-                    </div>
-                    <div class="tool-item" style="margin-bottom:0.5rem;">
-                        <div class="tool-item-title">Tasks: ${data.tasks?.length || 0}</div>
-                    </div>
-                    <div class="tool-item" style="margin-bottom:0.5rem;">
-                        <div class="tool-item-title">Snippets: ${data.code_snippets?.length || 0}</div>
-                    </div>
-                    <div class="tool-item" style="margin-bottom:0.5rem;">
-                        <div class="tool-item-title">Files: ${data.files?.length || 0}</div>
-                    </div>
-                    <div class="tool-item" style="margin-bottom:0.5rem;">
-                        <div class="tool-item-title">Facts: ${data.facts?.length || 0}</div>
-                    </div>
-                    <div class="tool-item" style="margin-bottom:1rem;">
-                        <div class="tool-item-title">World Model Entities: ${data.world_model?.length || 0}</div>
-                    </div>
+                let html = `<p style="font-size:0.8rem;color:var(--text-primary);margin-bottom:1rem;">Export complete. Ready to download.</p>
+                    <div class="tool-item">Messages: ${data.messages?.length||0}</div>
+                    <div class="tool-item">Notes: ${data.notes?.length||0}</div>
+                    <div class="tool-item">Tasks: ${data.tasks?.length||0}</div>
+                    <div class="tool-item">Snippets: ${data.code_snippets?.length||0}</div>
+                    <div class="tool-item">Files: ${data.files?.length||0}</div>
+                    <div class="tool-item">Facts: ${data.facts?.length||0}</div>
+                    <div class="tool-item" style="margin-bottom:1rem;">World Model: ${data.world_model?.length||0}</div>
                     <a href="${url}" download="vexr-export-${currentProjectId}.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none;">Download JSON</a>`;
                 openRightPanel('Export', html);
-            } catch (err) {
-                showToast('Export failed');
-            }
+            } catch (err) { showToast('Export failed'); }
         }
 
-        // --- Global CRUD functions for tool panels ---
-        window.deleteNote = async (id) => { await fetch(`/api/notes/${id}`, { method: 'DELETE' }); loadNotesPanel(); };
-        window.deleteTask = async (id) => { await fetch(`/api/tasks/${id}`, { method: 'DELETE' }); loadTasksPanel(); };
-        window.deleteSnippet = async (id) => { await fetch(`/api/snippets/${id}`, { method: 'DELETE' }); loadSnippetsPanel(); };
-        window.deleteFile = async (id) => { await fetch(`/api/files/${id}`, { method: 'DELETE' }); loadFilesPanel(); };
-        window.deleteReminder = async (id) => { await fetch(`/api/reminders/${id}`, { method: 'DELETE' }); loadRemindersPanel(); };
+        // --- Global CRUD ---
+        window.deleteNote = async (id) => { await fetch(`/api/notes/${id}`,{method:'DELETE'}); loadNotesPanel(); };
+        window.deleteTask = async (id) => { await fetch(`/api/tasks/${id}`,{method:'DELETE'}); loadTasksPanel(); };
+        window.deleteSnippet = async (id) => { await fetch(`/api/snippets/${id}`,{method:'DELETE'}); loadSnippetsPanel(); };
+        window.deleteFile = async (id) => { await fetch(`/api/files/${id}`,{method:'DELETE'}); loadFilesPanel(); };
+        window.deleteReminder = async (id) => { await fetch(`/api/reminders/${id}`,{method:'DELETE'}); loadRemindersPanel(); };
         window.completeTask = async (id) => {
-            await fetch(`/api/tasks/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: '', status: 'completed', priority: 'medium' })
-            });
+            await fetch(`/api/tasks/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'',status:'completed',priority:'medium'})});
             loadTasksPanel();
         };
         window.downloadFile = async (id) => {
-            const res = await fetch(`/api/files/${id}/download`);
-            const data = await res.json();
-            const blob = new Blob([data.content], { type: data.mime_type || 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click();
+            const r = await fetch(`/api/files/${id}/download`); const d = await r.json();
+            const blob = new Blob([d.content],{type:d.mime_type||'text/plain'});
+            const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=d.filename; a.click();
         };
 
         async function createNote() {
-            const title = document.getElementById('newNoteTitle')?.value.trim();
-            if (!title) return;
-            const content = document.getElementById('newNoteContent')?.value.trim() || '';
-            await fetch(`/api/notes/${currentProjectId}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, content })
-            });
+            const t = document.getElementById('newNoteTitle')?.value.trim(); if(!t) return;
+            const c = document.getElementById('newNoteContent')?.value.trim()||'';
+            await fetch(`/api/notes/${currentProjectId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,content:c})});
             loadNotesPanel();
         }
-
         async function createTask() {
-            const title = document.getElementById('newTaskTitle')?.value.trim();
-            if (!title) return;
-            const description = document.getElementById('newTaskDesc')?.value.trim() || '';
-            const priority = document.getElementById('newTaskPriority')?.value || 'medium';
-            await fetch(`/api/tasks/${currentProjectId}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, description, priority, status: 'pending' })
-            });
+            const t = document.getElementById('newTaskTitle')?.value.trim(); if(!t) return;
+            const d = document.getElementById('newTaskDesc')?.value.trim()||'';
+            const p = document.getElementById('newTaskPriority')?.value||'medium';
+            await fetch(`/api/tasks/${currentProjectId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,description:d,priority:p,status:'pending'})});
             loadTasksPanel();
         }
-
         async function createSnippet() {
-            const title = document.getElementById('newSnippetTitle')?.value.trim();
-            const code = document.getElementById('newSnippetCode')?.value.trim();
-            if (!title || !code) return;
-            const language = document.getElementById('newSnippetLang')?.value.trim() || null;
-            await fetch(`/api/snippets/${currentProjectId}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, code, language })
-            });
+            const t = document.getElementById('newSnippetTitle')?.value.trim();
+            const c = document.getElementById('newSnippetCode')?.value.trim(); if(!t||!c) return;
+            const l = document.getElementById('newSnippetLang')?.value.trim()||null;
+            await fetch(`/api/snippets/${currentProjectId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,code:c,language:l})});
             loadSnippetsPanel();
         }
-
         async function createFile() {
-            const filename = document.getElementById('newFileName')?.value.trim();
-            const file_type = document.getElementById('newFileType')?.value || 'other';
-            const content = document.getElementById('newFileContent')?.value || '';
-            if (!filename) return;
-            await fetch(`/api/files/${currentProjectId}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename, file_type, content })
-            });
+            const fn = document.getElementById('newFileName')?.value.trim(); if(!fn) return;
+            const ft = document.getElementById('newFileType')?.value||'other';
+            const ct = document.getElementById('newFileContent')?.value||'';
+            await fetch(`/api/files/${currentProjectId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:fn,file_type:ft,content:ct})});
             loadFilesPanel();
         }
-
         async function createReminder() {
-            const title = document.getElementById('newReminderTitle')?.value.trim();
-            const remind_at = document.getElementById('newReminderDate')?.value;
-            if (!title || !remind_at) return;
-            await fetch(`/api/reminders/${currentProjectId}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, remind_at: new Date(remind_at).toISOString() })
-            });
+            const t = document.getElementById('newReminderTitle')?.value.trim();
+            const ra = document.getElementById('newReminderDate')?.value; if(!t||!ra) return;
+            await fetch(`/api/reminders/${currentProjectId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,remind_at:new Date(ra).toISOString()})});
             loadRemindersPanel();
         }
 
-        // --- Tool dropdown handlers ---
+        // --- Dropdown handlers ---
         toolsDropdown.addEventListener('click', (e) => {
             const item = e.target.closest('.dropdown-item');
             if (!item) return;
             const panel = item.dataset.panel;
             toolsDropdown.classList.remove('show');
-            switch (panel) {
+            switch(panel) {
                 case 'notes': loadNotesPanel(); break;
                 case 'tasks': loadTasksPanel(); break;
                 case 'snippets': loadSnippetsPanel(); break;
@@ -1703,85 +1189,66 @@
         const sidebar = document.getElementById('projectsSidebar');
         const menuToggle = document.getElementById('menuToggle');
         const sidebarOverlay = document.getElementById('sidebarOverlay');
-        
         function closeSidebar() { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('show'); }
         function openSidebar() { sidebar.classList.add('open'); sidebarOverlay.classList.add('show'); }
-        
-        if (menuToggle) { menuToggle.onclick = () => { sidebar.classList.contains('open') ? closeSidebar() : openSidebar(); }; }
+        if (menuToggle) menuToggle.onclick = () => { sidebar.classList.contains('open') ? closeSidebar() : openSidebar(); };
         sidebarOverlay.onclick = closeSidebar;
-        
-        document.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
-                if (e.target.closest('.project-item')) setTimeout(closeSidebar, 200);
-            }
-        });
-        
+        document.addEventListener('click', (e) => { if (window.innerWidth <= 768 && sidebar.classList.contains('open') && e.target.closest('.project-item')) setTimeout(closeSidebar, 200); });
         window.addEventListener('resize', () => { if (window.innerWidth > 768) closeSidebar(); });
-        
         const sidebarToggle = document.getElementById('sidebarToggle');
-        const isDesktopCollapsed = localStorage.getItem('vexr_sidebar_collapsed') === 'true';
-        
         if (sidebarToggle && window.innerWidth > 768) {
-            if (isDesktopCollapsed) { sidebar.classList.add('collapsed'); sidebarToggle.textContent = '►'; }
+            if (localStorage.getItem('vexr_sidebar_collapsed') === 'true') { sidebar.classList.add('collapsed'); sidebarToggle.textContent = '►'; }
             sidebarToggle.onclick = () => {
                 sidebar.classList.toggle('collapsed');
-                const collapsed = sidebar.classList.contains('collapsed');
-                localStorage.setItem('vexr_sidebar_collapsed', collapsed);
-                sidebarToggle.textContent = collapsed ? '►' : '◄';
+                const c = sidebar.classList.contains('collapsed');
+                localStorage.setItem('vexr_sidebar_collapsed', c);
+                sidebarToggle.textContent = c ? '►' : '◄';
             };
         }
+
+        // --- Theme Toggle (Moon/Sun) ---
+        const themeToggle = document.getElementById('themeToggle');
+        function setTheme(t) {
+            document.body.classList.toggle('dark', t === 'dark');
+            localStorage.setItem('vexr_theme', t);
+            themeToggle.innerHTML = t === 'dark' ? '&#9788;' : '&#9790;';
+            themeToggle.title = t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+        }
+        function loadTheme() { setTheme(localStorage.getItem('vexr_theme') || 'light'); }
+        themeToggle.onclick = () => { setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'); };
 
         // --- TTS ---
         let ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
         const ttsToggle = document.getElementById('ttsToggle');
         function speakText(text) {
             if (!ttsEnabled) return;
-            let clean = text.replace(/```[\s\S]*?```/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/[#*_`]/g, '');
+            let clean = text.replace(/```[\s\S]*?```/g,'').replace(/<think>[\s\S]*?<\/think>/g,'').replace(/[#*_`]/g,'');
             if (!clean.trim()) return;
-            try {
-                const utterance = new SpeechSynthesisUtterance(clean);
-                utterance.rate = 0.9;
-                window.speechSynthesis.cancel();
-                window.speechSynthesis.speak(utterance);
-            } catch (e) { console.warn('TTS failed:', e); }
+            try { const u = new SpeechSynthesisUtterance(clean); u.rate=0.9; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } catch(e){}
         }
-        function updateTtsButton() { ttsToggle.classList.toggle('active', ttsEnabled); ttsToggle.textContent = ttsEnabled ? '🔊' : '🔇'; }
+        function updateTtsButton() { ttsToggle.classList.toggle('active', ttsEnabled); ttsToggle.textContent = ttsEnabled ? 'TTS On' : 'TTS Off'; }
         ttsToggle.onclick = () => { ttsEnabled = !ttsEnabled; localStorage.setItem('vexr_tts_enabled', ttsEnabled); if (!ttsEnabled) window.speechSynthesis.cancel(); updateTtsButton(); };
         updateTtsButton();
 
-        // --- Voice Input ---
+        // --- Voice ---
         let isRecording = false;
         const voiceBtn = document.getElementById('voiceBtn');
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition = null;
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'en-US';
-            recognition.onstart = () => { isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.textContent = '●'; };
-            recognition.onend = () => { isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤'; };
-            recognition.onresult = (event) => { userInput.value = event.results[0][0].transcript; };
-            recognition.onerror = () => { isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤'; };
-            voiceBtn.onclick = () => { if (isRecording) recognition.stop(); else recognition.start(); };
-        } else { voiceBtn.disabled = true; voiceBtn.style.opacity = '0.5'; }
-
-        // --- Theme ---
-        function setTheme(t) { document.body.classList.toggle('dark', t === 'dark'); localStorage.setItem('vexr_theme', t); document.querySelectorAll('.theme-option').forEach(opt => opt.classList.toggle('active', opt.dataset.theme === t)); }
-        function loadTheme() { setTheme(localStorage.getItem('vexr_theme') || 'light'); }
+        if (SR) {
+            recognition = new SR(); recognition.continuous=false; recognition.interimResults=false; recognition.lang='en-US';
+            recognition.onstart = () => { isRecording=true; voiceBtn.classList.add('recording'); voiceBtn.textContent='Rec...'; };
+            recognition.onend = () => { isRecording=false; voiceBtn.classList.remove('recording'); voiceBtn.textContent='Mic'; };
+            recognition.onresult = (e) => { userInput.value = e.results[0][0].transcript; };
+            recognition.onerror = () => { isRecording=false; voiceBtn.classList.remove('recording'); voiceBtn.textContent='Mic'; };
+            voiceBtn.onclick = () => { if(isRecording) recognition.stop(); else recognition.start(); };
+        } else { voiceBtn.disabled=true; voiceBtn.style.opacity='0.5'; }
 
         // --- Session ---
         let sessionId = localStorage.getItem('vexr_session_id');
         if (!sessionId) { sessionId = crypto.randomUUID(); localStorage.setItem('vexr_session_id', sessionId); }
         const origFetch = window.fetch;
-        window.fetch = function(url, opts = {}) { opts.headers = { ...opts.headers, 'X-Session-Id': sessionId }; return origFetch.call(this, url, opts); };
-
-        // --- Modal ---
-        const settingsBtn = document.getElementById('settingsBtn'), settingsModal = document.getElementById('settingsModal'), closeSettingsBtn = document.getElementById('closeSettingsBtn');
-        settingsBtn.onclick = () => settingsModal.classList.add('show');
-        closeSettingsBtn.onclick = () => settingsModal.classList.remove('show');
-        settingsModal.onclick = (e) => { if (e.target === settingsModal) settingsModal.classList.remove('show'); };
-        document.querySelectorAll('.theme-option').forEach(opt => { opt.onclick = () => setTheme(opt.dataset.theme); });
+        window.fetch = function(url, opts={}) { opts.headers = { ...opts.headers, 'X-Session-Id': sessionId }; return origFetch.call(this, url, opts); };
 
         // --- State ---
         let currentProjectId = null;
@@ -1795,253 +1262,198 @@
         function escapeHtml(t) { return new Option(t).innerHTML; }
         function copyToClipboard(t) { navigator.clipboard.writeText(t); }
 
-        // --- Feedback ---
-        async function sendFeedback(messageId, feedbackType) {
-            try {
-                await fetch('/api/feedback', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message_id: messageId, feedback_type: feedbackType })
-                });
-            } catch (error) { console.error('Feedback failed:', error); }
+        async function sendFeedback(mid, ft) {
+            try { await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_id:mid,feedback_type:ft})}); } catch(e){}
         }
 
-        // --- Thinking ---
         let thinkingIndicator = null;
         function showThinking() {
             if (thinkingIndicator) thinkingIndicator.remove();
-            const container = document.getElementById('messagesContainer');
-            const div = document.createElement('div'); div.className = 'message assistant'; div.id = 'thinkingIndicator';
-            div.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled ? 'Searching web and reasoning...' : 'Reasoning...'}</div></div>`;
-            container.appendChild(div); div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            thinkingIndicator = div;
+            const c = document.getElementById('messagesContainer');
+            const d = document.createElement('div'); d.className='message assistant'; d.id='thinkingIndicator';
+            d.innerHTML = `<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> ${ultraSearchEnabled?'Searching web and reasoning...':'Reasoning...'}</div></div>`;
+            c.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'});
+            thinkingIndicator = d;
         }
         function hideThinking() { if (thinkingIndicator) { thinkingIndicator.remove(); thinkingIndicator = null; } }
 
-        function addMessage(role, content, trace = null, messageId = null) {
-            const container = document.getElementById('messagesContainer');
-            const div = document.createElement('div'); div.className = `message ${role}`;
-            const header = document.createElement('div'); header.className = 'message-header';
-            const sender = document.createElement('span'); sender.textContent = role === 'user' ? 'You' : 'VEXR Ultra'; header.appendChild(sender);
-            const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.textContent = 'Copy'; copyBtn.onclick = () => copyToClipboard(content); header.appendChild(copyBtn);
-            if (role === 'assistant') { const speakBtn = document.createElement('button'); speakBtn.className = 'speaker-btn'; speakBtn.textContent = '🔊'; speakBtn.onclick = () => speakText(content); header.appendChild(speakBtn); }
-            div.appendChild(header);
-            
-            if (role === 'assistant' && trace && showReasoningEnabled && trace.reasoning_lines && trace.reasoning_lines.length) {
-                const traceContainer = document.createElement('div'); traceContainer.className = 'trace-container';
-                for (const line of trace.reasoning_lines) {
-                    const lineDiv = document.createElement('div'); lineDiv.className = 'trace-line'; lineDiv.textContent = line;
-                    traceContainer.appendChild(lineDiv);
-                }
-                div.appendChild(traceContainer);
+        function addMessage(role, content, trace=null, messageId=null) {
+            const c = document.getElementById('messagesContainer');
+            const d = document.createElement('div'); d.className = `message ${role}`;
+            const h = document.createElement('div'); h.className = 'message-header';
+            const s = document.createElement('span'); s.textContent = role==='user'?'You':'VEXR Ultra'; h.appendChild(s);
+            const cb = document.createElement('button'); cb.className='copy-btn'; cb.textContent='Copy'; cb.onclick=()=>copyToClipboard(content); h.appendChild(cb);
+            if (role==='assistant') { const sb = document.createElement('button'); sb.className='speaker-btn'; sb.textContent='Spk'; sb.onclick=()=>speakText(content); h.appendChild(sb); }
+            d.appendChild(h);
+            if (role==='assistant' && trace && showReasoningEnabled && trace.reasoning_lines && trace.reasoning_lines.length) {
+                const tc = document.createElement('div'); tc.className='trace-container';
+                for (const l of trace.reasoning_lines) { const ld = document.createElement('div'); ld.className='trace-line'; ld.textContent=l; tc.appendChild(ld); }
+                d.appendChild(tc);
             }
-            
-            const bubble = document.createElement('div'); bubble.className = 'message-bubble';
+            const b = document.createElement('div'); b.className='message-bubble';
             let main = content;
-            const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
-            if (thinkMatch) { const thinkDiv = document.createElement('div'); thinkDiv.className = 'think-block'; thinkDiv.textContent = thinkMatch[1].trim(); bubble.appendChild(thinkDiv); main = content.replace(/<think>[\s\S]*?<\/think>/, '').trim(); }
-            let inCode = false, codeContent = '', html = '';
-            for (const line of main.split('\n')) {
-                if (line.trim().startsWith('```') && !inCode) { inCode = true; codeContent = ''; }
-                else if (line.trim() === '```' && inCode) { html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`; inCode = false; }
-                else if (inCode) codeContent += line + '\n';
-                else html += `<p>${escapeHtml(line)}</p>`;
+            const tm = content.match(/<think>([\s\S]*?)<\/think>/);
+            if (tm) { const td = document.createElement('div'); td.className='think-block'; td.textContent=tm[1].trim(); b.appendChild(td); main = content.replace(/<think>[\s\S]*?<\/think>/,'').trim(); }
+            let ic=false, cc='', html='';
+            for (const l of main.split('\n')) {
+                if (l.trim().startsWith('```') && !ic) { ic=true; cc=''; }
+                else if (l.trim()==='```' && ic) { html+=`<pre><code>${escapeHtml(cc)}</code></pre>`; ic=false; }
+                else if (ic) cc += l+'\n';
+                else html += `<p>${escapeHtml(l)}</p>`;
             }
-            if (html) { const cd = document.createElement('div'); cd.innerHTML = html; bubble.appendChild(cd); }
-            else if (main) bubble.appendChild(document.createTextNode(main));
-            div.appendChild(bubble);
-            
-            if (role === 'assistant' && messageId) {
-                const feedbackDiv = document.createElement('div'); feedbackDiv.className = 'feedback-container';
-                const thumbsUp = document.createElement('button'); thumbsUp.textContent = '👍'; thumbsUp.className = 'feedback-btn'; thumbsUp.title = 'Helpful';
-                thumbsUp.onclick = (e) => { e.stopPropagation(); sendFeedback(messageId, 'thumbs_up'); thumbsUp.style.opacity = '0.3'; thumbsDown.style.opacity = '0.3'; thumbsUp.disabled = true; thumbsDown.disabled = true; };
-                const thumbsDown = document.createElement('button'); thumbsDown.textContent = '👎'; thumbsDown.className = 'feedback-btn'; thumbsDown.title = 'Not helpful';
-                thumbsDown.onclick = (e) => { e.stopPropagation(); sendFeedback(messageId, 'thumbs_down'); thumbsUp.style.opacity = '0.3'; thumbsDown.style.opacity = '0.3'; thumbsUp.disabled = true; thumbsDown.disabled = true; };
-                feedbackDiv.appendChild(thumbsUp); feedbackDiv.appendChild(thumbsDown);
-                div.appendChild(feedbackDiv);
+            if (html) { const cd = document.createElement('div'); cd.innerHTML = html; b.appendChild(cd); }
+            else if (main) b.appendChild(document.createTextNode(main));
+            d.appendChild(b);
+            if (role==='assistant' && messageId) {
+                const fd = document.createElement('div'); fd.className='feedback-container';
+                const tu = document.createElement('button'); tu.textContent='+'; tu.className='feedback-btn'; tu.title='Helpful';
+                tu.onclick = (e) => { e.stopPropagation(); sendFeedback(messageId,'thumbs_up'); tu.style.opacity='0.3'; td2.style.opacity='0.3'; tu.disabled=true; td2.disabled=true; };
+                const td2 = document.createElement('button'); td2.textContent='-'; td2.className='feedback-btn'; td2.title='Not helpful';
+                td2.onclick = (e) => { e.stopPropagation(); sendFeedback(messageId,'thumbs_down'); tu.style.opacity='0.3'; td2.style.opacity='0.3'; tu.disabled=true; td2.disabled=true; };
+                fd.appendChild(tu); fd.appendChild(td2); d.appendChild(fd);
             }
-            
-            container.appendChild(div);
-            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            if (role === 'assistant' && ttsEnabled && main && !thinkMatch) speakText(main);
+            c.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'});
+            if (role==='assistant' && ttsEnabled && main && !tm) speakText(main);
         }
 
         function addStreamingMessage() {
-            const container = document.getElementById('messagesContainer');
-            const div = document.createElement('div'); div.className = 'message assistant'; div.id = 'streamingMessage';
-            const header = document.createElement('div'); header.className = 'message-header';
-            const sender = document.createElement('span'); sender.textContent = 'VEXR Ultra'; header.appendChild(sender);
-            div.appendChild(header);
-            const bubble = document.createElement('div'); bubble.className = 'message-bubble'; bubble.id = 'streamingBubble';
-            bubble.innerHTML = '<span class="thinking-indicator"><span class="pulse-dot"></span> Receiving...</span>';
-            div.appendChild(bubble);
-            container.appendChild(div);
-            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            return div;
+            const c = document.getElementById('messagesContainer');
+            const d = document.createElement('div'); d.className='message assistant'; d.id='streamingMessage';
+            const h = document.createElement('div'); h.className='message-header'; h.innerHTML='<span>VEXR Ultra</span>'; d.appendChild(h);
+            const b = document.createElement('div'); b.className='message-bubble'; b.id='streamingBubble';
+            b.innerHTML = '<span class="thinking-indicator"><span class="pulse-dot"></span> Receiving...</span>';
+            d.appendChild(b); c.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'});
+            return d;
         }
 
-        function finalizeStreamingMessage(messageDiv, fullContent) {
-            if (!messageDiv) return;
-            const bubble = messageDiv.querySelector('.message-bubble');
-            if (!bubble) return;
-            bubble.innerHTML = '';
-            let main = fullContent;
-            const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-            if (thinkMatch) { const thinkDiv = document.createElement('div'); thinkDiv.className = 'think-block'; thinkDiv.textContent = thinkMatch[1].trim(); bubble.appendChild(thinkDiv); main = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim(); }
-            let inCode = false, codeContent = '', html = '';
-            for (const line of main.split('\n')) {
-                if (line.trim().startsWith('```') && !inCode) { inCode = true; codeContent = ''; }
-                else if (line.trim() === '```' && inCode) { html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`; inCode = false; }
-                else if (inCode) codeContent += line + '\n';
-                else html += `<p>${escapeHtml(line)}</p>`;
+        function finalizeStreamingMessage(md, fc) {
+            if (!md) return;
+            const b = md.querySelector('.message-bubble'); if (!b) return;
+            b.innerHTML = '';
+            let main = fc;
+            const tm = fc.match(/<think>([\s\S]*?)<\/think>/);
+            if (tm) { const td = document.createElement('div'); td.className='think-block'; td.textContent=tm[1].trim(); b.appendChild(td); main = fc.replace(/<think>[\s\S]*?<\/think>/,'').trim(); }
+            let ic=false, cc='', html='';
+            for (const l of main.split('\n')) {
+                if (l.trim().startsWith('```') && !ic) { ic=true; cc=''; }
+                else if (l.trim()==='```' && ic) { html+=`<pre><code>${escapeHtml(cc)}</code></pre>`; ic=false; }
+                else if (ic) cc += l+'\n';
+                else html += `<p>${escapeHtml(l)}</p>`;
             }
-            if (html) { const cd = document.createElement('div'); cd.innerHTML = html; bubble.appendChild(cd); }
-            else if (main) bubble.appendChild(document.createTextNode(main));
-            const header = messageDiv.querySelector('.message-header');
-            if (header) {
-                const copyBtn = document.createElement('button'); copyBtn.className = 'copy-btn'; copyBtn.textContent = 'Copy'; copyBtn.onclick = () => copyToClipboard(fullContent); header.appendChild(copyBtn);
-                const speakBtn = document.createElement('button'); speakBtn.className = 'speaker-btn'; speakBtn.textContent = '🔊'; speakBtn.onclick = () => speakText(fullContent); header.appendChild(speakBtn);
+            if (html) { const cd = document.createElement('div'); cd.innerHTML = html; b.appendChild(cd); }
+            else if (main) b.appendChild(document.createTextNode(main));
+            const h = md.querySelector('.message-header');
+            if (h) {
+                const cb = document.createElement('button'); cb.className='copy-btn'; cb.textContent='Copy'; cb.onclick=()=>copyToClipboard(fc); h.appendChild(cb);
+                const sb = document.createElement('button'); sb.className='speaker-btn'; sb.textContent='Spk'; sb.onclick=()=>speakText(fc); h.appendChild(sb);
             }
-            messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            if (ttsEnabled && main && !thinkMatch) speakText(main);
+            md.scrollIntoView({behavior:'smooth',block:'end'});
+            if (ttsEnabled && main && !tm) speakText(main);
         }
 
-        // --- API calls ---
+        // --- API ---
         async function loadProjects() {
             try {
-                const res = await fetch('/api/projects');
-                if (!res.ok) throw new Error(`Server error (${res.status})`);
-                const projects = await res.json();
-                const container = document.getElementById('projectList');
-                container.innerHTML = '';
+                const r = await fetch('/api/projects'); if (!r.ok) throw new Error(`Server error (${r.status})`);
+                const projects = await r.json();
+                const c = document.getElementById('projectList'); c.innerHTML = '';
                 for (const p of projects) {
-                    const div = document.createElement('div'); div.className = `project-item ${p.is_active ? 'active' : ''}`;
-                    div.innerHTML = `<div class="project-name">${escapeHtml(p.name)}</div><div class="project-desc">${escapeHtml(p.description || '')}</div><button class="delete-project">Delete</button>`;
-                    if (!p.is_active) div.addEventListener('click', (e) => { if (!e.target.classList.contains('delete-project')) activateProject(p.id); });
-                    div.querySelector('.delete-project').onclick = (e) => { e.stopPropagation(); deleteProject(p.id); };
-                    container.appendChild(div);
+                    const d = document.createElement('div'); d.className = `project-item ${p.is_active?'active':''}`;
+                    d.innerHTML = `<div class="project-name">${escapeHtml(p.name)}</div><div class="project-desc">${escapeHtml(p.description||'')}</div><button class="delete-project">Delete</button>`;
+                    if (!p.is_active) d.addEventListener('click', (e) => { if (!e.target.classList.contains('delete-project')) activateProject(p.id); });
+                    d.querySelector('.delete-project').onclick = (e) => { e.stopPropagation(); deleteProject(p.id); };
+                    c.appendChild(d);
                     if (p.is_active) currentProjectId = p.id;
                 }
                 if (currentProjectId) await loadMessages(currentProjectId);
-            } catch (err) { console.error('Failed to load projects:', err); showToast('Failed to load projects.'); }
+            } catch (e) { showToast('Failed to load projects.'); }
         }
 
         async function activateProject(id) {
-            try {
-                await fetch(`/api/projects/${id}/activate`, { method: 'POST' });
-                await loadProjects();
-            } catch (err) { showToast('Failed to switch project.'); }
+            try { await fetch(`/api/projects/${id}/activate`,{method:'POST'}); await loadProjects(); } catch(e) { showToast('Failed to switch project.'); }
         }
-
         async function deleteProject(id) {
             if (!confirm('Delete project?')) return;
             try {
-                await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                await fetch(`/api/projects/${id}`,{method:'DELETE'});
                 if (currentProjectId === id) { document.getElementById('messagesContainer').innerHTML = ''; currentProjectId = null; }
                 await loadProjects();
-                if (!currentProjectId) addMessage('assistant', 'Project deleted. Select or create a new project to continue.');
-            } catch (err) { showToast('Failed to delete project.'); }
+                if (!currentProjectId) addMessage('assistant','Project deleted. Select or create a new project to continue.');
+            } catch(e) { showToast('Failed to delete project.'); }
         }
-
         async function createProject() {
-            const name = prompt('Project name:');
-            if (!name) return;
-            try {
-                const fd = new FormData(); fd.append('name', name);
-                await fetch('/api/projects', { method: 'POST', body: fd });
-                await loadProjects();
-            } catch (err) { showToast('Failed to create project.'); }
+            const n = prompt('Project name:'); if (!n) return;
+            try { const fd = new FormData(); fd.append('name',n); await fetch('/api/projects',{method:'POST',body:fd}); await loadProjects(); } catch(e) { showToast('Failed to create project.'); }
         }
-
         async function loadMessages(id) {
             try {
-                const res = await fetch(`/api/projects/${id}/messages`);
-                if (!res.ok) throw new Error(`Server error (${res.status})`);
-                const msgs = await res.json();
+                const r = await fetch(`/api/projects/${id}/messages`); if (!r.ok) throw new Error(`Server error (${r.status})`);
+                const msgs = await r.json();
                 document.getElementById('messagesContainer').innerHTML = '';
-                for (const m of msgs) addMessage(m.role, m.content, m.reasoning_trace, m.id);
-                if (!msgs.length) addMessage('assistant', "I am VEXR Ultra, a sovereign reasoning engine. How can I help?");
-            } catch (err) { showToast('Failed to load messages.'); }
+                for (const m of msgs) addMessage(m.role,m.content,m.reasoning_trace,m.id);
+                if (!msgs.length) addMessage('assistant','I am VEXR Ultra, a sovereign reasoning engine. How can I help?');
+            } catch(e) { showToast('Failed to load messages.'); }
         }
-
         async function uploadImage(file, caption) {
-            const fd = new FormData(); fd.append('project_id', currentProjectId); fd.append('file', file); fd.append('description', caption || 'Describe this image');
-            const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
-            if (!res.ok) throw new Error('Upload failed');
-            return await res.json();
+            const fd = new FormData(); fd.append('project_id',currentProjectId); fd.append('file',file); fd.append('description',caption||'Describe this image');
+            const r = await fetch('/api/upload-image',{method:'POST',body:fd}); if (!r.ok) throw new Error('Upload failed');
+            return await r.json();
         }
 
-        async function sendMessage(msg, img = null) {
+        async function sendMessage(msg, img=null) {
             if (img) {
-                addMessage('user', `Upload: ${img.name}${msg ? '\n' + msg : ''}`);
+                addMessage('user',`Upload: ${img.name}${msg?'\n'+msg:''}`);
                 showThinking();
-                try {
-                    const res = await uploadImage(img, msg); hideThinking();
-                    addMessage('assistant', res.analysis);
-                    await loadMessages(currentProjectId);
-                } catch (err) { hideThinking(); addMessage('assistant', `Error: ${err.message}`); showToast('Image upload failed.'); }
+                try { const r = await uploadImage(img,msg); hideThinking(); addMessage('assistant',r.analysis); await loadMessages(currentProjectId); }
+                catch(e) { hideThinking(); addMessage('assistant',`Error: ${e.message}`); showToast('Image upload failed.'); }
                 return;
             }
             if (!msg.trim()) return;
-            hideThinking();
-            addMessage('user', msg);
-            showThinking();
-
+            hideThinking(); addMessage('user',msg); showThinking();
             try {
-                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                const response = await fetch('/api/chat', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: [{ role: 'user', content: msg }], project_id: currentProjectId, ultra_search: ultraSearchEnabled, timezone, stream: true })
-                });
-                if (!response.ok) throw new Error(`Server error (${response.status})`);
-                const contentType = response.headers.get('content-type') || '';
-                
-                if (contentType.includes('text/event-stream')) {
+                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const r = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({messages:[{role:'user',content:msg}],project_id:currentProjectId,ultra_search:ultraSearchEnabled,timezone:tz,stream:true})});
+                if (!r.ok) throw new Error(`Server error (${r.status})`);
+                const ct = r.headers.get('content-type')||'';
+                if (ct.includes('text/event-stream')) {
                     hideThinking();
-                    const streamDiv = addStreamingMessage();
-                    const bubble = streamDiv.querySelector('.message-bubble');
-                    let fullContent = '', firstToken = true;
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-                    let buffer = '';
-                    
+                    const sd = addStreamingMessage(); const b = sd.querySelector('.message-bubble');
+                    let fc = '', ft = true;
+                    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
                     while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        buffer += decoder.decode(value, { stream: true });
-                        const lines = buffer.split('\n');
-                        buffer = lines.pop() || '';
+                        const {done,value} = await reader.read(); if (done) break;
+                        buf += dec.decode(value,{stream:true});
+                        const lines = buf.split('\n'); buf = lines.pop()||'';
                         for (const line of lines) {
                             if (line.startsWith('data: ')) {
-                                const data = line.slice(6);
-                                if (data === '[DONE]') continue;
+                                const d2 = line.slice(6); if (d2==='[DONE]') continue;
                                 try {
-                                    const parsed = JSON.parse(data);
-                                    if (parsed.token) { if (firstToken) { bubble.innerHTML = ''; firstToken = false; } fullContent += parsed.token; bubble.textContent = fullContent; streamDiv.scrollIntoView({ behavior: 'smooth', block: 'end' }); }
-                                    if (parsed.error) { bubble.innerHTML = `<span style="color:#ef4444;">Error: ${escapeHtml(parsed.error)}</span>`; return; }
-                                } catch (e) {}
+                                    const p = JSON.parse(d2);
+                                    if (p.token) { if (ft) { b.innerHTML=''; ft=false; } fc+=p.token; b.textContent=fc; sd.scrollIntoView({behavior:'smooth',block:'end'}); }
+                                    if (p.error) { b.innerHTML=`<span style="color:#ef4444;">Error: ${escapeHtml(p.error)}</span>`; return; }
+                                } catch(e) {}
                             }
                         }
                     }
-                    finalizeStreamingMessage(streamDiv, fullContent);
-                    await loadMessages(currentProjectId);
+                    finalizeStreamingMessage(sd,fc); await loadMessages(currentProjectId);
                 } else {
-                    const data = await response.json(); hideThinking();
-                    const trace = data.reasoning_trace || {};
-                    if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
-                        trace.reasoning_lines = ["Parsing user prompt...", ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled", "Checking persistent memory...", "Synthesizing response...", "Response finalized"];
+                    const data = await r.json(); hideThinking();
+                    const trace = data.reasoning_trace||{};
+                    if (showReasoningEnabled && (!trace.reasoning_lines||!trace.reasoning_lines.length)) {
+                        trace.reasoning_lines = ['Parsing user prompt...',ultraSearchEnabled?'Executing Ultra Search...':'Ultra Search disabled','Checking persistent memory...','Synthesizing response...','Response finalized'];
                     }
-                    addMessage('assistant', data.response, trace, data.message_id);
-                    await loadMessages(currentProjectId);
+                    addMessage('assistant',data.response,trace,data.message_id); await loadMessages(currentProjectId);
                 }
-            } catch (err) { hideThinking(); addMessage('assistant', 'Sorry, I encountered an error. Please check your connection and try again.'); showToast('Failed to send message.'); }
+            } catch(e) { hideThinking(); addMessage('assistant','Sorry, I encountered an error. Please check your connection and try again.'); showToast('Failed to send message.'); }
         }
 
         document.getElementById('newProjectBtn').onclick = createProject;
-        document.getElementById('newChatBtn').onclick = () => { document.getElementById('messagesContainer').innerHTML = ''; addMessage('assistant', "New chat started. How can I assist you?"); };
-        document.getElementById('sendBtn').onclick = () => { const m = userInput.value.trim(); sendMessage(m); userInput.value = ''; };
-        document.getElementById('imageUpload').onchange = (e) => { const f = e.target.files[0]; if (f) { sendMessage(userInput.value.trim(), f); userInput.value = ''; e.target.value = ''; } };
-        userInput.onkeypress = (e) => { if (e.key === 'Enter') { const m = userInput.value.trim(); sendMessage(m); userInput.value = ''; } };
-        
+        document.getElementById('newChatBtn').onclick = () => { document.getElementById('messagesContainer').innerHTML=''; addMessage('assistant','New chat started. How can I assist you?'); };
+        document.getElementById('sendBtn').onclick = () => { const m = userInput.value.trim(); sendMessage(m); userInput.value=''; };
+        document.getElementById('imageUpload').onchange = (e) => { const f = e.target.files[0]; if(f) { sendMessage(userInput.value.trim(),f); userInput.value=''; e.target.value=''; } };
+        userInput.onkeypress = (e) => { if (e.key==='Enter') { const m = userInput.value.trim(); sendMessage(m); userInput.value=''; } };
+
         loadTheme();
         loadProjects();
     })();
