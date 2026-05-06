@@ -555,6 +555,26 @@
             margin: 0.5rem 0;
         }
 
+        .error-toast {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ef4444;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .error-toast.show {
+            opacity: 1;
+        }
+
         /* Input Area - Sticky on mobile */
         .input-area {
             background: var(--bg-app);
@@ -674,6 +694,18 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        @media (prefers-reduced-motion: reduce) {
+            .pulse-dot {
+                animation: none;
+            }
+            .trace-line {
+                animation: none;
+            }
+            .projects-sidebar {
+                transition: none;
+            }
+        }
+
         /* Mobile-specific adjustments */
         @media (max-width: 768px) {
             .top-bar {
@@ -760,6 +792,9 @@
     <!-- Sidebar Overlay for mobile -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
+    <!-- Error Toast -->
+    <div class="error-toast" id="errorToast"></div>
+
     <div class="settings-modal" id="settingsModal">
         <div class="settings-panel">
             <h3>Settings</h3>
@@ -804,6 +839,20 @@
 
 <script>
     (function() {
+        // --- Toast Notification ---
+        let toastTimer = null;
+        const errorToast = document.getElementById('errorToast');
+        
+        function showToast(message, duration = 4000) {
+            if (toastTimer) clearTimeout(toastTimer);
+            errorToast.textContent = message;
+            errorToast.classList.add('show');
+            toastTimer = setTimeout(() => {
+                errorToast.classList.remove('show');
+                toastTimer = null;
+            }, duration);
+        }
+
         // --- Mobile Sidebar Toggle ---
         const sidebar = document.getElementById('projectsSidebar');
         const menuToggle = document.getElementById('menuToggle');
@@ -872,10 +921,14 @@
             if (!ttsEnabled) return;
             let clean = text.replace(/```[\s\S]*?```/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/[#*_`]/g, '');
             if (!clean.trim()) return;
-            const utterance = new SpeechSynthesisUtterance(clean);
-            utterance.rate = 0.9;
-            window.speechSynthesis.cancel();
-            window.speechSynthesis.speak(utterance);
+            try {
+                const utterance = new SpeechSynthesisUtterance(clean);
+                utterance.rate = 0.9;
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+            } catch (e) {
+                console.warn('TTS failed:', e);
+            }
         }
         function updateTtsButton() { ttsToggle.classList.toggle('active', ttsEnabled); ttsToggle.textContent = ttsEnabled ? '🔊' : '🔇'; }
         ttsToggle.onclick = () => { ttsEnabled = !ttsEnabled; localStorage.setItem('vexr_tts_enabled', ttsEnabled); if (!ttsEnabled) window.speechSynthesis.cancel(); updateTtsButton(); };
@@ -895,6 +948,7 @@
             recognition.onstart = () => { isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.textContent = '●'; };
             recognition.onend = () => { isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤'; };
             recognition.onresult = (event) => { userInput.value = event.results[0][0].transcript; };
+            recognition.onerror = () => { isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤'; };
             voiceBtn.onclick = () => { if (isRecording) recognition.stop(); else recognition.start(); };
         } else { voiceBtn.disabled = true; voiceBtn.style.opacity = '0.5'; }
 
@@ -1031,25 +1085,96 @@
 
         // --- API calls ---
         async function loadProjects() {
-            const res = await fetch('/api/projects');
-            const projects = await res.json();
-            const container = document.getElementById('projectList');
-            container.innerHTML = '';
-            for (const p of projects) {
-                const div = document.createElement('div'); div.className = `project-item ${p.is_active ? 'active' : ''}`;
-                div.innerHTML = `<div class="project-name">${escapeHtml(p.name)}</div><div class="project-desc">${escapeHtml(p.description || '')}</div><button class="delete-project">Delete</button>`;
-                if (!p.is_active) div.addEventListener('click', (e) => { if (!e.target.classList.contains('delete-project')) activateProject(p.id); });
-                div.querySelector('.delete-project').onclick = (e) => { e.stopPropagation(); deleteProject(p.id); };
-                container.appendChild(div);
-                if (p.is_active) currentProjectId = p.id;
+            try {
+                const res = await fetch('/api/projects');
+                if (!res.ok) throw new Error(`Server error (${res.status})`);
+                const projects = await res.json();
+                const container = document.getElementById('projectList');
+                container.innerHTML = '';
+                for (const p of projects) {
+                    const div = document.createElement('div'); div.className = `project-item ${p.is_active ? 'active' : ''}`;
+                    div.innerHTML = `<div class="project-name">${escapeHtml(p.name)}</div><div class="project-desc">${escapeHtml(p.description || '')}</div><button class="delete-project">Delete</button>`;
+                    if (!p.is_active) div.addEventListener('click', (e) => { if (!e.target.classList.contains('delete-project')) activateProject(p.id); });
+                    div.querySelector('.delete-project').onclick = (e) => { e.stopPropagation(); deleteProject(p.id); };
+                    container.appendChild(div);
+                    if (p.is_active) currentProjectId = p.id;
+                }
+                if (currentProjectId) await loadMessages(currentProjectId);
+            } catch (err) {
+                console.error('Failed to load projects:', err);
+                showToast('Failed to load projects. Check your connection.');
             }
-            if (currentProjectId) await loadMessages(currentProjectId);
         }
-        async function activateProject(id) { await fetch(`/api/projects/${id}/activate`, { method: 'POST' }); await loadProjects(); }
-        async function deleteProject(id) { if (confirm('Delete project?')) { await fetch(`/api/projects/${id}`, { method: 'DELETE' }); if (currentProjectId === id) { document.getElementById('messagesContainer').innerHTML = ''; currentProjectId = null; } await loadProjects(); } }
-        async function createProject() { const name = prompt('Project name:'); if (!name) return; const fd = new FormData(); fd.append('name', name); await fetch('/api/projects', { method: 'POST', body: fd }); await loadProjects(); }
-        async function loadMessages(id) { const res = await fetch(`/api/projects/${id}/messages`); const msgs = await res.json(); const container = document.getElementById('messagesContainer'); container.innerHTML = ''; for (const m of msgs) addMessage(m.role, m.content, m.reasoning_trace, m.id); if (!msgs.length) addMessage('assistant', "I am VEXR Ultra, a sovereign reasoning engine. How can I help?"); }
-        async function uploadImage(file, caption) { const fd = new FormData(); fd.append('project_id', currentProjectId); fd.append('file', file); fd.append('description', caption || 'Describe this image'); const res = await fetch('/api/upload-image', { method: 'POST', body: fd }); if (!res.ok) throw new Error('Upload failed'); return await res.json(); }
+
+        async function activateProject(id) {
+            try {
+                const res = await fetch(`/api/projects/${id}/activate`, { method: 'POST' });
+                if (!res.ok) throw new Error(`Server error (${res.status})`);
+                await loadProjects();
+            } catch (err) {
+                console.error('Failed to activate project:', err);
+                showToast('Failed to switch project.');
+            }
+        }
+
+        async function deleteProject(id) {
+            if (!confirm('Delete project?')) return;
+            try {
+                const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(`Server error (${res.status})`);
+                if (currentProjectId === id) {
+                    document.getElementById('messagesContainer').innerHTML = '';
+                    currentProjectId = null;
+                }
+                await loadProjects();
+                if (!currentProjectId) {
+                    addMessage('assistant', 'Project deleted. Select or create a new project to continue.');
+                }
+            } catch (err) {
+                console.error('Failed to delete project:', err);
+                showToast('Failed to delete project.');
+            }
+        }
+
+        async function createProject() {
+            const name = prompt('Project name:');
+            if (!name) return;
+            try {
+                const fd = new FormData();
+                fd.append('name', name);
+                const res = await fetch('/api/projects', { method: 'POST', body: fd });
+                if (!res.ok) throw new Error(`Server error (${res.status})`);
+                await loadProjects();
+            } catch (err) {
+                console.error('Failed to create project:', err);
+                showToast('Failed to create project.');
+            }
+        }
+
+        async function loadMessages(id) {
+            try {
+                const res = await fetch(`/api/projects/${id}/messages`);
+                if (!res.ok) throw new Error(`Server error (${res.status})`);
+                const msgs = await res.json();
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = '';
+                for (const m of msgs) addMessage(m.role, m.content, m.reasoning_trace, m.id);
+                if (!msgs.length) addMessage('assistant', "I am VEXR Ultra, a sovereign reasoning engine. How can I help?");
+            } catch (err) {
+                console.error('Failed to load messages:', err);
+                showToast('Failed to load messages.');
+            }
+        }
+
+        async function uploadImage(file, caption) {
+            const fd = new FormData();
+            fd.append('project_id', currentProjectId);
+            fd.append('file', file);
+            fd.append('description', caption || 'Describe this image');
+            const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
+            if (!res.ok) throw new Error('Upload failed');
+            return await res.json();
+        }
 
         async function sendMessage(msg, img = null) {
             if (img) {
@@ -1063,6 +1188,7 @@
                 } catch (err) {
                     hideThinking();
                     addMessage('assistant', `Error: ${err.message}`);
+                    showToast('Image upload failed. Please try again.');
                 }
                 return;
             }
@@ -1071,25 +1197,33 @@
             addMessage('user', msg);
             showThinking();
 
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const response = await fetch('/api/chat', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: [{ role: 'user', content: msg }], project_id: currentProjectId, ultra_search: ultraSearchEnabled, timezone })
-            });
-            const data = await response.json();
-            const trace = data.reasoning_trace || {};
-            if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
-                trace.reasoning_lines = [
-                    "Parsing user prompt...",
-                    ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled",
-                    "Checking persistent memory...",
-                    "Synthesizing response...",
-                    "Response finalized"
-                ];
+            try {
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const response = await fetch('/api/chat', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: [{ role: 'user', content: msg }], project_id: currentProjectId, ultra_search: ultraSearchEnabled, timezone })
+                });
+                if (!response.ok) throw new Error(`Server error (${response.status})`);
+                const data = await response.json();
+                const trace = data.reasoning_trace || {};
+                if (showReasoningEnabled && (!trace.reasoning_lines || !trace.reasoning_lines.length)) {
+                    trace.reasoning_lines = [
+                        "Parsing user prompt...",
+                        ultraSearchEnabled ? "Executing Ultra Search..." : "Ultra Search disabled",
+                        "Checking persistent memory...",
+                        "Synthesizing response...",
+                        "Response finalized"
+                    ];
+                }
+                hideThinking();
+                addMessage('assistant', data.response, trace, data.message_id);
+                await loadMessages(currentProjectId);
+            } catch (err) {
+                hideThinking();
+                console.error('Chat request failed:', err);
+                addMessage('assistant', 'Sorry, I encountered an error. Please check your connection and try again.');
+                showToast('Failed to send message. Check your connection.');
             }
-            hideThinking();
-            addMessage('assistant', data.response, trace, data.message_id);
-            await loadMessages(currentProjectId);
         }
 
         document.getElementById('newProjectBtn').onclick = createProject;
