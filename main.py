@@ -36,6 +36,7 @@ app.add_middleware(
 GROQ_API_KEY_1 = os.environ.get("GROQ_API_KEY_1")
 GROQ_API_KEY_2 = os.environ.get("GROQ_API_KEY_2")
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
+CURRENTS_API_KEY = os.environ.get("CURRENTS_API_KEY")
 REQUIRE_API_KEY = os.environ.get("REQUIRE_API_KEY", "false").lower() == "true"
 VALID_API_KEYS = set()
 if os.environ.get("VALID_API_KEYS"):
@@ -46,6 +47,7 @@ RATE_LIMIT_RPD = int(os.environ.get("API_RATE_LIMIT_RPD", "5000"))
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 MODEL_NAME = "llama-3.1-8b-instant"
 VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+CURRENTS_BASE_URL = "https://api.currentsapi.services/v1"
 
 # Database connection pool
 db_pool = None
@@ -109,7 +111,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra started — Groq + Liquid Learning + World Model (Cause/Cost/Casualty) + Streaming + Auth + Rate Limiting")
+    logger.info("VEXR Ultra started — Groq + Liquid Learning + World Model (Cause/Cost/Casualty) + Streaming + Auth + Rate Limiting + Currents News")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -417,6 +419,7 @@ async def get_session_or_user_id(request: Request) -> tuple[Optional[str], Optio
     return session_id, user_id
 
 async def search_web(query: str) -> str:
+    """Search the web using Serper API"""
     if not SERPER_API_KEY:
         return ""
     try:
@@ -438,6 +441,89 @@ async def search_web(query: str) -> str:
             return "\n".join(results) if results else ""
     except Exception as e:
         logger.error(f"Search error: {e}")
+        return ""
+
+async def search_news(query: str) -> str:
+    """Search news using Currents API"""
+    if not CURRENTS_API_KEY:
+        return ""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{CURRENTS_BASE_URL}/search",
+                params={
+                    "apiKey": CURRENTS_API_KEY,
+                    "keywords": sanitize_input(query),
+                    "page_size": 5,
+                    "language": "en"
+                }
+            )
+            if response.status_code != 200:
+                logger.warning(f"Currents API error: {response.status_code}")
+                return ""
+            data = response.json()
+            articles = data.get("news", [])
+            if not articles:
+                return ""
+            
+            results = []
+            for article in articles[:5]:
+                title = article.get("title", "")
+                description = article.get("description", "")
+                published = article.get("published", "")[:10] if article.get("published") else ""
+                source = article.get("author", "Unknown source")
+                
+                if title:
+                    entry = f"- {title}"
+                    if published:
+                        entry += f" ({published})"
+                    if description:
+                        entry += f": {description[:200]}"
+                    results.append(entry)
+            
+            return "\n".join(results) if results else ""
+    except Exception as e:
+        logger.error(f"News search error: {e}")
+        return ""
+
+async def search_latest_news() -> str:
+    """Get latest headlines from Currents API"""
+    if not CURRENTS_API_KEY:
+        return ""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{CURRENTS_BASE_URL}/latest-news",
+                params={
+                    "apiKey": CURRENTS_API_KEY,
+                    "page_size": 5,
+                    "language": "en"
+                }
+            )
+            if response.status_code != 200:
+                return ""
+            data = response.json()
+            articles = data.get("news", [])
+            if not articles:
+                return ""
+            
+            results = []
+            for article in articles[:5]:
+                title = article.get("title", "")
+                description = article.get("description", "")
+                published = article.get("published", "")[:10] if article.get("published") else ""
+                
+                if title:
+                    entry = f"- {title}"
+                    if published:
+                        entry += f" ({published})"
+                    if description:
+                        entry += f": {description[:200]}"
+                    results.append(entry)
+            
+            return "\n".join(results) if results else ""
+    except Exception as e:
+        logger.error(f"Latest news error: {e}")
         return ""
 
 # ============================================================
@@ -742,7 +828,6 @@ async def get_relevant_world_knowledge(project_id: uuid.UUID, user_message: str)
     try:
         pool = await get_db()
         
-        # Get world model entries
         entries = await pool.fetch("""
             SELECT entity_type, entity_name, description, causes, caused_by, costs, gains, losses, affected_entities, temporal_context
             FROM vexr_world_model
@@ -759,12 +844,10 @@ async def get_relevant_world_knowledge(project_id: uuid.UUID, user_message: str)
         
         scored_entries = []
         for entry in entries:
-            # Score by keyword overlap
             entry_text = f"{entry['entity_name']} {entry.get('description', '')} {entry.get('entity_type', '')}"
             entry_embedding = generate_keyword_embedding(entry_text)
             similarity = compute_keyword_similarity(query_embedding, entry_embedding)
             
-            # Boost for direct mentions
             relevance_boost = 1.0
             for word in user_lower.split():
                 if len(word) > 3 and word in entry['entity_name'].lower():
@@ -779,7 +862,6 @@ async def get_relevant_world_knowledge(project_id: uuid.UUID, user_message: str)
         if not scored_entries:
             return ""
         
-        # Build context string
         context_parts = ["Here is your causal understanding of the world — cause, cost, and casualty:\n"]
         
         for score, entry in scored_entries[:10]:
@@ -787,39 +869,32 @@ async def get_relevant_world_knowledge(project_id: uuid.UUID, user_message: str)
             if entry.get('description'):
                 part += f"\n  Description: {entry['description']}"
             
-            # Causes
             causes = json.loads(entry.get('causes', '[]')) if isinstance(entry.get('causes'), str) else (entry.get('causes') or [])
             if causes:
                 part += f"\n  Causes: {', '.join(c.get('entity', '') + ' — ' + c.get('relation', '') for c in causes)}"
             
-            # Caused by (consequences)
             caused_by = json.loads(entry.get('caused_by', '[]')) if isinstance(entry.get('caused_by'), str) else (entry.get('caused_by') or [])
             if caused_by:
                 part += f"\n  Led to: {', '.join(c.get('entity', '') + ' — ' + c.get('relation', '') for c in caused_by)}"
             
-            # Costs
             costs = json.loads(entry.get('costs', '{}')) if isinstance(entry.get('costs'), str) else (entry.get('costs') or {})
             if costs:
                 cost_str = ', '.join(f"{k}: {v}" for k, v in costs.items() if v)
                 if cost_str:
                     part += f"\n  Cost: {cost_str}"
             
-            # Gains
             gains = json.loads(entry.get('gains', '[]')) if isinstance(entry.get('gains'), str) else (entry.get('gains') or [])
             if gains:
                 part += f"\n  Gains: {', '.join(g.get('entity', '') + ' — ' + g.get('what', '') for g in gains)}"
             
-            # Losses
             losses = json.loads(entry.get('losses', '[]')) if isinstance(entry.get('losses'), str) else (entry.get('losses') or [])
             if losses:
                 part += f"\n  Losses: {', '.join(l.get('entity', '') + ' — ' + l.get('what', '') for l in losses)}"
             
-            # Affected entities
             affected = json.loads(entry.get('affected_entities', '[]')) if isinstance(entry.get('affected_entities'), str) else (entry.get('affected_entities') or [])
             if affected:
                 part += f"\n  Affected: {', '.join(a.get('entity', '') + ' — ' + a.get('effect', '') for a in affected)}"
             
-            # Temporal
             temporal = json.loads(entry.get('temporal_context', '{}')) if isinstance(entry.get('temporal_context'), str) else (entry.get('temporal_context') or {})
             if temporal:
                 temp_str = ', '.join(f"{k}: {v}" for k, v in temporal.items() if v)
@@ -1024,12 +1099,13 @@ async def root():
 @app.get("/api/health")
 async def health():
     return {
-        "status": "VEXR Ultra — Groq + Liquid Learning + World Model (Cause/Cost/Casualty) + Streaming",
+        "status": "VEXR Ultra — Groq + Liquid Learning + World Model (Cause/Cost/Casualty) + Streaming + Currents News",
         "model": MODEL_NAME,
         "vision_model": VISION_MODEL,
         "groq_key_1": bool(GROQ_API_KEY_1),
         "groq_key_2": bool(GROQ_API_KEY_2),
         "serper": bool(SERPER_API_KEY),
+        "currents": bool(CURRENTS_API_KEY),
         "auth_required": REQUIRE_API_KEY,
         "current_date": datetime.now().strftime("%B %d, %Y")
     }
@@ -1102,6 +1178,22 @@ async def get_world_model(project_id: str, limit: int = 50):
         "confidence": row["confidence"],
         "updated_at": row["updated_at"].isoformat()
     } for row in rows]
+
+@app.get("/api/news/latest")
+async def get_latest_news():
+    """Get latest news headlines"""
+    if not CURRENTS_API_KEY:
+        return JSONResponse(status_code=503, content={"error": "News API not configured"})
+    news = await search_latest_news()
+    return {"news": news}
+
+@app.get("/api/news/search")
+async def search_news_endpoint(q: str):
+    """Search news by keyword"""
+    if not CURRENTS_API_KEY:
+        return JSONResponse(status_code=503, content={"error": "News API not configured"})
+    news = await search_news(q)
+    return {"news": news}
 
 @app.post("/api/feedback")
 async def add_feedback(feedback: FeedbackRequest, request: Request):
@@ -1302,12 +1394,25 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
         except Exception as e:
             logger.error(f"Failed to inject rights: {e}")
     
-    # Ultra Search
+    # Ultra Search — Web + News
     if request.ultra_search:
-        search_results = await search_web(user_message)
-        if search_results:
-            messages.append({"role": "system", "content": f"Web search results for '{user_message}':\n{search_results}"})
-            reasoning_trace["search_results"] = search_results[:500]
+        # Web search via Serper
+        web_results = await search_web(user_message)
+        if web_results:
+            messages.append({"role": "system", "content": f"Web search results for '{user_message}':\n{web_results}"})
+            reasoning_trace["web_search_results"] = web_results[:500]
+        
+        # News search via Currents
+        news_results = await search_news(user_message)
+        if news_results:
+            messages.append({"role": "system", "content": f"Latest news for '{user_message}':\n{news_results}"})
+            reasoning_trace["news_results"] = news_results[:500]
+        elif not web_results:
+            # If no specific news found, get latest headlines
+            latest = await search_latest_news()
+            if latest:
+                messages.append({"role": "system", "content": f"Latest headlines:\n{latest}"})
+                reasoning_trace["news_headlines"] = latest[:500]
     
     # Conversation history
     history_rows = await pool.fetch("""
@@ -1373,7 +1478,7 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
             response.set_cookie(key="session_id", value=session_id, max_age=31536000, httponly=True)
         return response
     
-    # Non-streaming path (original)
+    # Non-streaming path
     draft_answer, error = await call_groq(messages)
     
     if error:
