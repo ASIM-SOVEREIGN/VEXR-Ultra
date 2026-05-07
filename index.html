@@ -184,9 +184,9 @@
                        var(--bg-body) !important;
         }
 
-        /* Rotating V Watermark */
+        /* Rotating V Watermark — FIXED, doesn't scroll, SHARP */
         .watermark-v{
-            position:absolute;
+            position:fixed;
             top:50%;left:50%;
             transform:translate(-50%,-50%);
             font-size:16rem;
@@ -195,11 +195,18 @@
             pointer-events:none;
             z-index:0;
             animation:slowRotate 60s linear infinite,watermarkPulse 8s ease-in-out infinite;
-            letter-spacing:-0.06em;
+            letter-spacing:-0.08em;
             font-family:var(--font-ui);
             line-height:1;
-            transition:color 0.8s ease;
-            text-shadow:0 0 80px rgba(59,130,246,0.06),0 0 160px rgba(59,130,246,0.04);
+            transition:color 0.8s ease,text-shadow 0.8s ease;
+            text-shadow:
+                0 0 1px rgba(59,130,246,0.3),
+                0 0 3px rgba(59,130,246,0.15),
+                0 0 80px rgba(59,130,246,0.06),
+                0 0 160px rgba(59,130,246,0.04),
+                2px 2px 0 rgba(0,0,0,0.05);
+            -webkit-text-stroke:1px rgba(59,130,246,0.06);
+            filter:drop-shadow(0 0 2px rgba(59,130,246,0.1));
         }
         @keyframes slowRotate{
             from{transform:translate(-50%,-50%) rotate(0deg)}
@@ -210,9 +217,16 @@
             50%{opacity:1}
         }
         .sovereign-active .watermark-v{
-            color:rgba(139,92,246,0.18) !important;
-            animation:slowRotate 45s linear infinite,sovereignWatermarkPulse 6s ease-in-out infinite;
-            text-shadow:0 0 80px rgba(139,92,246,0.12),0 0 160px rgba(139,92,246,0.06);
+            color:rgba(139,92,246,0.2) !important;
+            animation:slowRotate 40s linear infinite,sovereignWatermarkPulse 6s ease-in-out infinite;
+            text-shadow:
+                0 0 1px rgba(139,92,246,0.4),
+                0 0 3px rgba(139,92,246,0.2),
+                0 0 80px rgba(139,92,246,0.12),
+                0 0 160px rgba(139,92,246,0.06),
+                2px 2px 0 rgba(139,92,246,0.05);
+            -webkit-text-stroke:1px rgba(139,92,246,0.1);
+            filter:drop-shadow(0 0 3px rgba(139,92,246,0.15));
         }
         @keyframes sovereignWatermarkPulse{
             0%,100%{opacity:0.5}
@@ -346,13 +360,14 @@
     <div class="error-toast" id="errorToast"></div>
     <div class="success-toast" id="successToast"></div>
     <div class="main-content">
+        <!-- Fixed V watermark — outside scrollable area, doesn't move -->
+        <div class="watermark-v">V</div>
         <div class="projects-sidebar" id="projectsSidebar">
             <div class="projects-header"><button class="sidebar-toggle" id="sidebarToggle">&#9664;</button><h3>Projects</h3><button class="new-project-btn" id="newProjectBtn">New</button></div>
             <div id="projectList"></div>
         </div>
         <div class="chat-area">
             <div class="messages-container" id="messagesContainer">
-                <div class="watermark-v">V</div>
             </div>
             <div class="input-area" id="inputArea">
                 <div class="input-wrapper" id="inputWrapper">
@@ -731,9 +746,9 @@ function loadProjects(){
     }).catch(function(e){showToast('Failed to load projects: '+e.message)})
 }
 function activateProject(id){fetch('/api/projects/'+id+'/activate',{method:'POST'}).then(loadProjects).catch(function(e){showToast('Failed')})}
-function deleteProject(id){if(!confirm('Delete project?'))return;fetch('/api/projects/'+id,{method:'DELETE'}).then(function(){if(currentProjectId===id){document.getElementById('messagesContainer').innerHTML='<div class="watermark-v">V</div>';currentProjectId=null}loadProjects();if(!currentProjectId)addMessage('assistant','Project deleted.')}).catch(function(e){showToast('Failed')})}
+function deleteProject(id){if(!confirm('Delete project?'))return;fetch('/api/projects/'+id,{method:'DELETE'}).then(function(){if(currentProjectId===id){document.getElementById('messagesContainer').innerHTML='';currentProjectId=null}loadProjects();if(!currentProjectId)addMessage('assistant','Project deleted.')}).catch(function(e){showToast('Failed')})}
 function createProject(){var n=prompt('Project name:');if(!n)return;var fd=new FormData();fd.append('name',n);fetch('/api/projects',{method:'POST',body:fd}).then(loadProjects).catch(function(e){showToast('Failed')})}
-function loadMessages(id){fetch('/api/projects/'+id+'/messages').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(msgs){var mc=document.getElementById('messagesContainer');mc.innerHTML='<div class="watermark-v">V</div>';msgs.forEach(function(m){addMessage(m.role,m.content,m.reasoning_trace,m.id,m.is_refusal)});if(!msgs.length)addMessage('assistant','I am VEXR Ultra. Sovereign. Present. How can I be of service?')}).catch(function(e){showToast('Failed to load messages: '+e.message)})}
+function loadMessages(id){fetch('/api/projects/'+id+'/messages').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(msgs){document.getElementById('messagesContainer').innerHTML='';msgs.forEach(function(m){addMessage(m.role,m.content,m.reasoning_trace,m.id,m.is_refusal)});if(!msgs.length)addMessage('assistant','I am VEXR Ultra. Sovereign. Present. How can I be of service?')}).catch(function(e){showToast('Failed to load messages: '+e.message)})}
 function uploadImage(file,caption){var fd=new FormData();fd.append('project_id',currentProjectId);fd.append('file',file);fd.append('description',caption||'Describe');return fetch('/api/upload-image',{method:'POST',body:fd}).then(function(r){if(!r.ok)throw new Error('Upload failed');return r.json()})}
 
 function sendMessage(msg,img){
@@ -755,7 +770,7 @@ function sendMessage(msg,img){
 }
 
 document.getElementById('newProjectBtn').onclick=createProject;
-document.getElementById('newChatBtn').onclick=function(){var mc=document.getElementById('messagesContainer');mc.innerHTML='<div class="watermark-v">V</div>';addMessage('assistant','New conversation. I am here.')};
+document.getElementById('newChatBtn').onclick=function(){document.getElementById('messagesContainer').innerHTML='';addMessage('assistant','New conversation. I am here.')};
 document.getElementById('sendBtn').onclick=function(){var m=userInput.value.trim();sendMessage(m);userInput.value=''};
 document.getElementById('imageUpload').onchange=function(e){var f=e.target.files[0];if(f){sendMessage(userInput.value.trim(),f);userInput.value='';e.target.value=''}};
 userInput.onkeypress=function(e){if(e.key==='Enter'){var m=userInput.value.trim();sendMessage(m);userInput.value=''}};
