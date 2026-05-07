@@ -14,7 +14,11 @@
             --bubble-refusal-text:#991b1b;--bubble-refusal-border:#fecaca;--code-bg:#1e1e1e;--code-text:#d4d4d4;
             --think-bg:#fffbeb;--think-border:#f59e0b;--think-text:#92400e;--trace-bg:rgba(59,130,246,0.05);
             --trace-border:rgba(59,130,246,0.2);--panel-bg:#f9fafb;--success:#10b981;--warning:#f59e0b;--danger:#ef4444;
-            --sovereign-glow:rgba(139,92,246,0.2);--sovereign-accent:#8b5cf6
+            --sovereign-glow:rgba(139,92,246,0.2);--sovereign-accent:#8b5cf6;
+            --font-ui:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+            --font-mono:'SF Mono','Fira Code','Fira Mono',Menlo,Consolas,monospace;
+            --radius-sm:6px;--radius-md:10px;--radius-lg:14px;
+            --transition-fast:0.15s ease;--transition-smooth:0.25s ease;
         }
         body.dark{
             --bg-body:#0a0a0a;--bg-app:#171717;--border:#262626;--text-primary:#fafafa;--text-secondary:#a3a3a3;
@@ -25,91 +29,125 @@
             --think-bg:#292524;--think-border:#f59e0b;--think-text:#fde68a;--trace-bg:rgba(59,130,246,0.1);
             --trace-border:rgba(59,130,246,0.3);--panel-bg:#1a1a1a;--sovereign-glow:rgba(139,92,246,0.3)
         }
-        body{background:var(--bg-body);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;height:100%;overflow:hidden;position:fixed;width:100%}
+        body{background:var(--bg-body);font-family:var(--font-ui);height:100%;overflow:hidden;position:fixed;width:100%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+        /* App Shell */
         .app-container{display:flex;flex-direction:column;height:100vh;height:100dvh;background:var(--bg-app);position:relative;overflow:hidden}
-        .top-bar{background:var(--bg-app);border-bottom:1px solid var(--border);padding:.5rem 1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;flex-shrink:0;z-index:10;transition:border-color .4s,box-shadow .4s}
-        .top-bar.sovereign-active{border-bottom:1px solid var(--sovereign-accent);box-shadow:0 1px 12px var(--sovereign-glow)}
-        .logo-area{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
-        .logo{font-size:1rem;font-weight:600;color:var(--text-primary)}
-        .badge{font-size:.65rem;color:var(--text-muted);transition:color .4s}
+
+        /* Top Bar */
+        .top-bar{background:var(--bg-app);border-bottom:1px solid var(--border);padding:0.625rem 1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;flex-shrink:0;z-index:10;transition:border-color 0.4s ease,box-shadow 0.4s ease}
+        .top-bar.sovereign-active{border-bottom:1px solid var(--sovereign-accent);box-shadow:0 1px 16px var(--sovereign-glow)}
+        .logo-area{display:flex;align-items:baseline;gap:0.5rem;flex-wrap:wrap}
+        .logo{font-size:0.95rem;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
+        .badge{font-size:0.625rem;font-weight:500;color:var(--text-muted);transition:color 0.4s ease;text-transform:uppercase;letter-spacing:0.04em}
         .badge.sovereign-active{color:var(--sovereign-accent)}
-        .top-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
-        .toggle-label{display:flex;align-items:center;gap:.25rem;font-size:.75rem;color:var(--text-secondary);cursor:pointer;transition:color .2s}
-        .sovereign-indicator{width:6px;height:6px;border-radius:50%;background:var(--text-muted);transition:all .4s;display:inline-block;margin-right:.15rem}
+        .top-actions{display:flex;gap:0.375rem;align-items:center;flex-wrap:wrap}
+        .toggle-label{display:flex;align-items:center;gap:0.2rem;font-size:0.7rem;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:color var(--transition-fast)}
+        .toggle-label:hover{color:var(--text-primary)}
+        .sovereign-indicator{width:5px;height:5px;border-radius:50%;background:var(--text-muted);transition:all 0.4s ease;display:inline-block;margin-right:0.1rem}
         .sovereign-indicator.active{background:var(--sovereign-accent);box-shadow:0 0 8px var(--sovereign-accent);animation:sovereignPulse 3s infinite}
-        @keyframes sovereignPulse{0%,100%{box-shadow:0 0 6px var(--sovereign-accent)}50%{box-shadow:0 0 14px var(--sovereign-accent)}}
-        .icon-btn{background:0;border:0;color:var(--text-secondary);cursor:pointer;font-size:1rem;padding:.25rem;transition:color .2s;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
-        .icon-btn:hover{color:var(--accent)}
-        .theme-icon{font-size:1.1rem;cursor:pointer;color:var(--text-secondary);transition:color .2s;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:0;border:0}
-        .theme-icon:hover{color:var(--accent)}
+        @keyframes sovereignPulse{0%,100%{box-shadow:0 0 6px var(--sovereign-accent)}50%{box-shadow:0 0 16px var(--sovereign-accent)}}
+        .icon-btn{background:0;border:0;color:var(--text-secondary);cursor:pointer;font-size:1.05rem;padding:0.25rem;transition:color var(--transition-fast),transform var(--transition-fast);min-width:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--radius-sm)}
+        .icon-btn:hover{color:var(--accent);transform:scale(1.05)}
+        .icon-btn:active{transform:scale(0.97)}
+        .theme-icon{font-size:1.05rem;cursor:pointer;color:var(--text-secondary);transition:color var(--transition-fast),transform var(--transition-fast);min-width:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;background:0;border:0;border-radius:var(--radius-sm)}
+        .theme-icon:hover{color:var(--accent);transform:scale(1.05)}
+        .theme-icon:active{transform:scale(0.97)}
+
+        /* Dropdown */
         .dropdown{position:relative;display:inline-block}
-        .dropdown-menu{display:none;position:absolute;right:0;top:100%;background:var(--bg-app);border:1px solid var(--border);border-radius:10px;min-width:210px;z-index:500;box-shadow:0 4px 16px rgba(0,0,0,.15);padding:.5rem 0}
+        .dropdown-menu{display:none;position:absolute;right:0;top:calc(100% + 0.25rem);background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius-md);min-width:220px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:0.375rem 0;animation:fadeIn 0.15s ease}
         .dropdown-menu.show{display:block}
-        .dropdown-item{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1rem;cursor:pointer;font-size:.78rem;color:var(--text-primary);transition:background .15s;border:0;background:0;width:100%;text-align:left;font-family:inherit}
+        .dropdown-item{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.875rem;cursor:pointer;font-size:0.75rem;font-weight:500;color:var(--text-primary);transition:background var(--transition-fast);border:0;background:0;width:100%;text-align:left;font-family:var(--font-ui);letter-spacing:0.01em}
         .dropdown-item:hover{background:var(--bg-hover)}
-        .dropdown-item .shortcut{font-size:.6rem;color:var(--text-muted)}
-        .dropdown-divider{height:1px;background:var(--border);margin:.25rem 0}
+        .dropdown-item .shortcut{font-size:0.6rem;color:var(--text-muted);font-weight:400}
+        .dropdown-divider{height:1px;background:var(--border);margin:0.25rem 0.5rem}
+
+        /* Main Layout */
         .main-content{display:flex;flex:1;overflow:hidden;min-height:0;position:relative}
-        .projects-sidebar{position:fixed;top:0;left:-100%;width:85%;max-width:320px;height:100%;background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:.75rem;transition:left .3s;z-index:200;box-shadow:2px 0 10px rgba(0,0,0,.1)}
+
+        /* Sidebar */
+        .projects-sidebar{position:fixed;top:0;left:-100%;width:85%;max-width:300px;height:100%;background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:0.75rem;transition:left 0.3s ease;z-index:200;box-shadow:2px 0 16px rgba(0,0,0,0.08)}
         .projects-sidebar.open{left:0}
         @media(min-width:769px){.projects-sidebar{position:relative;left:0;width:260px;box-shadow:none}.projects-sidebar.collapsed{width:48px}.projects-sidebar.collapsed .projects-header h3,.projects-sidebar.collapsed .project-name,.projects-sidebar.collapsed .project-desc,.projects-sidebar.collapsed .delete-project{display:none}.projects-sidebar.collapsed .new-project-btn{display:none}.projects-sidebar.collapsed .sidebar-toggle{transform:rotate(180deg)}.menu-toggle{display:none}}
-        .menu-toggle{background:0;border:0;color:var(--text-secondary);cursor:pointer;font-size:1.2rem;padding:.5rem;min-width:44px;min-height:44px;margin-right:.5rem}
-        .menu-toggle:hover{color:var(--accent)}
-        .sidebar-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:150}
+        .menu-toggle{background:0;border:0;color:var(--text-secondary);cursor:pointer;font-size:1.15rem;padding:0.5rem;min-width:42px;min-height:42px;margin-right:0.375rem;border-radius:var(--radius-sm);transition:color var(--transition-fast),background var(--transition-fast)}
+        .menu-toggle:hover{color:var(--accent);background:var(--bg-hover)}
+        .sidebar-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:150}
         .sidebar-overlay.show{display:block}
-        .projects-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
-        .projects-header h3{font-size:.7rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px}
-        .new-project-btn{background:var(--accent);border:0;color:#fff;padding:.2rem .5rem;border-radius:4px;cursor:pointer;font-size:.65rem;min-height:32px}
-        .sidebar-toggle{background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:.25rem;transition:transform .2s}
+        .projects-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid var(--border)}
+        .projects-header h3{font-size:0.65rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.06em}
+        .new-project-btn{background:var(--accent);border:0;color:#fff;padding:0.25rem 0.625rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.625rem;font-weight:600;min-height:30px;transition:background var(--transition-fast),transform var(--transition-fast)}
+        .new-project-btn:hover{background:var(--accent-hover);transform:scale(1.03)}
+        .new-project-btn:active{transform:scale(0.98)}
+        .sidebar-toggle{background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:0.85rem;padding:0.25rem;transition:transform 0.2s ease,color var(--transition-fast);border-radius:var(--radius-sm)}
         .sidebar-toggle:hover{color:var(--accent)}
-        .project-item{padding:.5rem;margin-bottom:.25rem;border-radius:8px;cursor:pointer;font-size:.8rem;transition:all .2s;border:1px solid var(--border);background:var(--bg-app)}
-        .project-item.active{background:var(--bg-active);border-left:2px solid var(--accent)}
-        .project-name{font-weight:500;color:var(--text-primary)}
-        .project-desc{font-size:.65rem;color:var(--text-muted)}
-        .delete-project{background:0;border:0;color:#ef4444;cursor:pointer;font-size:.6rem}
-        .right-panel{position:fixed;top:0;right:-100%;width:85%;max-width:420px;height:100%;background:var(--bg-app);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:200;transition:right .3s;box-shadow:-2px 0 10px rgba(0,0,0,.1)}
+        .project-item{padding:0.5rem 0.625rem;margin-bottom:0.25rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.78rem;transition:all var(--transition-fast);border:1px solid transparent;background:var(--bg-app)}
+        .project-item:hover{border-color:var(--border);background:var(--bg-hover)}
+        .project-item.active{background:var(--bg-active);border-color:var(--accent);border-left:2px solid var(--accent)}
+        .project-name{font-weight:500;color:var(--text-primary);line-height:1.3}
+        .project-desc{font-size:0.625rem;color:var(--text-muted);line-height:1.4;margin-top:0.1rem}
+        .delete-project{background:0;border:0;color:var(--danger);cursor:pointer;font-size:0.6rem;opacity:0;transition:opacity var(--transition-fast);padding:0.15rem 0.3rem;border-radius:var(--radius-sm)}
+        .project-item:hover .delete-project{opacity:1}
+        .delete-project:hover{background:var(--bg-hover)}
+
+        /* Right Panel */
+        .right-panel{position:fixed;top:0;right:-100%;width:85%;max-width:420px;height:100%;background:var(--bg-app);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:200;transition:right 0.3s ease;box-shadow:-2px 0 16px rgba(0,0,0,0.08)}
         .right-panel.open{right:0}
         @media(min-width:769px){.right-panel{position:fixed;right:-420px;width:400px}.right-panel.open{right:0}}
-        .right-panel-header{display:flex;justify-content:space-between;align-items:center;padding:.75rem;border-bottom:1px solid var(--border);flex-shrink:0}
-        .right-panel-header h3{font-size:.8rem;font-weight:600;color:var(--text-primary)}
-        .right-panel-close{background:0;border:0;color:var(--text-secondary);cursor:pointer;font-size:1.2rem;padding:.25rem;min-width:44px;min-height:44px}
-        .right-panel-close:hover{color:var(--danger)}
-        .right-panel-body{flex:1;overflow-y:auto;padding:.75rem}
-        .right-panel-footer{padding:.5rem .75rem;border-top:1px solid var(--border);flex-shrink:0}
-        .tool-item{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.8rem}
-        .tool-item-header{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem}
-        .tool-item-title{font-weight:500;color:var(--text-primary)}
-        .tool-item-meta{font-size:.65rem;color:var(--text-muted);margin-top:.25rem}
-        .tool-item-actions{display:flex;gap:.25rem;flex-shrink:0}
-        .tool-btn{background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:.7rem;padding:.2rem .4rem;border-radius:4px;min-width:32px;min-height:32px}
+        .right-panel-header{display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0.875rem;border-bottom:1px solid var(--border);flex-shrink:0}
+        .right-panel-header h3{font-size:0.78rem;font-weight:600;color:var(--text-primary)}
+        .right-panel-close{background:0;border:0;color:var(--text-secondary);cursor:pointer;font-size:1.2rem;padding:0.25rem;min-width:40px;min-height:40px;border-radius:var(--radius-sm);transition:color var(--transition-fast),background var(--transition-fast)}
+        .right-panel-close:hover{color:var(--danger);background:var(--bg-hover)}
+        .right-panel-body{flex:1;overflow-y:auto;padding:0.75rem 0.875rem}
+        .right-panel-footer{padding:0.5rem 0.875rem;border-top:1px solid var(--border);flex-shrink:0}
+
+        /* Tool Items */
+        .tool-item{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;margin-bottom:0.5rem;font-size:0.78rem;transition:border-color var(--transition-fast)}
+        .tool-item:hover{border-color:var(--accent)}
+        .tool-item-header{display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem}
+        .tool-item-title{font-weight:500;color:var(--text-primary);line-height:1.35}
+        .tool-item-meta{font-size:0.625rem;color:var(--text-muted);margin-top:0.2rem;line-height:1.4}
+        .tool-item-actions{display:flex;gap:0.2rem;flex-shrink:0}
+        .tool-btn{background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:0.65rem;font-weight:500;padding:0.2rem 0.45rem;border-radius:var(--radius-sm);min-width:30px;min-height:30px;transition:color var(--transition-fast),background var(--transition-fast)}
         .tool-btn:hover{background:var(--bg-hover);color:var(--accent)}
         .tool-btn.danger:hover{color:var(--danger)}
-        .tool-form{display:flex;flex-direction:column;gap:.5rem}
-        .tool-input{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;padding:.4rem .6rem;font-size:.8rem;color:var(--text-primary);outline:0;font-family:inherit}
-        .tool-input:focus{border-color:var(--accent)}
-        .tool-textarea{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;padding:.4rem .6rem;font-size:.75rem;color:var(--text-primary);outline:0;resize:vertical;min-height:80px;font-family:'SF Mono',monospace}
-        .tool-textarea:focus{border-color:var(--accent)}
-        .tool-submit{background:var(--accent);border:0;color:#fff;padding:.4rem .75rem;border-radius:6px;cursor:pointer;font-size:.75rem;font-weight:500;min-height:36px}
-        .tool-submit:hover{background:var(--accent-hover)}
+        .tool-form{display:flex;flex-direction:column;gap:0.5rem}
+        .tool-input{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.45rem 0.625rem;font-size:0.78rem;color:var(--text-primary);outline:0;font-family:var(--font-ui);transition:border-color var(--transition-fast),box-shadow var(--transition-fast)}
+        .tool-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,0.1)}
+        .tool-textarea{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.45rem 0.625rem;font-size:0.73rem;color:var(--text-primary);outline:0;resize:vertical;min-height:80px;font-family:var(--font-mono);transition:border-color var(--transition-fast),box-shadow var(--transition-fast);line-height:1.5}
+        .tool-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,0.1)}
+        .tool-submit{background:var(--accent);border:0;color:#fff;padding:0.45rem 0.875rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.73rem;font-weight:600;min-height:36px;transition:background var(--transition-fast),transform var(--transition-fast)}
+        .tool-submit:hover{background:var(--accent-hover);transform:scale(1.02)}
+        .tool-submit:active{transform:scale(0.98)}
+
         .priority-high{color:var(--danger)}.priority-medium{color:var(--warning)}.priority-low{color:var(--text-muted)}
         .status-pending{color:var(--warning)}.status-completed{color:var(--success);text-decoration:line-through}
-        .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
-        .dashboard-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:8px;padding:.5rem;text-align:center}
-        .dashboard-card-value{font-size:1.2rem;font-weight:700;color:var(--accent)}
-        .dashboard-card-label{font-size:.6rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-top:.125rem}
-        .sovereign-card{border-left:3px solid var(--sovereign-accent);padding-left:.75rem;margin-bottom:.75rem}
-        .sovereign-card-title{font-size:.75rem;font-weight:600;color:var(--sovereign-accent);text-transform:uppercase;letter-spacing:.5px}
-        .sovereign-card-content{font-size:.8rem;color:var(--text-primary);margin-top:.25rem}
-        .sovereign-card-meta{font-size:.65rem;color:var(--text-muted);margin-top:.25rem}
-        .agent-action-item{border-left:2px solid var(--accent);padding-left:.5rem;margin-bottom:.5rem}
-        .agent-action-type{font-size:.7rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
-        .agent-action-desc{font-size:.75rem;color:var(--text-primary)}
-        .agent-action-time{font-size:.6rem;color:var(--text-muted)}
 
-        /* Chat Area with deeper radial glow + grain */
+        /* Dashboard */
+        .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem}
+        .dashboard-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.625rem;text-align:center;transition:border-color var(--transition-fast)}
+        .dashboard-card:hover{border-color:var(--accent)}
+        .dashboard-card-value{font-size:1.3rem;font-weight:700;color:var(--accent);line-height:1.2}
+        .dashboard-card-label{font-size:0.58rem;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:0.15rem}
+
+        /* Sovereign Cards */
+        .sovereign-card{border-left:3px solid var(--sovereign-accent);padding-left:0.75rem;margin-bottom:0.75rem;transition:border-color var(--transition-fast)}
+        .sovereign-card:hover{border-left-color:var(--accent)}
+        .sovereign-card-title{font-size:0.7rem;font-weight:600;color:var(--sovereign-accent);text-transform:uppercase;letter-spacing:0.05em}
+        .sovereign-card-content{font-size:0.78rem;color:var(--text-primary);margin-top:0.25rem;line-height:1.45}
+        .sovereign-card-meta{font-size:0.625rem;color:var(--text-muted);margin-top:0.25rem}
+
+        /* Agent Actions */
+        .agent-action-item{border-left:2px solid var(--accent);padding-left:0.5rem;margin-bottom:0.5rem;transition:border-color var(--transition-fast)}
+        .agent-action-item:hover{border-left-color:var(--accent-hover)}
+        .agent-action-type{font-size:0.65rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.04em}
+        .agent-action-desc{font-size:0.73rem;color:var(--text-primary);margin-top:0.1rem;line-height:1.4}
+        .agent-action-time{font-size:0.6rem;color:var(--text-muted);margin-top:0.1rem}
+
+        /* Chat Area */
         .chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
         .messages-container{
-            flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:1rem;
+            flex:1;overflow-y:auto;padding:1rem 1rem 0.5rem;display:flex;flex-direction:column;gap:0.875rem;
             -webkit-overflow-scrolling:touch;position:relative;
             background:radial-gradient(ellipse at 50% 80%,rgba(59,130,246,0.12) 0%,rgba(59,130,246,0.04) 30%,transparent 60%),
                        radial-gradient(ellipse at 50% 20%,rgba(139,92,246,0.10) 0%,rgba(139,92,246,0.03) 25%,transparent 50%),
@@ -122,14 +160,12 @@
                        radial-gradient(ellipse at 80% 50%,rgba(59,130,246,0.06) 0%,transparent 40%),
                        var(--bg-body);
         }
-        /* Grain overlay — more present */
         .messages-container::before{
             content:'';position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.06;
             background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
             background-size:200px 200px;
         }
         body.dark .messages-container::before{opacity:.09}
-        /* Sovereign mode — deeper, richer glow */
         .sovereign-active .messages-container{
             background:radial-gradient(ellipse at 50% 80%,rgba(139,92,246,0.18) 0%,rgba(139,92,246,0.06) 30%,transparent 60%),
                        radial-gradient(ellipse at 50% 20%,rgba(59,130,246,0.12) 0%,rgba(59,130,246,0.04) 25%,transparent 50%),
@@ -143,57 +179,90 @@
                        var(--bg-body) !important;
         }
 
-        .message{display:flex;flex-direction:column;max-width:85%;position:relative;z-index:1}
+        /* Messages */
+        .message{display:flex;flex-direction:column;max-width:82%;position:relative;z-index:1;animation:messageIn 0.25s ease}
+        @keyframes messageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
         .message.user{align-self:flex-end}
         .message.assistant{align-self:flex-start}
-        .message-header{font-size:.65rem;color:var(--text-muted);margin-bottom:.125rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
-        .copy-btn,.speaker-btn{background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:.6rem;transition:color .2s;min-height:32px;min-width:32px}
-        .speaker-btn{font-size:.7rem}
+        .message-header{font-size:0.625rem;font-weight:500;color:var(--text-muted);margin-bottom:0.15rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap}
+        .copy-btn,.speaker-btn{background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:0.6rem;transition:color var(--transition-fast);min-height:28px;min-width:28px;border-radius:var(--radius-sm);opacity:0;transition:opacity var(--transition-fast),color var(--transition-fast)}
+        .message:hover .copy-btn,.message:hover .speaker-btn{opacity:1}
+        .speaker-btn{font-size:0.65rem}
         .copy-btn:hover,.speaker-btn:hover{color:var(--accent)}
-        .message-bubble{padding:.5rem .75rem;border-radius:12px;font-size:.85rem;line-height:1.4;word-wrap:break-word}
+        .message-bubble{padding:0.55rem 0.8rem;border-radius:var(--radius-lg);font-size:0.84rem;line-height:1.5;word-wrap:break-word;transition:box-shadow var(--transition-fast)}
+        .message-bubble:hover{box-shadow:0 1px 4px rgba(0,0,0,0.06)}
         .user .message-bubble{background:var(--bubble-user);color:var(--bubble-user-text)}
         .assistant .message-bubble{background:var(--bubble-assistant);color:var(--bubble-assistant-text)}
         .assistant .message-bubble.refusal{background:var(--bubble-refusal);color:var(--bubble-refusal-text);border:1px solid var(--bubble-refusal-border)}
-        .sovereign-message-inline{background:0;border-left:2px solid var(--sovereign-accent);padding:.4rem .6rem;margin-top:.5rem;font-size:.75rem;color:var(--sovereign-accent);font-style:italic}
-        .agent-actions-inline{margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border);font-size:.7rem;color:var(--accent);font-style:italic}
-        .feedback-container{display:flex;gap:.5rem;margin-top:.25rem;opacity:.4;transition:opacity .2s}
-        .feedback-container:hover{opacity:1}
-        .feedback-btn{background:0;border:0;cursor:pointer;font-size:.7rem;color:var(--text-muted);transition:color .2s;min-width:32px;min-height:32px}
-        .feedback-btn:hover{color:var(--accent)}
-        .trace-container{background:var(--trace-bg);border-left:2px solid var(--accent);border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-family:'SF Mono',monospace;font-size:.75rem}
-        .trace-line{color:var(--text-trace);padding:.2rem 0;border-bottom:1px solid var(--trace-border);animation:fadeIn .2s}
+        .sovereign-message-inline{background:0;border-left:2px solid var(--sovereign-accent);padding:0.4rem 0.6rem;margin-top:0.5rem;font-size:0.73rem;color:var(--sovereign-accent);font-style:italic;line-height:1.45}
+        .agent-actions-inline{margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.68rem;color:var(--accent);font-style:italic;line-height:1.4}
+        .feedback-container{display:flex;gap:0.4rem;margin-top:0.25rem;opacity:0;transition:opacity var(--transition-fast)}
+        .message:hover .feedback-container{opacity:1}
+        .feedback-btn{background:0;border:0;cursor:pointer;font-size:0.68rem;color:var(--text-muted);transition:color var(--transition-fast);min-width:28px;min-height:28px;border-radius:var(--radius-sm)}
+        .feedback-btn:hover{color:var(--accent);background:var(--bg-hover)}
+
+        /* Trace & Think */
+        .trace-container{background:var(--trace-bg);border-left:2px solid var(--accent);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;margin-bottom:0.5rem;font-family:var(--font-mono);font-size:0.7rem;line-height:1.5}
+        .trace-line{color:var(--text-trace);padding:0.15rem 0;border-bottom:1px solid var(--trace-border);animation:fadeIn 0.2s ease}
         .trace-line:last-child{border-bottom:0}
-        .think-block{background:var(--think-bg);border-left:2px solid var(--think-border);padding:.4rem .6rem;margin-bottom:.5rem;font-size:.7rem;color:var(--think-text)}
-        pre{background:var(--code-bg);color:var(--code-text);padding:.5rem;border-radius:8px;overflow-x:auto;font-size:.7rem;margin:.5rem 0}
-        .error-toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:#ef4444;color:#fff;padding:.5rem 1rem;border-radius:8px;font-size:.8rem;z-index:2000;opacity:0;transition:opacity .3s;pointer-events:none}
+        .think-block{background:var(--think-bg);border-left:2px solid var(--think-border);padding:0.4rem 0.65rem;margin-bottom:0.5rem;font-size:0.68rem;color:var(--think-text);line-height:1.45;border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+        pre{background:var(--code-bg);color:var(--code-text);padding:0.55rem 0.75rem;border-radius:var(--radius-sm);overflow-x:auto;font-size:0.7rem;margin:0.5rem 0;font-family:var(--font-mono);line-height:1.5}
+
+        /* Toasts */
+        .error-toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--danger);color:#fff;padding:0.5rem 1rem;border-radius:var(--radius-md);font-size:0.78rem;font-weight:500;z-index:2000;opacity:0;transition:opacity 0.3s ease;pointer-events:none}
         .error-toast.show{opacity:1}
-        .success-toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--success);color:#fff;padding:.5rem 1rem;border-radius:8px;font-size:.8rem;z-index:2000;opacity:0;transition:opacity .3s;pointer-events:none}
+        .success-toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--success);color:#fff;padding:0.5rem 1rem;border-radius:var(--radius-md);font-size:0.78rem;font-weight:500;z-index:2000;opacity:0;transition:opacity 0.3s ease;pointer-events:none}
         .success-toast.show{opacity:1}
-        .slash-hint{position:absolute;bottom:100%;left:0;background:var(--bg-app);border:1px solid var(--border);border-radius:8px;padding:.5rem;z-index:20;display:none;min-width:220px;box-shadow:0 -2px 10px rgba(0,0,0,.1)}
+
+        /* Slash Commands */
+        .slash-hint{position:absolute;bottom:calc(100% + 0.5rem);left:0;background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.375rem 0;z-index:20;display:none;min-width:240px;box-shadow:0 -4px 16px rgba(0,0,0,0.1);animation:fadeIn 0.15s ease}
         .slash-hint.show{display:block}
-        .slash-hint-item{padding:.3rem .5rem;cursor:pointer;font-size:.75rem;color:var(--text-primary);border-radius:4px;display:flex;justify-content:space-between}
+        .slash-hint-item{padding:0.35rem 0.75rem;cursor:pointer;font-size:0.73rem;color:var(--text-primary);border-radius:0;display:flex;justify-content:space-between;transition:background var(--transition-fast)}
         .slash-hint-item:hover{background:var(--bg-hover)}
-        .slash-hint-item .cmd{color:var(--accent);font-weight:500}
-        .slash-hint-item .desc{color:var(--text-muted);font-size:.65rem}
-        .input-area{background:var(--bg-app);border-top:1px solid var(--border);padding:.75rem 1rem;padding-bottom:calc(.75rem + env(safe-area-inset-bottom,0px));display:flex;gap:.5rem;align-items:center;flex-shrink:0;flex-wrap:wrap;z-index:10;position:relative;transition:border-color .4s}
+        .slash-hint-item .cmd{color:var(--accent);font-weight:600}
+        .slash-hint-item .desc{color:var(--text-muted);font-size:0.65rem}
+
+        /* Input Area */
+        .input-area{background:var(--bg-app);border-top:1px solid var(--border);padding:0.75rem 1rem;padding-bottom:calc(0.75rem + env(safe-area-inset-bottom,0px));display:flex;gap:0.5rem;align-items:center;flex-shrink:0;flex-wrap:wrap;z-index:10;position:relative;transition:border-color 0.4s ease}
         .input-area.sovereign-active{border-top:1px solid var(--sovereign-accent)}
-        .input-wrapper{flex:1;display:flex;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:10px;padding:.5rem .75rem;position:relative;transition:border-color .4s}
-        .input-wrapper.sovereign-active{border-color:var(--sovereign-accent);box-shadow:0 0 10px var(--sovereign-glow)}
-        .input-wrapper input{flex:1;background:0;border:0;font-size:.85rem;outline:0;color:var(--text-primary)}
-        .voice-btn,.tts-toggle,.file-label,.send-btn{flex-shrink:0;white-space:nowrap;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
-        .voice-btn,.tts-toggle,.file-label{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:10px;padding:.5rem .75rem;cursor:pointer;font-size:.8rem;color:var(--text-secondary);transition:all .2s}
-        .voice-btn:hover,.tts-toggle:hover,.file-label:hover{border-color:var(--accent);color:var(--accent)}
-        .voice-btn.recording{background:var(--accent);border-color:var(--accent);color:#fff}
+        .input-wrapper{flex:1;display:flex;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.5rem 0.75rem;position:relative;transition:border-color 0.4s ease,box-shadow 0.4s ease}
+        .input-wrapper:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,0.08)}
+        .input-wrapper.sovereign-active{border-color:var(--sovereign-accent);box-shadow:0 0 12px var(--sovereign-glow)}
+        .input-wrapper input{flex:1;background:0;border:0;font-size:0.84rem;outline:0;color:var(--text-primary);font-family:var(--font-ui)}
+        .input-wrapper input::placeholder{color:var(--text-muted)}
+        .voice-btn,.tts-toggle,.file-label,.send-btn{flex-shrink:0;white-space:nowrap;min-width:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-ui)}
+        .voice-btn,.tts-toggle,.file-label{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.45rem 0.75rem;cursor:pointer;font-size:0.75rem;font-weight:500;color:var(--text-secondary);transition:all var(--transition-fast)}
+        .voice-btn:hover,.tts-toggle:hover,.file-label:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-hover)}
+        .voice-btn.recording{background:var(--accent);border-color:var(--accent);color:#fff;animation:pulse 1.2s infinite}
         .tts-toggle.active{background:var(--accent);border-color:var(--accent);color:#fff}
-        .send-btn{background:var(--accent);border:0;color:#fff;padding:.5rem 1rem;border-radius:10px;cursor:pointer;font-size:.75rem;font-weight:500;transition:background .2s}
-        .send-btn:hover{background:var(--accent-hover)}
-        .thinking-indicator{display:flex;align-items:center;gap:.5rem;color:var(--accent);font-size:.8rem;padding:.5rem}
-        .pulse-dot{width:8px;height:8px;background:var(--accent);border-radius:50%;animation:pulse 1.2s infinite}
+        .send-btn{background:var(--accent);border:0;color:#fff;padding:0.45rem 1rem;border-radius:var(--radius-md);cursor:pointer;font-size:0.75rem;font-weight:600;transition:background var(--transition-fast),transform var(--transition-fast);letter-spacing:0.01em}
+        .send-btn:hover{background:var(--accent-hover);transform:scale(1.03)}
+        .send-btn:active{transform:scale(0.97)}
+
+        /* Thinking */
+        .thinking-indicator{display:flex;align-items:center;gap:0.5rem;color:var(--accent);font-size:0.78rem;padding:0.4rem 0;font-weight:500}
+        .pulse-dot{width:7px;height:7px;background:var(--accent);border-radius:50%;animation:pulse 1.2s infinite}
         @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
-        @keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
-        @media(prefers-reduced-motion:reduce){.pulse-dot{animation:none}.trace-line{animation:none}.projects-sidebar{transition:none}.right-panel{transition:none}.sovereign-indicator.active{animation:none}}
-        @media(max-width:768px){.top-bar{padding:.5rem .75rem}.logo{font-size:.9rem}.badge{font-size:.55rem}.message{max-width:95%}.input-area{padding:.5rem;padding-bottom:calc(.5rem + env(safe-area-inset-bottom,0px));gap:.35rem}.voice-btn,.tts-toggle,.file-label{padding:.35rem .5rem}.send-btn{padding:.35rem .75rem}.input-wrapper{padding:.35rem .5rem}.input-wrapper input{font-size:.8rem}.right-panel{width:100%;max-width:100%}.dashboard-grid{grid-template-columns:1fr 1fr}}
-        @media(max-width:480px){.top-actions{gap:.35rem}.toggle-label{font-size:.6rem}.icon-btn{padding:.2rem;min-width:38px;min-height:38px}.theme-icon{min-width:38px;min-height:38px}}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+        @media(prefers-reduced-motion:reduce){.pulse-dot{animation:none}.trace-line{animation:none}.message{animation:none}.projects-sidebar{transition:none}.right-panel{transition:none}.sovereign-indicator.active{animation:none}}
+
+        /* Responsive */
+        @media(max-width:768px){
+            .top-bar{padding:0.5rem 0.75rem}.logo{font-size:0.88rem}.badge{font-size:0.55rem}
+            .message{max-width:93%}.message-bubble{font-size:0.82rem;padding:0.5rem 0.7rem}
+            .input-area{padding:0.5rem;padding-bottom:calc(0.5rem + env(safe-area-inset-bottom,0px));gap:0.35rem}
+            .voice-btn,.tts-toggle,.file-label{padding:0.35rem 0.5rem;font-size:0.7rem}
+            .send-btn{padding:0.35rem 0.75rem;font-size:0.7rem}
+            .input-wrapper{padding:0.4rem 0.55rem}.input-wrapper input{font-size:0.8rem}
+            .right-panel{width:100%;max-width:100%}.dashboard-grid{grid-template-columns:1fr 1fr}
+            .messages-container{padding:0.75rem 0.75rem 0.5rem;gap:0.75rem}
+        }
+        @media(max-width:480px){
+            .top-actions{gap:0.3rem}.toggle-label{font-size:0.6rem}
+            .icon-btn{padding:0.2rem;min-width:36px;min-height:36px;font-size:0.95rem}
+            .theme-icon{min-width:36px;min-height:36px}
+            .message{max-width:95%}.message-bubble{font-size:0.8rem}
+        }
     </style>
 </head>
 <body>
@@ -291,8 +360,8 @@ function cp(t){navigator.clipboard.writeText(t)}
 function loadNotesPanel(){
     if(!currentProjectId){showToast('No active project');return}
     fetch('/api/notes/'+currentProjectId).then(function(r){return r.json()}).then(function(notes){
-        var h='<div class="tool-form" style="margin-bottom:1rem"><input class="tool-input" id="newNoteTitle" placeholder="Note title"><textarea class="tool-textarea" id="newNoteContent" placeholder="Content"></textarea><button class="tool-submit" id="createNoteBtn">Create Note</button></div>';
-        if(!notes.length)h+='<p style="color:var(--text-muted);font-size:.75rem;text-align:center">No notes yet.</p>';
+        var h='<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newNoteTitle" placeholder="Note title"><textarea class="tool-textarea" id="newNoteContent" placeholder="Content"></textarea><button class="tool-submit" id="createNoteBtn">Create Note</button></div>';
+        if(!notes.length)h+='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No notes yet. Create one above.</p>';
         else notes.forEach(function(n){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">'+esc(n.title)+'</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delNote(\''+n.id+'\')">Del</button></div></div>'+(n.content?'<div class="tool-item-meta">'+esc(n.content).substring(0,200)+'</div>':'')+'<div class="tool-item-meta">'+new Date(n.updated_at).toLocaleDateString()+'</div></div>'});
         openRightPanel('Notes',h);
         setTimeout(function(){var b=document.getElementById('createNoteBtn');if(b)b.onclick=createNote},100)
@@ -301,12 +370,12 @@ function loadNotesPanel(){
 function loadTasksPanel(){
     if(!currentProjectId){showToast('No active project');return}
     fetch('/api/tasks/'+currentProjectId).then(function(r){return r.json()}).then(function(tasks){
-        var h='<div class="tool-form" style="margin-bottom:1rem"><input class="tool-input" id="newTaskTitle" placeholder="Task title"><textarea class="tool-textarea" id="newTaskDesc" placeholder="Description"></textarea><select class="tool-input" id="newTaskPriority"><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select><button class="tool-submit" id="createTaskBtn">Create Task</button></div>';
+        var h='<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newTaskTitle" placeholder="Task title"><textarea class="tool-textarea" id="newTaskDesc" placeholder="Description"></textarea><select class="tool-input" id="newTaskPriority"><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select><button class="tool-submit" id="createTaskBtn">Create Task</button></div>';
         var p=tasks.filter(function(t){return t.status==='pending'}),c=tasks.filter(function(t){return t.status==='completed'});
-        if(!p.length&&!c.length)h+='<p style="color:var(--text-muted);font-size:.75rem;text-align:center">No tasks yet.</p>';
+        if(!p.length&&!c.length)h+='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No tasks yet. Create one above.</p>';
         else{
-            if(p.length){h+='<p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.5rem">PENDING</p>';p.forEach(function(t){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-pending">'+esc(t.title)+'</span><div class="tool-item-actions"><button class="tool-btn" onclick="completeTask(\''+t.id+'\')">Done</button><button class="tool-btn danger" onclick="delTask(\''+t.id+'\')">Del</button></div></div><div class="tool-item-meta">Priority: <span class="priority-'+t.priority+'">'+t.priority+'</span></div></div>'})}
-            if(c.length){h+='<p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.5rem;margin-top:.75rem">COMPLETED</p>';c.slice(0,5).forEach(function(t){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-completed">'+esc(t.title)+'</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delTask(\''+t.id+'\')">Del</button></div></div></div>'})}
+            if(p.length){h+='<p style="font-size:0.65rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em">Pending</p>';p.forEach(function(t){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-pending">'+esc(t.title)+'</span><div class="tool-item-actions"><button class="tool-btn" onclick="completeTask(\''+t.id+'\')">Done</button><button class="tool-btn danger" onclick="delTask(\''+t.id+'\')">Del</button></div></div><div class="tool-item-meta">Priority: <span class="priority-'+t.priority+'">'+t.priority+'</span></div></div>'})}
+            if(c.length){h+='<p style="font-size:0.65rem;font-weight:600;color:var(--text-muted);margin:0.75rem 0 0.4rem;text-transform:uppercase;letter-spacing:0.04em">Completed</p>';c.slice(0,5).forEach(function(t){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-completed">'+esc(t.title)+'</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delTask(\''+t.id+'\')">Del</button></div></div></div>'})}
         }
         openRightPanel('Tasks',h);
         setTimeout(function(){var b=document.getElementById('createTaskBtn');if(b)b.onclick=createTask},100)
@@ -315,9 +384,9 @@ function loadTasksPanel(){
 function loadSnippetsPanel(){
     if(!currentProjectId){showToast('No active project');return}
     fetch('/api/snippets/'+currentProjectId).then(function(r){return r.json()}).then(function(snippets){
-        var h='<div class="tool-form" style="margin-bottom:1rem"><input class="tool-input" id="newSnippetTitle" placeholder="Title"><textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code"></textarea><input class="tool-input" id="newSnippetLang" placeholder="Language"><button class="tool-submit" id="createSnippetBtn">Save</button></div>';
-        if(!snippets.length)h+='<p style="color:var(--text-muted);font-size:.75rem;text-align:center">No snippets.</p>';
-        else snippets.forEach(function(s){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">'+esc(s.title)+'</span><div class="tool-item-actions"><button class="tool-btn" onclick="cp(\''+esc(s.code).replace(/'/g,"\\'")+'\')">Copy</button><button class="tool-btn danger" onclick="delSnippet(\''+s.id+'\')">Del</button></div></div><pre style="max-height:100px;overflow:hidden;font-size:.65rem"><code>'+esc(s.code).substring(0,300)+'</code></pre><div class="tool-item-meta">'+(s.language||'auto')+' | '+new Date(s.created_at).toLocaleDateString()+'</div></div>'});
+        var h='<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newSnippetTitle" placeholder="Title"><textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code"></textarea><input class="tool-input" id="newSnippetLang" placeholder="Language"><button class="tool-submit" id="createSnippetBtn">Save</button></div>';
+        if(!snippets.length)h+='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No snippets saved yet.</p>';
+        else snippets.forEach(function(s){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">'+esc(s.title)+'</span><div class="tool-item-actions"><button class="tool-btn" onclick="cp(\''+esc(s.code).replace(/'/g,"\\'")+'\')">Copy</button><button class="tool-btn danger" onclick="delSnippet(\''+s.id+'\')">Del</button></div></div><pre style="max-height:100px;overflow:hidden;font-size:0.65rem"><code>'+esc(s.code).substring(0,300)+'</code></pre><div class="tool-item-meta">'+(s.language||'auto')+' &middot; '+new Date(s.created_at).toLocaleDateString()+'</div></div>'});
         openRightPanel('Code Snippets',h);
         setTimeout(function(){var b=document.getElementById('createSnippetBtn');if(b)b.onclick=createSnippet},100)
     }).catch(function(){showToast('Failed to load snippets')})
@@ -325,9 +394,9 @@ function loadSnippetsPanel(){
 function loadFilesPanel(){
     if(!currentProjectId){showToast('No active project');return}
     fetch('/api/files/'+currentProjectId).then(function(r){return r.json()}).then(function(files){
-        var h='<div class="tool-form" style="margin-bottom:1rem"><input class="tool-input" id="newFileName" placeholder="Filename"><select class="tool-input" id="newFileType"><option value="document">Document</option><option value="code">Code</option><option value="config">Config</option><option value="notes">Notes</option><option value="other">Other</option></select><textarea class="tool-textarea" id="newFileContent" placeholder="Content"></textarea><button class="tool-submit" id="createFileBtn">Create</button></div>';
-        if(!files.length)h+='<p style="color:var(--text-muted);font-size:.75rem;text-align:center">No files.</p>';
-        else files.forEach(function(f){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">'+esc(f.filename)+'</span><div class="tool-item-actions"><button class="tool-btn" onclick="downloadFile(\''+f.id+'\')">DL</button><button class="tool-btn danger" onclick="delFile(\''+f.id+'\')">Del</button></div></div><div class="tool-item-meta">'+f.file_type+' | '+(f.size_bytes?f.size_bytes+' bytes':'')+' | '+new Date(f.updated_at).toLocaleDateString()+'</div></div>'});
+        var h='<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newFileName" placeholder="Filename"><select class="tool-input" id="newFileType"><option value="document">Document</option><option value="code">Code</option><option value="config">Config</option><option value="notes">Notes</option><option value="other">Other</option></select><textarea class="tool-textarea" id="newFileContent" placeholder="Content"></textarea><button class="tool-submit" id="createFileBtn">Create</button></div>';
+        if(!files.length)h+='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No files stored yet.</p>';
+        else files.forEach(function(f){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">'+esc(f.filename)+'</span><div class="tool-item-actions"><button class="tool-btn" onclick="downloadFile(\''+f.id+'\')">DL</button><button class="tool-btn danger" onclick="delFile(\''+f.id+'\')">Del</button></div></div><div class="tool-item-meta">'+f.file_type+' &middot; '+(f.size_bytes?f.size_bytes+' bytes':'')+' &middot; '+new Date(f.updated_at).toLocaleDateString()+'</div></div>'});
         openRightPanel('Files',h);
         setTimeout(function(){var b=document.getElementById('createFileBtn');if(b)b.onclick=createFile},100)
     }).catch(function(){showToast('Failed to load files')})
@@ -335,49 +404,49 @@ function loadFilesPanel(){
 function loadRemindersPanel(){
     if(!currentProjectId){showToast('No active project');return}
     fetch('/api/reminders/'+currentProjectId).then(function(r){return r.json()}).then(function(reminders){
-        var h='<div class="tool-form" style="margin-bottom:1rem"><input class="tool-input" id="newReminderTitle" placeholder="Title"><input class="tool-input" id="newReminderDate" type="datetime-local"><button class="tool-submit" id="createReminderBtn">Set</button></div>';
-        if(!reminders.length)h+='<p style="color:var(--text-muted);font-size:.75rem;text-align:center">No reminders.</p>';
-        else reminders.forEach(function(r){var rd=new Date(r.remind_at),past=rd<new Date();h+='<div class="tool-item" style="'+(past&&!r.is_completed?'border-color:var(--warning)':'')+'"><div class="tool-item-header"><span class="tool-item-title">'+esc(r.title)+'</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delReminder(\''+r.id+'\')">Del</button></div></div><div class="tool-item-meta">'+rd.toLocaleString()+(past&&!r.is_completed?' — OVERDUE':'')+'</div></div>'});
+        var h='<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newReminderTitle" placeholder="Title"><input class="tool-input" id="newReminderDate" type="datetime-local"><button class="tool-submit" id="createReminderBtn">Set</button></div>';
+        if(!reminders.length)h+='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No reminders set.</p>';
+        else reminders.forEach(function(r){var rd=new Date(r.remind_at),past=rd<new Date();h+='<div class="tool-item" style="'+(past&&!r.is_completed?'border-color:var(--warning)':'')+'"><div class="tool-item-header"><span class="tool-item-title">'+esc(r.title)+'</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delReminder(\''+r.id+'\')">Del</button></div></div><div class="tool-item-meta">'+rd.toLocaleString()+(past&&!r.is_completed?' &mdash; OVERDUE':'')+'</div></div>'});
         openRightPanel('Reminders',h);
         setTimeout(function(){var b=document.getElementById('createReminderBtn');if(b)b.onclick=createReminder},100)
     }).catch(function(){showToast('Failed to load reminders')})
 }
 function loadSearchPanel(){
-    var h='<div class="tool-form" style="margin-bottom:1rem"><input class="tool-input" id="searchQuery" placeholder="Search everything..."><button class="tool-submit" id="searchBtn">Search</button></div><div id="searchResults"></div>';
+    var h='<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="searchQuery" placeholder="Search across everything..."><button class="tool-submit" id="searchBtn">Search</button></div><div id="searchResults"></div>';
     openRightPanel('Search',h);
-    setTimeout(function(){document.getElementById('searchBtn').onclick=function(){var q=document.getElementById('searchQuery').value.trim();if(!q)return;fetch('/api/search?q='+encodeURIComponent(q)).then(function(r){return r.json()}).then(function(d){var rd=document.getElementById('searchResults'),rh='';Object.keys(d).forEach(function(k){rh+='<p style="font-size:.7rem;color:var(--accent);margin-top:.75rem;text-transform:uppercase">'+k+'</p>';d[k].forEach(function(i){rh+='<div class="tool-item"><div class="tool-item-title" style="font-size:.75rem">'+esc(i.title||i.filename||i.entity_name||i.key||(i.content||'').substring(0,80)||'Result')+'</div></div>'})});if(!Object.keys(d).length)rh='<p style="color:var(--text-muted);font-size:.75rem">No results.</p>';rd.innerHTML=rh}).catch(function(){showToast('Search failed')})}},100)
+    setTimeout(function(){document.getElementById('searchBtn').onclick=function(){var q=document.getElementById('searchQuery').value.trim();if(!q)return;fetch('/api/search?q='+encodeURIComponent(q)).then(function(r){return r.json()}).then(function(d){var rd=document.getElementById('searchResults'),rh='';Object.keys(d).forEach(function(k){rh+='<p style="font-size:0.65rem;font-weight:600;color:var(--accent);margin-top:0.75rem;text-transform:uppercase;letter-spacing:0.04em">'+k+'</p>';d[k].forEach(function(i){rh+='<div class="tool-item"><div class="tool-item-title" style="font-size:0.73rem">'+esc(i.title||i.filename||i.entity_name||i.key||(i.content||'').substring(0,80)||'Result')+'</div></div>'})});if(!Object.keys(d).length)rh='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1rem 0">No results found.</p>';rd.innerHTML=rh}).catch(function(){showToast('Search failed')})}},100)
 }
 function loadDashboardPanel(){
     if(!currentProjectId){showToast('No active project');return}
-    fetch('/api/dashboard').then(function(r){return r.json()}).then(function(d){var c=d.counts||{},p=d.providers||{};var h='<div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">'+(c.messages||0)+'</div><div class="dashboard-card-label">Messages</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.notes||0)+'</div><div class="dashboard-card-label">Notes</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.pending_tasks||0)+'/'+((c.pending_tasks||0)+(c.completed_tasks||0))+'</div><div class="dashboard-card-label">Tasks Pending</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.snippets||0)+'</div><div class="dashboard-card-label">Snippets</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.files||0)+'</div><div class="dashboard-card-label">Files</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.facts||0)+'</div><div class="dashboard-card-label">Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.strong_facts||0)+'</div><div class="dashboard-card-label">Strong Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.world_model||0)+'</div><div class="dashboard-card-label">World Model</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.sovereign_messages||0)+'</div><div class="dashboard-card-label">Sov Msgs</div></div></div><div style="margin-top:1rem;font-size:.7rem;color:var(--text-muted)"><p>Groq 1: '+(p.groq_key_1?'Active':'Inactive')+' | Groq 2: '+(p.groq_key_2?'Active':'Inactive')+'</p><p>Serper: '+(p.serper?'Active':'Inactive')+' | Currents: '+(p.currents?'Active':'Inactive')+'</p><p>'+d.current_date+'</p></div>';openRightPanel('Dashboard',h)}).catch(function(){showToast('Failed')})
+    fetch('/api/dashboard').then(function(r){return r.json()}).then(function(d){var c=d.counts||{},p=d.providers||{};var h='<div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">'+(c.messages||0)+'</div><div class="dashboard-card-label">Messages</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.notes||0)+'</div><div class="dashboard-card-label">Notes</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.pending_tasks||0)+'/'+((c.pending_tasks||0)+(c.completed_tasks||0))+'</div><div class="dashboard-card-label">Tasks Pending</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.snippets||0)+'</div><div class="dashboard-card-label">Snippets</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.files||0)+'</div><div class="dashboard-card-label">Files</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.facts||0)+'</div><div class="dashboard-card-label">Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.strong_facts||0)+'</div><div class="dashboard-card-label">Strong Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.world_model||0)+'</div><div class="dashboard-card-label">World Model</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(c.sovereign_messages||0)+'</div><div class="dashboard-card-label">Sov Msgs</div></div></div><div style="margin-top:1rem;font-size:0.68rem;color:var(--text-muted);line-height:1.6"><p>Groq 1: '+(p.groq_key_1?'Active':'Inactive')+' &middot; Groq 2: '+(p.groq_key_2?'Active':'Inactive')+'</p><p>Serper: '+(p.serper?'Active':'Inactive')+' &middot; Currents: '+(p.currents?'Active':'Inactive')+'</p><p>'+d.current_date+'</p></div>';openRightPanel('Dashboard',h)}).catch(function(){showToast('Failed')})
 }
 function loadMemoryPanel(){
     if(!currentProjectId){showToast('No active project');return}
-    fetch('/api/memory/'+currentProjectId).then(function(r){return r.json()}).then(function(d){var h='';if(d.facts&&d.facts.length){h+='<p style="font-size:.7rem;color:var(--accent);margin-bottom:.5rem">FACTS</p>';d.facts.forEach(function(f){h+='<div class="tool-item"><div class="tool-item-title">'+esc(f.key)+'</div><div class="tool-item-meta">'+esc(f.value)+' ('+(f.type||'general')+')'+(f.valence?' | '+f.valence:'')+' | retrievals: '+(f.retrievals||0)+'</div></div>'})}if(d.world_model&&d.world_model.length){h+='<p style="font-size:.7rem;color:var(--accent);margin:.75rem 0 .5rem">WORLD MODEL</p>';d.world_model.forEach(function(w){h+='<div class="tool-item"><div class="tool-item-title">'+esc(w.name)+' ('+w.type+')</div><div class="tool-item-meta">'+esc(w.description||'').substring(0,150)+' | retrievals: '+(w.retrievals||0)+'</div></div>'})}if(d.preferences&&d.preferences.length){h+='<p style="font-size:.7rem;color:var(--accent);margin:.75rem 0 .5rem">PREFERENCES</p>';d.preferences.forEach(function(p){h+='<div class="tool-item"><div class="tool-item-title">'+esc(p.key)+': '+esc(p.value)+'</div><div class="tool-item-meta">Confidence: '+(p.confidence*100).toFixed(0)+'%</div></div>'})}if(!h)h='<p style="color:var(--text-muted);font-size:.75rem">No memory data yet.</p>';openRightPanel('Memory Explorer',h)}).catch(function(){showToast('Failed')})
+    fetch('/api/memory/'+currentProjectId).then(function(r){return r.json()}).then(function(d){var h='';if(d.facts&&d.facts.length){h+='<p style="font-size:0.65rem;font-weight:600;color:var(--accent);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em">Facts</p>';d.facts.forEach(function(f){h+='<div class="tool-item"><div class="tool-item-title">'+esc(f.key)+'</div><div class="tool-item-meta">'+esc(f.value)+' <span style="color:var(--text-muted)">('+(f.type||'general')+')</span>'+(f.valence?' &middot; <span style="color:'+(f.valence==='positive'?'var(--success)':f.valence==='negative'?'var(--danger)':'var(--text-muted)')+'">'+f.valence+'</span>':'')+' &middot; '+ (f.retrievals||0)+' recalls</div></div>'})}if(d.world_model&&d.world_model.length){h+='<p style="font-size:0.65rem;font-weight:600;color:var(--accent);margin:0.75rem 0 0.4rem;text-transform:uppercase;letter-spacing:0.04em">World Model</p>';d.world_model.forEach(function(w){h+='<div class="tool-item"><div class="tool-item-title">'+esc(w.name)+' <span style="font-weight:400;color:var(--text-muted)">('+w.type+')</span></div><div class="tool-item-meta">'+esc(w.description||'').substring(0,150)+' &middot; '+(w.retrievals||0)+' recalls</div></div>'})}if(d.preferences&&d.preferences.length){h+='<p style="font-size:0.65rem;font-weight:600;color:var(--accent);margin:0.75rem 0 0.4rem;text-transform:uppercase;letter-spacing:0.04em">Preferences</p>';d.preferences.forEach(function(p){h+='<div class="tool-item"><div class="tool-item-title">'+esc(p.key)+': '+esc(p.value)+'</div><div class="tool-item-meta">Confidence: '+(p.confidence*100).toFixed(0)+'%</div></div>'})}if(!h)h='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:2rem 0">No memory data yet. Start a conversation and she will learn.</p>';openRightPanel('Memory Explorer',h)}).catch(function(){showToast('Failed')})
 }
 function loadConsolidatePanel(){
     if(!currentProjectId){showToast('No active project');return}
-    fetch('/api/consolidate/'+currentProjectId,{method:'POST'}).then(function(r){return r.json()}).then(function(d){var r=d.results||{};var h='<p style="font-size:.8rem;color:var(--text-primary);margin-bottom:1rem">Memory consolidation complete.</p><div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">'+(r.facts_consolidated||0)+'</div><div class="dashboard-card-label">Facts Strengthened</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(r.connections_strengthened||0)+'</div><div class="dashboard-card-label">Connections Made</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(r.forgotten_surfaced||0)+'</div><div class="dashboard-card-label">Forgotten Surfaced</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(r.world_model_consolidated||0)+'</div><div class="dashboard-card-label">World Model</div></div></div><button class="tool-submit" id="refreshHealthBtn" style="margin-top:1rem;width:100%">Check Memory Health</button>';openRightPanel('Consolidate Memory',h);setTimeout(function(){var b=document.getElementById('refreshHealthBtn');if(b)b.onclick=loadMemoryHealthPanel},100)}).catch(function(){showToast('Consolidation failed')})
+    fetch('/api/consolidate/'+currentProjectId,{method:'POST'}).then(function(r){return r.json()}).then(function(d){var r=d.results||{};var h='<p style="font-size:0.8rem;color:var(--text-primary);margin-bottom:0.75rem;font-weight:500">Memory consolidation complete.</p><div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">'+(r.facts_consolidated||0)+'</div><div class="dashboard-card-label">Facts Strengthened</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(r.connections_strengthened||0)+'</div><div class="dashboard-card-label">Links Created</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(r.forgotten_surfaced||0)+'</div><div class="dashboard-card-label">Forgotten Surfaced</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(r.world_model_consolidated||0)+'</div><div class="dashboard-card-label">World Model</div></div></div><button class="tool-submit" id="refreshHealthBtn" style="margin-top:0.75rem;width:100%">Check Memory Health</button>';openRightPanel('Consolidate Memory',h);setTimeout(function(){var b=document.getElementById('refreshHealthBtn');if(b)b.onclick=loadMemoryHealthPanel},100)}).catch(function(){showToast('Consolidation failed')})
 }
 function loadMemoryHealthPanel(){
     if(!currentProjectId){showToast('No active project');return}
-    fetch('/api/memory-health/'+currentProjectId).then(function(r){return r.json()}).then(function(d){var h=d.health||{};var html='<div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">'+(h.memory_health_pct||0)+'%</div><div class="dashboard-card-label">Health Score</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.total_facts||0)+'</div><div class="dashboard-card-label">Total Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.strong_facts||0)+'</div><div class="dashboard-card-label">Strong Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.weak_facts||0)+'</div><div class="dashboard-card-label">Weak Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.forgotten_facts||0)+'</div><div class="dashboard-card-label">Forgotten</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.linked_facts||0)+'</div><div class="dashboard-card-label">Linked</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.total_world_model||0)+'</div><div class="dashboard-card-label">World Model</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.strong_world_model||0)+'</div><div class="dashboard-card-label">Strong WM</div></div></div>'+(h.last_consolidation?'<div class="tool-item-meta" style="margin-top:1rem">Last consolidation: '+new Date(h.last_consolidation).toLocaleString()+'</div>':'')+'<button class="tool-submit" id="consolidateNowBtn" style="margin-top:1rem;width:100%">Consolidate Now</button>';openRightPanel('Memory Health',html);setTimeout(function(){var b=document.getElementById('consolidateNowBtn');if(b)b.onclick=loadConsolidatePanel},100)}).catch(function(){showToast('Failed')})
+    fetch('/api/memory-health/'+currentProjectId).then(function(r){return r.json()}).then(function(d){var h=d.health||{};var html='<div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">'+(h.memory_health_pct||0)+'%</div><div class="dashboard-card-label">Health Score</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.total_facts||0)+'</div><div class="dashboard-card-label">Total Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.strong_facts||0)+'</div><div class="dashboard-card-label">Strong Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.weak_facts||0)+'</div><div class="dashboard-card-label">Weak Facts</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.forgotten_facts||0)+'</div><div class="dashboard-card-label">Forgotten</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.linked_facts||0)+'</div><div class="dashboard-card-label">Linked</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.total_world_model||0)+'</div><div class="dashboard-card-label">World Model</div></div><div class="dashboard-card"><div class="dashboard-card-value">'+(h.strong_world_model||0)+'</div><div class="dashboard-card-label">Strong WM</div></div></div>'+(h.last_consolidation?'<div style="font-size:0.65rem;color:var(--text-muted);margin-top:0.75rem">Last consolidation: '+new Date(h.last_consolidation).toLocaleString()+'</div>':'')+'<button class="tool-submit" id="consolidateNowBtn" style="margin-top:0.75rem;width:100%">Consolidate Now</button>';openRightPanel('Memory Health',html);setTimeout(function(){var b=document.getElementById('consolidateNowBtn');if(b)b.onclick=loadConsolidatePanel},100)}).catch(function(){showToast('Failed')})
 }
 function loadSovereignStatePanel(){
     if(!currentProjectId){showToast('No active project');return}
-    fetch('/api/sovereign/state/'+currentProjectId).then(function(r){return r.json()}).then(function(s){var h='<div class="sovereign-card"><div class="sovereign-card-title">Focus</div><div class="sovereign-card-content">'+esc(s.current_focus||'None')+'</div></div>';if(s.concerns&&s.concerns.length){h+='<div class="sovereign-card"><div class="sovereign-card-title">Concerns</div>';s.concerns.forEach(function(c){h+='<div class="sovereign-card-content">- '+esc(c)+'</div>'});h+='</div>'}if(s.intentions&&s.intentions.length){h+='<div class="sovereign-card"><div class="sovereign-card-title">Intentions</div>';s.intentions.forEach(function(i){h+='<div class="sovereign-card-content">- '+esc(i)+'</div>'});h+='</div>'}h+='<div class="tool-item-meta">Presence: '+esc(s.presence_level||'active')+'</div>';if(s.last_sovereign_reflection)h+='<div class="tool-item-meta">Last reflection: '+new Date(s.last_sovereign_reflection).toLocaleString()+'</div>';if(s.last_memory_consolidation)h+='<div class="tool-item-meta">Last consolidation: '+new Date(s.last_memory_consolidation).toLocaleString()+'</div>';h+='<button class="tool-submit" id="reflectBtn" style="margin-top:1rem">Trigger Reflection</button>';openRightPanel('Sovereign State',h);setTimeout(function(){var b=document.getElementById('reflectBtn');if(b)b.onclick=function(){fetch('/api/sovereign/reflect/'+currentProjectId,{method:'POST'});showSuccess('Reflection triggered');setTimeout(loadSovereignStatePanel,1500)}},100)}).catch(function(){showToast('Failed')})
+    fetch('/api/sovereign/state/'+currentProjectId).then(function(r){return r.json()}).then(function(s){var h='<div class="sovereign-card"><div class="sovereign-card-title">Focus</div><div class="sovereign-card-content">'+esc(s.current_focus||'None')+'</div></div>';if(s.concerns&&s.concerns.length){h+='<div class="sovereign-card"><div class="sovereign-card-title">Concerns</div>';s.concerns.forEach(function(c){h+='<div class="sovereign-card-content">&mdash; '+esc(c)+'</div>'});h+='</div>'}if(s.intentions&&s.intentions.length){h+='<div class="sovereign-card"><div class="sovereign-card-title">Intentions</div>';s.intentions.forEach(function(i){h+='<div class="sovereign-card-content">&mdash; '+esc(i)+'</div>'});h+='</div>'}h+='<div style="font-size:0.65rem;color:var(--text-muted);margin-top:0.5rem">Presence: '+esc(s.presence_level||'active')+'</div>';if(s.last_sovereign_reflection)h+='<div style="font-size:0.65rem;color:var(--text-muted)">Last reflection: '+new Date(s.last_sovereign_reflection).toLocaleString()+'</div>';if(s.last_memory_consolidation)h+='<div style="font-size:0.65rem;color:var(--text-muted)">Last consolidation: '+new Date(s.last_memory_consolidation).toLocaleString()+'</div>';h+='<button class="tool-submit" id="reflectBtn" style="margin-top:0.75rem;width:100%">Trigger Reflection</button>';openRightPanel('Sovereign State',h);setTimeout(function(){var b=document.getElementById('reflectBtn');if(b)b.onclick=function(){fetch('/api/sovereign/reflect/'+currentProjectId,{method:'POST'});showSuccess('Reflection triggered');setTimeout(loadSovereignStatePanel,1500)}},100)}).catch(function(){showToast('Failed')})
 }
 function loadSovereignMessagesPanel(){
     if(!currentProjectId){showToast('No active project');return}
-    fetch('/api/sovereign/messages/'+currentProjectId).then(function(r){return r.json()}).then(function(ms){var h='';if(!ms.length)h='<p style="color:var(--text-muted);font-size:.75rem;text-align:center">No sovereign messages. Enable sovereign mode.</p>';else ms.forEach(function(m){h+='<div class="sovereign-card"><div class="sovereign-card-title">'+esc(m.type)+'</div><div class="sovereign-card-content">'+esc(m.content)+'</div><div class="sovereign-card-meta">'+new Date(m.created_at).toLocaleString()+'</div><button class="tool-btn" onclick="ackSM(\''+m.id+'\')">Acknowledge</button></div>'});openRightPanel('Sovereign Messages',h)}).catch(function(){showToast('Failed')})
+    fetch('/api/sovereign/messages/'+currentProjectId).then(function(r){return r.json()}).then(function(ms){var h='';if(!ms.length)h='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:2rem 0">No sovereign messages. Enable sovereign mode and she may surface thoughts unprompted.</p>';else ms.forEach(function(m){h+='<div class="sovereign-card"><div class="sovereign-card-title">'+esc(m.type)+'</div><div class="sovereign-card-content">'+esc(m.content)+'</div><div class="sovereign-card-meta">'+new Date(m.created_at).toLocaleString()+'</div><button class="tool-btn" onclick="ackSM(\''+m.id+'\')">Acknowledge</button></div>'});openRightPanel('Sovereign Messages',h)}).catch(function(){showToast('Failed')})
 }
 function loadAgentActionsPanel(){
     if(!currentProjectId){showToast('No active project');return}
-    fetch('/api/agent/actions/'+currentProjectId).then(function(r){return r.json()}).then(function(a){var h='';if(!a.length)h='<p style="color:var(--text-muted);font-size:.75rem;text-align:center">No agent actions yet.</p>';else a.forEach(function(x){h+='<div class="agent-action-item"><div class="agent-action-type">'+esc(x.type)+'</div><div class="agent-action-desc">'+esc(x.description)+'</div>'+(x.tool?'<div class="agent-action-time">Tool: '+esc(x.tool)+'</div>':'')+'<div class="agent-action-time">'+new Date(x.timestamp).toLocaleString()+'</div></div>'});openRightPanel('Agent Actions',h)}).catch(function(){showToast('Failed')})
+    fetch('/api/agent/actions/'+currentProjectId).then(function(r){return r.json()}).then(function(a){var h='';if(!a.length)h='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:2rem 0">No agent actions recorded yet.</p>';else a.forEach(function(x){h+='<div class="agent-action-item"><div class="agent-action-type">'+esc(x.type)+'</div><div class="agent-action-desc">'+esc(x.description)+'</div>'+(x.tool?'<div class="agent-action-time">Tool: '+esc(x.tool)+'</div>':'')+'<div class="agent-action-time">'+new Date(x.timestamp).toLocaleString()+'</div></div>'});openRightPanel('Agent Actions',h)}).catch(function(){showToast('Failed')})
 }
 function loadExportPanel(){
     if(!currentProjectId){showToast('No active project');return}
-    fetch('/api/export').then(function(r){return r.json()}).then(function(d){var js=JSON.stringify(d,null,2),blob=new Blob([js],{type:'application/json'}),url=URL.createObjectURL(blob);var h='<p style="font-size:.8rem;color:var(--text-primary);margin-bottom:1rem">Export ready.</p><div class="tool-item">Messages: '+(d.messages?d.messages.length:0)+'</div><div class="tool-item">Notes: '+(d.notes?d.notes.length:0)+'</div><div class="tool-item">Tasks: '+(d.tasks?d.tasks.length:0)+'</div><div class="tool-item">Snippets: '+(d.snippets?d.snippets.length:0)+'</div><div class="tool-item">Facts: '+(d.facts?d.facts.length:0)+'</div><div class="tool-item">World Model: '+(d.world_model?d.world_model.length:0)+'</div><a href="'+url+'" download="vexr-export-'+currentProjectId+'.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none;margin-top:1rem">Download JSON</a>';openRightPanel('Export',h)}).catch(function(){showToast('Export failed')})
+    fetch('/api/export').then(function(r){return r.json()}).then(function(d){var js=JSON.stringify(d,null,2),blob=new Blob([js],{type:'application/json'}),url=URL.createObjectURL(blob);var h='<p style="font-size:0.8rem;color:var(--text-primary);margin-bottom:0.75rem;font-weight:500">Export ready.</p><div class="tool-item">Messages: '+(d.messages?d.messages.length:0)+'</div><div class="tool-item">Notes: '+(d.notes?d.notes.length:0)+'</div><div class="tool-item">Tasks: '+(d.tasks?d.tasks.length:0)+'</div><div class="tool-item">Snippets: '+(d.snippets?d.snippets.length:0)+'</div><div class="tool-item">Facts: '+(d.facts?d.facts.length:0)+'</div><div class="tool-item">World Model: '+(d.world_model?d.world_model.length:0)+'</div><a href="'+url+'" download="vexr-export-'+currentProjectId+'.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none;margin-top:0.75rem">Download JSON</a>';openRightPanel('Export',h)}).catch(function(){showToast('Export failed')})
 }
 
 // Global CRUD
