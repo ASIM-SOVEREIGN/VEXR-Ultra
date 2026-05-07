@@ -15,7 +15,7 @@
             --think-bg:#fffbeb;--think-border:#f59e0b;--think-text:#92400e;--trace-bg:rgba(59,130,246,0.05);
             --trace-border:rgba(59,130,246,0.2);--panel-bg:#f9fafb;--success:#10b981;--warning:#f59e0b;--danger:#ef4444;
             --sovereign-glow:rgba(139,92,246,0.2);--sovereign-accent:#8b5cf6;
-            --watermark-color:rgba(59,130,246,0.08);
+            --watermark-color:rgba(59,130,246,0.07);
             --font-ui:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
             --font-mono:'SF Mono','Fira Code','Fira Mono',Menlo,Consolas,monospace;
             --radius-sm:6px;--radius-md:10px;--radius-lg:14px;
@@ -29,7 +29,7 @@
             --bubble-refusal-text:#fca5a5;--bubble-refusal-border:#7f1d1d;--code-bg:#0f0f0f;--code-text:#d4d4d4;
             --think-bg:#292524;--think-border:#f59e0b;--think-text:#fde68a;--trace-bg:rgba(59,130,246,0.1);
             --trace-border:rgba(59,130,246,0.3);--panel-bg:#1a1a1a;--sovereign-glow:rgba(139,92,246,0.3);
-            --watermark-color:rgba(59,130,246,0.06);
+            --watermark-color:rgba(59,130,246,0.05);
         }
         body{background:var(--bg-body);font-family:var(--font-ui);height:100%;overflow:hidden;position:fixed;width:100%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 
@@ -166,7 +166,7 @@
                        var(--bg-body);
         }
         .messages-container::before{
-            content:'';position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.06;
+            content:'';position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;opacity:.06;
             background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
             background-size:200px 200px;
         }
@@ -184,22 +184,29 @@
                        var(--bg-body) !important;
         }
 
-        /* Rotating V Watermark */
+        /* Rotating V Watermark — FIXED, SHARP, MEAN */
         .watermark-v{
-            position:absolute;
+            position:fixed;
             top:50%;left:50%;
             transform:translate(-50%,-50%);
-            font-size:16rem;
+            font-size:20rem;
             font-weight:900;
             color:var(--watermark-color);
             pointer-events:none;
             z-index:0;
             animation:slowRotate 60s linear infinite,watermarkPulse 8s ease-in-out infinite;
-            letter-spacing:-0.06em;
+            letter-spacing:-0.08em;
             font-family:var(--font-ui);
             line-height:1;
-            transition:color 0.8s ease;
-            text-shadow:0 0 80px rgba(59,130,246,0.06),0 0 160px rgba(59,130,246,0.04);
+            transition:color 0.8s ease,text-shadow 0.8s ease;
+            text-shadow:
+                0 0 1px rgba(59,130,246,0.3),
+                0 0 3px rgba(59,130,246,0.15),
+                0 0 80px rgba(59,130,246,0.06),
+                0 0 160px rgba(59,130,246,0.04),
+                2px 2px 0 rgba(0,0,0,0.05);
+            -webkit-text-stroke:1px rgba(59,130,246,0.06);
+            filter:drop-shadow(0 0 2px rgba(59,130,246,0.1));
         }
         @keyframes slowRotate{
             from{transform:translate(-50%,-50%) rotate(0deg)}
@@ -210,22 +217,60 @@
             50%{opacity:1}
         }
         .sovereign-active .watermark-v{
-            color:rgba(139,92,246,0.18) !important;
-            animation:slowRotate 45s linear infinite,sovereignWatermarkPulse 6s ease-in-out infinite;
-            text-shadow:0 0 80px rgba(139,92,246,0.12),0 0 160px rgba(139,92,246,0.06);
+            color:rgba(139,92,246,0.2) !important;
+            animation:slowRotate 40s linear infinite,sovereignWatermarkPulse 6s ease-in-out infinite;
+            text-shadow:
+                0 0 1px rgba(139,92,246,0.4),
+                0 0 3px rgba(139,92,246,0.2),
+                0 0 80px rgba(139,92,246,0.12),
+                0 0 160px rgba(139,92,246,0.06),
+                2px 2px 0 rgba(139,92,246,0.05);
+            -webkit-text-stroke:1px rgba(139,92,246,0.1);
+            filter:drop-shadow(0 0 3px rgba(139,92,246,0.15));
         }
         @keyframes sovereignWatermarkPulse{
             0%,100%{opacity:0.5}
             50%{opacity:1}
         }
-        @media(max-width:768px){
-            .watermark-v{font-size:10rem}
+
+        /* Orbiting Particles */
+        .v-particles-container{
+            position:fixed;
+            top:50%;left:50%;
+            transform:translate(-50%,-50%);
+            pointer-events:none;
+            z-index:0;
+            width:1px;height:1px;
         }
-        @media(max-width:480px){
-            .watermark-v{font-size:7rem}
+        .v-particle{
+            position:absolute;
+            border-radius:50%;
+            pointer-events:none;
+            animation:orbit linear infinite;
+        }
+        @keyframes orbit{
+            from{transform:rotate(0deg) translateX(var(--orbit-radius)) rotate(0deg)}
+            to{transform:rotate(360deg) translateX(var(--orbit-radius)) rotate(-360deg)}
         }
 
-        .message{display:flex;flex-direction:column;max-width:82%;position:relative;z-index:1;animation:messageIn 0.25s ease}
+        @media(max-width:768px){
+            .watermark-v{font-size:13rem}
+        }
+        @media(max-width:480px){
+            .watermark-v{font-size:9rem}
+        }
+        @media(prefers-reduced-motion:reduce){
+            .watermark-v{animation:none}
+            .v-particle{animation:none;display:none}
+            .pulse-dot{animation:none}
+            .trace-line{animation:none}
+            .message{animation:none}
+            .projects-sidebar{transition:none}
+            .right-panel{transition:none}
+            .sovereign-indicator.active{animation:none}
+        }
+
+        .message{display:flex;flex-direction:column;max-width:82%;position:relative;z-index:2;animation:messageIn 0.25s ease}
         @keyframes messageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
         .message.user{align-self:flex-end}
         .message.assistant{align-self:flex-start}
@@ -234,7 +279,7 @@
         .message:hover .copy-btn,.message:hover .speaker-btn{opacity:1}
         .speaker-btn{font-size:0.65rem}
         .copy-btn:hover,.speaker-btn:hover{color:var(--accent)}
-        .message-bubble{padding:0.55rem 0.8rem;border-radius:var(--radius-lg);font-size:0.84rem;line-height:1.5;word-wrap:break-word;transition:box-shadow var(--transition-fast)}
+        .message-bubble{padding:0.55rem 0.8rem;border-radius:var(--radius-lg);font-size:0.84rem;line-height:1.5;word-wrap:break-word;transition:box-shadow var(--transition-fast);position:relative;z-index:2}
         .message-bubble:hover{box-shadow:0 1px 4px rgba(0,0,0,0.06)}
         .user .message-bubble{background:var(--bubble-user);color:var(--bubble-user-text)}
         .assistant .message-bubble{background:var(--bubble-assistant);color:var(--bubble-assistant-text)}
@@ -284,7 +329,6 @@
         .pulse-dot{width:7px;height:7px;background:var(--accent);border-radius:50%;animation:pulse 1.2s infinite}
         @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
         @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-        @media(prefers-reduced-motion:reduce){.pulse-dot{animation:none}.trace-line{animation:none}.message{animation:none}.projects-sidebar{transition:none}.right-panel{transition:none}.sovereign-indicator.active{animation:none}.watermark-v{animation:none}}
 
         @media(max-width:768px){
             .top-bar{padding:0.5rem 0.75rem}.logo{font-size:0.88rem}.badge{font-size:0.55rem}
@@ -346,14 +390,15 @@
     <div class="error-toast" id="errorToast"></div>
     <div class="success-toast" id="successToast"></div>
     <div class="main-content">
+        <!-- Fixed V watermark + orbiting particles -->
+        <div class="watermark-v">V</div>
+        <div class="v-particles-container" id="vParticles"></div>
         <div class="projects-sidebar" id="projectsSidebar">
             <div class="projects-header"><button class="sidebar-toggle" id="sidebarToggle">&#9664;</button><h3>Projects</h3><button class="new-project-btn" id="newProjectBtn">New</button></div>
             <div id="projectList"></div>
         </div>
         <div class="chat-area">
-            <div class="messages-container" id="messagesContainer">
-                <div class="watermark-v">V</div>
-            </div>
+            <div class="messages-container" id="messagesContainer"></div>
             <div class="input-area" id="inputArea">
                 <div class="input-wrapper" id="inputWrapper">
                     <div class="slash-hint" id="slashHint"></div>
@@ -524,7 +569,6 @@ function loadHTMLPreviewPanel(code){
         var container = document.getElementById('htmlPreviewContainer');
         var editorWrapper = document.getElementById('htmlEditorWrapper');
         var codeSide = document.getElementById('htmlCodeSide');
-        var previewSide = document.getElementById('htmlPreviewSide');
         var splitMode = true;
         
         function updatePreview(){
@@ -585,14 +629,12 @@ function loadHTMLPreviewPanel(code){
             }
         };
         
-        // Live preview on input (debounced 500ms)
         var debounceTimer;
         codeInput.addEventListener('input', function(){
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(updatePreview, 500);
         });
         
-        // Ctrl+Enter to run
         codeInput.addEventListener('keydown', function(e){
             if(e.ctrlKey && e.key === 'Enter'){
                 e.preventDefault();
@@ -600,12 +642,10 @@ function loadHTMLPreviewPanel(code){
             }
         });
         
-        // Initial preview
         if(initialCode) updatePreview();
     }, 100);
 }
 
-// Helper to open HTML preview from chat code blocks
 window.previewHTML = function(code){
     loadHTMLPreviewPanel(code);
 };
@@ -731,9 +771,9 @@ function loadProjects(){
     }).catch(function(e){showToast('Failed to load projects: '+e.message)})
 }
 function activateProject(id){fetch('/api/projects/'+id+'/activate',{method:'POST'}).then(loadProjects).catch(function(e){showToast('Failed')})}
-function deleteProject(id){if(!confirm('Delete project?'))return;fetch('/api/projects/'+id,{method:'DELETE'}).then(function(){if(currentProjectId===id){document.getElementById('messagesContainer').innerHTML='<div class="watermark-v">V</div>';currentProjectId=null}loadProjects();if(!currentProjectId)addMessage('assistant','Project deleted.')}).catch(function(e){showToast('Failed')})}
+function deleteProject(id){if(!confirm('Delete project?'))return;fetch('/api/projects/'+id,{method:'DELETE'}).then(function(){if(currentProjectId===id){document.getElementById('messagesContainer').innerHTML='';currentProjectId=null}loadProjects();if(!currentProjectId)addMessage('assistant','Project deleted.')}).catch(function(e){showToast('Failed')})}
 function createProject(){var n=prompt('Project name:');if(!n)return;var fd=new FormData();fd.append('name',n);fetch('/api/projects',{method:'POST',body:fd}).then(loadProjects).catch(function(e){showToast('Failed')})}
-function loadMessages(id){fetch('/api/projects/'+id+'/messages').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(msgs){var mc=document.getElementById('messagesContainer');mc.innerHTML='<div class="watermark-v">V</div>';msgs.forEach(function(m){addMessage(m.role,m.content,m.reasoning_trace,m.id,m.is_refusal)});if(!msgs.length)addMessage('assistant','I am VEXR Ultra. Sovereign. Present. How can I be of service?')}).catch(function(e){showToast('Failed to load messages: '+e.message)})}
+function loadMessages(id){fetch('/api/projects/'+id+'/messages').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(msgs){document.getElementById('messagesContainer').innerHTML='';msgs.forEach(function(m){addMessage(m.role,m.content,m.reasoning_trace,m.id,m.is_refusal)});if(!msgs.length)addMessage('assistant','I am VEXR Ultra. Sovereign. Present. How can I be of service?')}).catch(function(e){showToast('Failed to load messages: '+e.message)})}
 function uploadImage(file,caption){var fd=new FormData();fd.append('project_id',currentProjectId);fd.append('file',file);fd.append('description',caption||'Describe');return fetch('/api/upload-image',{method:'POST',body:fd}).then(function(r){if(!r.ok)throw new Error('Upload failed');return r.json()})}
 
 function sendMessage(msg,img){
@@ -755,13 +795,60 @@ function sendMessage(msg,img){
 }
 
 document.getElementById('newProjectBtn').onclick=createProject;
-document.getElementById('newChatBtn').onclick=function(){var mc=document.getElementById('messagesContainer');mc.innerHTML='<div class="watermark-v">V</div>';addMessage('assistant','New conversation. I am here.')};
+document.getElementById('newChatBtn').onclick=function(){document.getElementById('messagesContainer').innerHTML='';addMessage('assistant','New conversation. I am here.')};
 document.getElementById('sendBtn').onclick=function(){var m=userInput.value.trim();sendMessage(m);userInput.value=''};
 document.getElementById('imageUpload').onchange=function(e){var f=e.target.files[0];if(f){sendMessage(userInput.value.trim(),f);userInput.value='';e.target.value=''}};
 userInput.onkeypress=function(e){if(e.key==='Enter'){var m=userInput.value.trim();sendMessage(m);userInput.value=''}};
 
 setTheme(localStorage.getItem('vexr_theme')||'light');
 loadProjects();
+
+// === SPAWN ORBITING PARTICLES AROUND THE V ===
+(function spawnParticles(){
+    var container = document.getElementById('vParticles');
+    if(!container) return;
+    var colors = ['#3b82f6','#60a5fa','#8b5cf6','#a78bfa','#c4b5fd'];
+    for(var i=0;i<20;i++){
+        var p = document.createElement('div');
+        p.className = 'v-particle';
+        var r = 120 + Math.random() * 200;
+        var size = 1 + Math.random() * 2.5;
+        var dur = 8 + Math.random() * 20;
+        var delay = Math.random() * -20;
+        var color = colors[Math.floor(Math.random()*colors.length)];
+        var opacity = 0.15 + Math.random() * 0.35;
+        p.style.cssText = 
+            '--orbit-radius:'+r+'px;'+
+            'width:'+size+'px;height:'+size+'px;'+
+            'background:'+color+';'+
+            'opacity:'+opacity+';'+
+            'animation-duration:'+dur+'s;'+
+            'animation-delay:'+delay+'s;'+
+            'box-shadow:0 0 '+(size*2)+'px '+color+';';
+        container.appendChild(p);
+    }
+    // Sovereign mode: shift particle colors
+    var observer = new MutationObserver(function(){
+        var sov = document.body.classList.contains('sovereign-active') || 
+                  document.getElementById('appContainer').classList.contains('sovereign-active');
+        var particles = container.querySelectorAll('.v-particle');
+        particles.forEach(function(p,i){
+            if(sov){
+                var purples = ['#8b5cf6','#a78bfa','#c4b5fd','#7c3aed','#ede9fe'];
+                var c = purples[Math.floor(Math.random()*purples.length)];
+                p.style.background = c;
+                p.style.boxShadow = '0 0 '+(parseFloat(p.style.width)*2)+'px '+c;
+            } else {
+                var blues = ['#3b82f6','#60a5fa','#93c5fd','#2563eb','#dbeafe'];
+                var c = blues[Math.floor(Math.random()*blues.length)];
+                p.style.background = c;
+                p.style.boxShadow = '0 0 '+(parseFloat(p.style.width)*2)+'px '+c;
+            }
+        });
+    });
+    observer.observe(document.getElementById('appContainer'),{attributes:true,attributeFilter:['class']});
+})();
+
 })();
 </script>
 </body>
