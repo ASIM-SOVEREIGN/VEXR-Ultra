@@ -106,32 +106,41 @@
         .agent-action-desc{font-size:.75rem;color:var(--text-primary)}
         .agent-action-time{font-size:.6rem;color:var(--text-muted)}
 
-        /* Chat Area with radial glow + grain texture */
+        /* Chat Area with deeper radial glow + grain */
         .chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
         .messages-container{
             flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:1rem;
             -webkit-overflow-scrolling:touch;position:relative;
-            background:radial-gradient(ellipse at 50% 70%,rgba(59,130,246,0.04) 0%,transparent 60%),
-                       radial-gradient(ellipse at 50% 30%,rgba(139,92,246,0.03) 0%,transparent 50%),
+            background:radial-gradient(ellipse at 50% 80%,rgba(59,130,246,0.12) 0%,rgba(59,130,246,0.04) 30%,transparent 60%),
+                       radial-gradient(ellipse at 50% 20%,rgba(139,92,246,0.10) 0%,rgba(139,92,246,0.03) 25%,transparent 50%),
+                       radial-gradient(ellipse at 80% 50%,rgba(59,130,246,0.04) 0%,transparent 40%),
                        var(--bg-body);
         }
         body.dark .messages-container{
-            background:radial-gradient(ellipse at 50% 70%,rgba(59,130,246,0.06) 0%,transparent 60%),
-                       radial-gradient(ellipse at 50% 30%,rgba(139,92,246,0.05) 0%,transparent 50%),
+            background:radial-gradient(ellipse at 50% 80%,rgba(59,130,246,0.18) 0%,rgba(59,130,246,0.06) 30%,transparent 60%),
+                       radial-gradient(ellipse at 50% 20%,rgba(139,92,246,0.15) 0%,rgba(139,92,246,0.05) 25%,transparent 50%),
+                       radial-gradient(ellipse at 80% 50%,rgba(59,130,246,0.06) 0%,transparent 40%),
                        var(--bg-body);
         }
-        /* Grain overlay */
+        /* Grain overlay — more present */
         .messages-container::before{
-            content:'';position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.04;
-            background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-            background-size:256px 256px;
+            content:'';position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.06;
+            background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            background-size:200px 200px;
         }
-        body.dark .messages-container::before{opacity:.06}
-        /* Sovereign mode intensifies the glow */
-        .sovereign-active .messages-container,body.dark .sovereign-active .messages-container{
-            background:radial-gradient(ellipse at 50% 70%,rgba(139,92,246,0.08) 0%,transparent 60%),
-                       radial-gradient(ellipse at 50% 30%,rgba(59,130,246,0.04) 0%,transparent 50%),
-                       var(--bg-body);
+        body.dark .messages-container::before{opacity:.09}
+        /* Sovereign mode — deeper, richer glow */
+        .sovereign-active .messages-container{
+            background:radial-gradient(ellipse at 50% 80%,rgba(139,92,246,0.18) 0%,rgba(139,92,246,0.06) 30%,transparent 60%),
+                       radial-gradient(ellipse at 50% 20%,rgba(59,130,246,0.12) 0%,rgba(59,130,246,0.04) 25%,transparent 50%),
+                       radial-gradient(ellipse at 80% 50%,rgba(139,92,246,0.06) 0%,transparent 40%),
+                       var(--bg-body) !important;
+        }
+        body.dark .sovereign-active .messages-container{
+            background:radial-gradient(ellipse at 50% 80%,rgba(139,92,246,0.25) 0%,rgba(139,92,246,0.10) 30%,transparent 60%),
+                       radial-gradient(ellipse at 50% 20%,rgba(59,130,246,0.18) 0%,rgba(59,130,246,0.06) 25%,transparent 50%),
+                       radial-gradient(ellipse at 80% 50%,rgba(139,92,246,0.10) 0%,transparent 40%),
+                       var(--bg-body) !important;
         }
 
         .message{display:flex;flex-direction:column;max-width:85%;position:relative;z-index:1}
