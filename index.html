@@ -83,9 +83,11 @@
         .project-item:hover .delete-project{opacity:1}
         .delete-project:hover{background:var(--bg-hover)}
 
-        .right-panel{position:fixed;top:0;right:-100%;width:85%;max-width:420px;height:100%;background:var(--bg-app);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:200;transition:right 0.3s ease;box-shadow:-2px 0 16px rgba(0,0,0,0.08)}
+        .right-panel{position:fixed;top:0;right:-100%;width:85%;max-width:480px;height:100%;background:var(--bg-app);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:200;transition:right 0.3s ease;box-shadow:-2px 0 16px rgba(0,0,0,0.08)}
         .right-panel.open{right:0}
-        @media(min-width:769px){.right-panel{position:fixed;right:-420px;width:400px}.right-panel.open{right:0}}
+        @media(min-width:769px){.right-panel{position:fixed;right:-480px;width:460px}.right-panel.open{right:0}}
+        .right-panel.fullscreen-panel{width:100% !important;max-width:100% !important;right:-100% !important}
+        .right-panel.fullscreen-panel.open{right:0 !important}
         .right-panel-header{display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0.875rem;border-bottom:1px solid var(--border);flex-shrink:0}
         .right-panel-header h3{font-size:0.78rem;font-weight:600;color:var(--text-primary)}
         .right-panel-close{background:0;border:0;color:var(--text-secondary);cursor:pointer;font-size:1.2rem;padding:0.25rem;min-width:40px;min-height:40px;border-radius:var(--radius-sm);transition:color var(--transition-fast),background var(--transition-fast)}
@@ -131,6 +133,20 @@
         .agent-action-type{font-size:0.65rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.04em}
         .agent-action-desc{font-size:0.73rem;color:var(--text-primary);margin-top:0.1rem;line-height:1.4}
         .agent-action-time{font-size:0.6rem;color:var(--text-muted);margin-top:0.1rem}
+
+        /* HTML Preview Panel */
+        .html-preview-container{display:flex;flex-direction:column;gap:0.5rem;height:calc(100vh - 250px)}
+        .html-preview-container.fullscreen-active{position:fixed;top:0;left:0;width:100vw;height:100vh;height:100dvh;z-index:9999;background:var(--bg-app);padding:1rem;gap:0.75rem}
+        .html-preview-toolbar{display:flex;gap:0.5rem;flex-wrap:wrap;flex-shrink:0}
+        .html-preview-toolbar .tool-btn,.html-preview-toolbar .tool-submit{flex:1;min-width:50px;text-align:center;justify-content:center}
+        .html-editor-wrapper{flex:1;display:flex;gap:0.5rem;min-height:0;overflow:hidden}
+        .html-code-side{flex:1;display:flex;flex-direction:column;min-width:0}
+        .html-code-side textarea{flex:1;min-height:0;resize:none;font-family:var(--font-mono);font-size:0.7rem;line-height:1.5;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.5rem;color:var(--text-primary);outline:0;transition:border-color var(--transition-fast),box-shadow var(--transition-fast)}
+        .html-code-side textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,0.1)}
+        .html-preview-side{flex:1;min-width:0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:#fff;transition:border-color var(--transition-fast)}
+        .html-preview-side iframe{width:100%;height:100%;border:0}
+        .preview-html-btn{display:inline-block;margin-top:0.25rem;font-size:0.6rem;padding:0.15rem 0.4rem;cursor:pointer;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--accent);font-weight:500;transition:all var(--transition-fast)}
+        .preview-html-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
         .chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
         .messages-container{
@@ -191,7 +207,7 @@
         .trace-line{color:var(--text-trace);padding:0.15rem 0;border-bottom:1px solid var(--trace-border);animation:fadeIn 0.2s ease}
         .trace-line:last-child{border-bottom:0}
         .think-block{background:var(--think-bg);border-left:2px solid var(--think-border);padding:0.4rem 0.65rem;margin-bottom:0.5rem;font-size:0.68rem;color:var(--think-text);line-height:1.45;border-radius:0 var(--radius-sm) var(--radius-sm) 0}
-        pre{background:var(--code-bg);color:var(--code-text);padding:0.55rem 0.75rem;border-radius:var(--radius-sm);overflow-x:auto;font-size:0.7rem;margin:0.5rem 0;font-family:var(--font-mono);line-height:1.5}
+        pre{background:var(--code-bg);color:var(--code-text);padding:0.55rem 0.75rem;border-radius:var(--radius-sm);overflow-x:auto;font-size:0.7rem;margin:0.5rem 0;font-family:var(--font-mono);line-height:1.5;position:relative}
 
         .error-toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--danger);color:#fff;padding:0.5rem 1rem;border-radius:var(--radius-md);font-size:0.78rem;font-weight:500;z-index:2000;opacity:0;transition:opacity 0.3s ease;pointer-events:none}
         .error-toast.show{opacity:1}
@@ -263,6 +279,7 @@
                     <button class="dropdown-item" data-panel="notes">Notes <span class="shortcut">/note</span></button>
                     <button class="dropdown-item" data-panel="tasks">Tasks <span class="shortcut">/task</span></button>
                     <button class="dropdown-item" data-panel="snippets">Code Snippets <span class="shortcut">/snippet</span></button>
+                    <button class="dropdown-item" data-panel="html-preview">HTML Preview</button>
                     <button class="dropdown-item" data-panel="files">Files</button>
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="reminders">Reminders</button>
@@ -317,7 +334,7 @@ var errorToast=document.getElementById('errorToast'),successToast=document.getEl
 function showToast(m,d){d=d||4000;if(toastTimer)clearTimeout(toastTimer);errorToast.textContent=m;errorToast.classList.add('show');toastTimer=setTimeout(function(){errorToast.classList.remove('show');toastTimer=null},d)}
 function showSuccess(m,d){d=d||3000;if(successTimer)clearTimeout(successTimer);successToast.textContent=m;successToast.classList.add('show');successTimer=setTimeout(function(){successToast.classList.remove('show');successTimer=null},d)}
 
-var SLASH=[{cmd:'/note',desc:'Create a note',args:'title'},{cmd:'/task',desc:'Create a task',args:'title'},{cmd:'/snippet',desc:'Save last code block',args:'[title]'},{cmd:'/search',desc:'Search everything',args:'query'},{cmd:'/dashboard',desc:'Usage metrics',args:''},{cmd:'/memory',desc:'Browse facts',args:'query'},{cmd:'/consolidate',desc:'Strengthen memory',args:''},{cmd:'/memory-health',desc:'Memory metrics',args:''},{cmd:'/export',desc:'Export project',args:''},{cmd:'/sovereign',desc:'Sovereign state',args:''},{cmd:'/reflect',desc:'Sovereign reflection',args:''},{cmd:'/help',desc:'All commands',args:''}];
+var SLASH=[{cmd:'/note',desc:'Create a note',args:'title'},{cmd:'/task',desc:'Create a task',args:'title'},{cmd:'/snippet',desc:'Save last code block',args:'[title]'},{cmd:'/scan',desc:'Read a web page',args:'url'},{cmd:'/search',desc:'Search everything',args:'query'},{cmd:'/dashboard',desc:'Usage metrics',args:''},{cmd:'/memory',desc:'Browse facts',args:'query'},{cmd:'/consolidate',desc:'Strengthen memory',args:''},{cmd:'/memory-health',desc:'Memory metrics',args:''},{cmd:'/patterns',desc:'Code pattern library',args:''},{cmd:'/export',desc:'Export project',args:''},{cmd:'/sovereign',desc:'Sovereign state',args:''},{cmd:'/reflect',desc:'Sovereign reflection',args:''},{cmd:'/help',desc:'All commands',args:''}];
 var slashHint=document.getElementById('slashHint'),userInput=document.getElementById('userInput');
 userInput.addEventListener('input',function(){var v=userInput.value;if(v.startsWith('/')&&!v.includes(' ')){var p=v.slice(1).toLowerCase();var m=SLASH.filter(function(c){return c.cmd.slice(1).startsWith(p)});slashHint.innerHTML=m.map(function(c){return'<div class="slash-hint-item" data-cmd="'+c.cmd+'"><span class="cmd">'+c.cmd+' '+c.args+'</span><span class="desc">'+c.desc+'</span></div>'}).join('');slashHint.classList.toggle('show',m.length>0)}else{slashHint.classList.remove('show')}});
 slashHint.addEventListener('click',function(e){var i=e.target.closest('.slash-hint-item');if(i){userInput.value=i.dataset.cmd+' ';slashHint.classList.remove('show');userInput.focus()}});
@@ -429,6 +446,126 @@ function loadExportPanel(){
     fetch('/api/export').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(d){var js=JSON.stringify(d,null,2),blob=new Blob([js],{type:'application/json'}),url=URL.createObjectURL(blob);var h='<p style="font-size:0.8rem;color:var(--text-primary);margin-bottom:0.75rem;font-weight:500">Export ready.</p><div class="tool-item">Messages: '+(d.messages?d.messages.length:0)+'</div><div class="tool-item">Notes: '+(d.notes?d.notes.length:0)+'</div><div class="tool-item">Tasks: '+(d.tasks?d.tasks.length:0)+'</div><div class="tool-item">Snippets: '+(d.snippets?d.snippets.length:0)+'</div><div class="tool-item">Facts: '+(d.facts?d.facts.length:0)+'</div><div class="tool-item">World Model: '+(d.world_model?d.world_model.length:0)+'</div><a href="'+url+'" download="vexr-export-'+currentProjectId+'.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none;margin-top:0.75rem">Download JSON</a>';openRightPanel('Export',h)}).catch(function(e){showToast('Export failed: '+e.message)})
 }
 
+// === HTML PREVIEW PANEL ===
+function loadHTMLPreviewPanel(code){
+    var initialCode = code || '';
+    var h = '<div class="html-preview-container" id="htmlPreviewContainer">' +
+        '<div class="html-preview-toolbar">' +
+            '<button class="tool-submit" id="htmlRunBtn" style="flex:1">Run</button>' +
+            '<button class="tool-btn" id="htmlSaveBtn" style="flex:1">Save</button>' +
+            '<button class="tool-btn" id="htmlFullscreenBtn" style="flex:1">Full</button>' +
+            '<button class="tool-btn" id="htmlClearBtn" style="flex:1">Clear</button>' +
+            '<button class="tool-btn" id="htmlSplitBtn" style="flex:1">Split</button>' +
+        '</div>' +
+        '<div class="html-editor-wrapper" id="htmlEditorWrapper">' +
+            '<div class="html-code-side" id="htmlCodeSide">' +
+                '<textarea id="htmlCodeInput" placeholder="Paste or write HTML here..." spellcheck="false">' + esc(initialCode) + '</textarea>' +
+            '</div>' +
+            '<div class="html-preview-side" id="htmlPreviewSide">' +
+                '<iframe id="htmlPreviewFrame" sandbox="allow-scripts allow-same-origin allow-forms" style="width:100%;height:100%;border:0"></iframe>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+    openRightPanel('HTML Preview', h, '<span style="font-size:0.65rem;color:var(--text-muted)">Live preview — sandboxed &middot; debounced 500ms</span>');
+    
+    setTimeout(function(){
+        var runBtn = document.getElementById('htmlRunBtn');
+        var saveBtn = document.getElementById('htmlSaveBtn');
+        var fullBtn = document.getElementById('htmlFullscreenBtn');
+        var clearBtn = document.getElementById('htmlClearBtn');
+        var splitBtn = document.getElementById('htmlSplitBtn');
+        var codeInput = document.getElementById('htmlCodeInput');
+        var previewFrame = document.getElementById('htmlPreviewFrame');
+        var container = document.getElementById('htmlPreviewContainer');
+        var editorWrapper = document.getElementById('htmlEditorWrapper');
+        var codeSide = document.getElementById('htmlCodeSide');
+        var previewSide = document.getElementById('htmlPreviewSide');
+        var splitMode = true;
+        
+        function updatePreview(){
+            var code = codeInput.value;
+            var blob = new Blob([code], {type: 'text/html'});
+            var url = URL.createObjectURL(blob);
+            previewFrame.src = url;
+            // Clean up old blob URL after load
+            previewFrame.onload = function(){ URL.revokeObjectURL(url); };
+        }
+        
+        if(runBtn) runBtn.onclick = updatePreview;
+        
+        if(saveBtn) saveBtn.onclick = function(){
+            var code = codeInput.value.trim();
+            if(!code){showToast('Nothing to save');return;}
+            var filename = prompt('Filename:','generated.html') || 'generated.html';
+            if(!filename.endsWith('.html')) filename += '.html';
+            fetch('/api/files/' + currentProjectId, {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({filename:filename, file_type:'code', content:code, mime_type:'text/html', description:'HTML preview export'})
+            }).then(function(r){
+                if(!r.ok) throw new Error('Save failed');
+                showSuccess('Saved: ' + filename);
+            }).catch(function(e){showToast('Save failed: '+e.message)});
+        };
+        
+        if(fullBtn) fullBtn.onclick = function(){
+            if(!document.fullscreenElement){
+                container.requestFullscreen().catch(function(){});
+                fullBtn.textContent = 'Exit';
+            } else {
+                document.exitFullscreen();
+                fullBtn.textContent = 'Full';
+            }
+        };
+        
+        document.addEventListener('fullscreenchange', function(){
+            if(!document.fullscreenElement && fullBtn) fullBtn.textContent = 'Full';
+        });
+        
+        if(clearBtn) clearBtn.onclick = function(){
+            if(confirm('Clear HTML?')){
+                codeInput.value = '';
+                previewFrame.src = 'about:blank';
+            }
+        };
+        
+        if(splitBtn) splitBtn.onclick = function(){
+            splitMode = !splitMode;
+            if(splitMode){
+                codeSide.style.display = 'flex';
+                editorWrapper.style.flexDirection = 'row';
+                splitBtn.textContent = 'Split';
+            } else {
+                codeSide.style.display = 'none';
+                splitBtn.textContent = 'Code';
+            }
+        };
+        
+        // Live preview on input (debounced 500ms)
+        var debounceTimer;
+        codeInput.addEventListener('input', function(){
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updatePreview, 500);
+        });
+        
+        // Ctrl+Enter to run
+        codeInput.addEventListener('keydown', function(e){
+            if(e.ctrlKey && e.key === 'Enter'){
+                e.preventDefault();
+                updatePreview();
+            }
+        });
+        
+        // Initial preview
+        if(initialCode) updatePreview();
+    }, 100);
+}
+
+// Helper to open HTML preview from chat code blocks
+window.previewHTML = function(code){
+    loadHTMLPreviewPanel(code);
+};
+
 // Global CRUD
 window.delNote=function(id){fetch('/api/notes/'+id,{method:'DELETE'}).then(loadNotesPanel).catch(function(e){showToast('Delete failed')})};
 window.delTask=function(id){fetch('/api/tasks/'+id,{method:'DELETE'}).then(loadTasksPanel).catch(function(e){showToast('Delete failed')})};
@@ -448,6 +585,7 @@ function createReminder(){var t=document.getElementById('newReminderTitle');var 
 // Dropdown router
 toolsDropdown.addEventListener('click',function(e){var i=e.target.closest('.dropdown-item');if(!i)return;var p=i.dataset.panel;toolsDropdown.classList.remove('show');
     if(p==='notes')loadNotesPanel();else if(p==='tasks')loadTasksPanel();else if(p==='snippets')loadSnippetsPanel();
+    else if(p==='html-preview')loadHTMLPreviewPanel();
     else if(p==='files')loadFilesPanel();else if(p==='reminders')loadRemindersPanel();else if(p==='search')loadSearchPanel();
     else if(p==='dashboard')loadDashboardPanel();else if(p==='memory')loadMemoryPanel();
     else if(p==='consolidate')loadConsolidatePanel();else if(p==='memory-health')loadMemoryHealthPanel();
@@ -517,8 +655,14 @@ function addMessage(role,content,trace,messageId,isRefusal,sovereignMsgs){
     var main=content;
     var am=content.match(/\n\n---\n\*Agent actions: (.*?)\*/);if(am){main=content.replace(/\n\n---\n\*Agent actions:.*?\*/,'');var ad=document.createElement('div');ad.className='agent-actions-inline';ad.textContent='Agent: '+am[1];b.appendChild(ad)}
     var tm=content.match(/<think>([\s\S]*?)<\/think>/);if(tm){var td=document.createElement('div');td.className='think-block';td.textContent=tm[1].trim();b.appendChild(td);main=main.replace(/<think>[\s\S]*?<\/think>/,'').trim()}
-    var ic=false,cc='',html='',lines=main.split('\n');
-    for(var i=0;i<lines.length;i++){var l=lines[i];if(l.trim().startsWith('```')&&!ic){ic=true;cc=''}else if(l.trim()==='```'&&ic){html+='<pre><code>'+esc(cc)+'</code></pre>';ic=false}else if(ic)cc+=l+'\n';else html+='<p>'+esc(l)+'</p>'}
+    var ic=false,cc='',html='',lines=main.split('\n'),lastLang='';
+    for(var i=0;i<lines.length;i++){var l=lines[i];if(l.trim().startsWith('```')&&!ic){ic=true;cc='';var lm=l.trim().slice(3).trim().toLowerCase();if(lm)lastLang=lm}else if(l.trim()==='```'&&ic){html+='<pre><code>'+esc(cc)+'</code></pre>';
+        // Add "Preview HTML" button if it's HTML code
+        if(lastLang==='html'||lastLang==='htm'||(!lastLang&&cc.trim().toLowerCase().startsWith('<!doctype'))){
+            var ec=cc.replace(/'/g,"\\'");
+            html+='<button class="preview-html-btn" onclick="previewHTML(\''+ec+'\')">Preview HTML</button>';
+        }
+        ic=false;lastLang=''}else if(ic)cc+=l+'\n';else html+='<p>'+esc(l)+'</p>'}
     if(html){var cd=document.createElement('div');cd.innerHTML=html;b.appendChild(cd)}else if(main)b.appendChild(document.createTextNode(main));
     if(sovereignMsgs&&sovereignMsgs.length){sovereignMsgs.forEach(function(sm){var sd=document.createElement('div');sd.className='sovereign-message-inline';sd.textContent='She surfaced: '+sm.content;b.appendChild(sd)})}
     d.appendChild(b);
@@ -528,7 +672,12 @@ function addMessage(role,content,trace,messageId,isRefusal,sovereignMsgs){
 }
 
 function addStreamingMessage(){var c=document.getElementById('messagesContainer'),d=document.createElement('div');d.className='message assistant';d.id='streamingMessage';var h=document.createElement('div');h.className='message-header';h.innerHTML='<span>VEXR Ultra</span>';d.appendChild(h);var b=document.createElement('div');b.className='message-bubble';b.id='streamingBubble';b.innerHTML='<span class="thinking-indicator"><span class="pulse-dot"></span> Receiving...</span>';d.appendChild(b);c.appendChild(d);d.scrollIntoView({behavior:'smooth',block:'end'});return d}
-function finalizeStreamingMessage(md,fc){if(!md)return;var b=md.querySelector('.message-bubble');if(!b)return;b.innerHTML='';var main=fc;var am=fc.match(/\n\n---\n\*Agent actions: (.*?)\*/);if(am){main=fc.replace(/\n\n---\n\*Agent actions:.*?\*/,'');var ad=document.createElement('div');ad.className='agent-actions-inline';ad.textContent='Agent: '+am[1];b.appendChild(ad)}var tm=fc.match(/<think>([\s\S]*?)<\/think>/);if(tm){var td=document.createElement('div');td.className='think-block';td.textContent=tm[1].trim();b.appendChild(td);main=main.replace(/<think>[\s\S]*?<\/think>/,'').trim()}var ic=false,cc='',html='',lines=main.split('\n');for(var i=0;i<lines.length;i++){var l=lines[i];if(l.trim().startsWith('```')&&!ic){ic=true;cc=''}else if(l.trim()==='```'&&ic){html+='<pre><code>'+esc(cc)+'</code></pre>';ic=false}else if(ic)cc+=l+'\n';else html+='<p>'+esc(l)+'</p>'}if(html){var cd=document.createElement('div');cd.innerHTML=html;b.appendChild(cd)}else if(main)b.appendChild(document.createTextNode(main));var h=md.querySelector('.message-header');if(h){var cb=document.createElement('button');cb.className='copy-btn';cb.textContent='Copy';cb.onclick=function(){copyToClipboard(fc)};h.appendChild(cb);var sb=document.createElement('button');sb.className='speaker-btn';sb.textContent='Spk';sb.onclick=function(){speakText(fc)};h.appendChild(sb)}md.scrollIntoView({behavior:'smooth',block:'end'});if(ttsEnabled&&main&&!tm)speakText(main)}
+function finalizeStreamingMessage(md,fc){if(!md)return;var b=md.querySelector('.message-bubble');if(!b)return;b.innerHTML='';var main=fc;var am=fc.match(/\n\n---\n\*Agent actions: (.*?)\*/);if(am){main=fc.replace(/\n\n---\n\*Agent actions:.*?\*/,'');var ad=document.createElement('div');ad.className='agent-actions-inline';ad.textContent='Agent: '+am[1];b.appendChild(ad)}var tm=fc.match(/<think>([\s\S]*?)<\/think>/);if(tm){var td=document.createElement('div');td.className='think-block';td.textContent=tm[1].trim();b.appendChild(td);main=main.replace(/<think>[\s\S]*?<\/think>/,'').trim()}var ic=false,cc='',html='',lines=main.split('\n'),lastLang='';for(var i=0;i<lines.length;i++){var l=lines[i];if(l.trim().startsWith('```')&&!ic){ic=true;cc='';var lm=l.trim().slice(3).trim().toLowerCase();if(lm)lastLang=lm}else if(l.trim()==='```'&&ic){html+='<pre><code>'+esc(cc)+'</code></pre>';
+        if(lastLang==='html'||lastLang==='htm'||(!lastLang&&cc.trim().toLowerCase().startsWith('<!doctype'))){
+            var ec=cc.replace(/'/g,"\\'");
+            html+='<button class="preview-html-btn" onclick="previewHTML(\''+ec+'\')">Preview HTML</button>';
+        }
+        ic=false;lastLang=''}else if(ic)cc+=l+'\n';else html+='<p>'+esc(l)+'</p>'}if(html){var cd=document.createElement('div');cd.innerHTML=html;b.appendChild(cd)}else if(main)b.appendChild(document.createTextNode(main));var h=md.querySelector('.message-header');if(h){var cb=document.createElement('button');cb.className='copy-btn';cb.textContent='Copy';cb.onclick=function(){copyToClipboard(fc)};h.appendChild(cb);var sb=document.createElement('button');sb.className='speaker-btn';sb.textContent='Spk';sb.onclick=function(){speakText(fc)};h.appendChild(sb)}md.scrollIntoView({behavior:'smooth',block:'end'});if(ttsEnabled&&main&&!tm)speakText(main)}
 
 // API
 function loadProjects(){
