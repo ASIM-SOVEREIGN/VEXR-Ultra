@@ -411,7 +411,34 @@ toolsDropdownBtn.onclick=function(e){e.stopPropagation();toolsDropdown.classList
 document.addEventListener('click',function(){toolsDropdown.classList.remove('show')});
 
 function esc(t){return new Option(t).innerHTML}
-function cp(t){navigator.clipboard.writeText(t)}
+
+// Fixed copy function with fallback
+function cp(t){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(t).catch(function(){
+            fallbackCopy(t);
+        });
+    } else {
+        fallbackCopy(t);
+    }
+}
+function fallbackCopy(text){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+        document.execCommand('copy');
+        showSuccess('Copied to clipboard');
+    } catch(e) {
+        showToast('Copy failed');
+    }
+    document.body.removeChild(ta);
+}
 
 // ---- TOOL PANEL LOADERS ----
 function loadNotesPanel(){
@@ -443,11 +470,24 @@ function loadSnippetsPanel(){
     fetch('/api/snippets/'+currentProjectId).then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(snippets){
         var h='<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newSnippetTitle" placeholder="Title"><textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code"></textarea><input class="tool-input" id="newSnippetLang" placeholder="Language"><button class="tool-submit" id="createSnippetBtn">Save</button></div>';
         if(!snippets.length)h+='<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No snippets saved yet.</p>';
-        else snippets.forEach(function(s){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">'+esc(s.title)+'</span><div class="tool-item-actions"><button class="tool-btn" onclick="cp(\''+esc(s.code).replace(/'/g,"\\'")+'\')">Copy</button><button class="tool-btn danger" onclick="delSnippet(\''+s.id+'\')">Del</button></div></div><pre style="max-height:100px;overflow:hidden;font-size:0.65rem"><code>'+esc(s.code).substring(0,300)+'</code></pre><div class="tool-item-meta">'+(s.language||'auto')+' &middot; '+new Date(s.created_at).toLocaleDateString()+'</div></div>'});
+        else snippets.forEach(function(s){h+='<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">'+esc(s.title)+'</span><div class="tool-item-actions"><button class="tool-btn" onclick="copySnippet(\''+s.id+'\')">Copy</button><button class="tool-btn danger" onclick="delSnippet(\''+s.id+'\')">Del</button></div></div><pre style="max-height:100px;overflow:hidden;font-size:0.65rem"><code>'+esc(s.code).substring(0,300)+'</code></pre><div class="tool-item-meta">'+(s.language||'auto')+' &middot; '+new Date(s.created_at).toLocaleDateString()+'</div></div>'});
         openRightPanel('Code Snippets',h);
         setTimeout(function(){var b=document.getElementById('createSnippetBtn');if(b)b.onclick=createSnippet},100)
     }).catch(function(e){showToast('Failed to load snippets: '+e.message)})
 }
+
+// Copy snippet by ID — fetches full code from backend
+window.copySnippet = function(id){
+    fetch('/api/snippets/'+currentProjectId).then(function(r){return r.json()}).then(function(snippets){
+        var s = snippets.find(function(sn){return sn.id === id});
+        if(s && s.code){
+            cp(s.code);
+        } else {
+            showToast('Snippet not found');
+        }
+    }).catch(function(){showToast('Copy failed')});
+};
+
 function loadFilesPanel(){
     if(!currentProjectId){showToast('No active project');return}
     fetch('/api/files/'+currentProjectId).then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(files){
@@ -695,7 +735,7 @@ document.getElementById('ultraSearchToggle').checked=ultraSearchEnabled;document
 document.getElementById('ultraSearchToggle').onchange=function(e){ultraSearchEnabled=e.target.checked;localStorage.setItem('vexr_ultra_search',ultraSearchEnabled)};
 document.getElementById('showReasoningToggle').onchange=function(e){showReasoningEnabled=e.target.checked;localStorage.setItem('vexr_show_reasoning',showReasoningEnabled)};
 
-function copyToClipboard(t){navigator.clipboard.writeText(t)}
+function copyToClipboard(t){cp(t)}
 function sendFeedback(mid,ft){fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_id:mid,feedback_type:ft})}).catch(function(){})}
 
 var thinkingIndicator=null;
