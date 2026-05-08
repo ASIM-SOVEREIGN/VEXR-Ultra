@@ -190,17 +190,17 @@
                        var(--bg-body) !important;
         }
 
-        /* Rotating V Watermark — FIXED, doesn't scroll, SHARP */
+                /* Rotating V Watermark — FIXED, doesn't scroll, SHARP, CHAMELEON */
         .watermark-v{
             position:fixed;
             top:50%;left:50%;
             transform:translate(-50%,-50%);
             font-size:16rem;
             font-weight:900;
-            color:var(--watermark-color);
+            color:#3b82f6;
             pointer-events:none;
             z-index:0;
-            animation:slowRotate 60s linear infinite,watermarkPulse 8s ease-in-out infinite;
+            animation:slowRotate 60s linear infinite,watermarkPulse 8s ease-in-out infinite,chameleonShift 12s ease-in-out infinite;
             letter-spacing:-0.08em;
             font-family:var(--font-ui);
             line-height:1;
@@ -222,21 +222,24 @@
             0%,100%{opacity:0.5}
             50%{opacity:1}
         }
+        @keyframes chameleonShift{
+            0%,100%{color:#3b82f6;text-shadow:0 0 1px rgba(59,130,246,0.3),0 0 3px rgba(59,130,246,0.15),0 0 80px rgba(59,130,246,0.06),0 0 160px rgba(59,130,246,0.04),2px 2px 0 rgba(0,0,0,0.05);-webkit-text-stroke:1px rgba(59,130,246,0.06);filter:drop-shadow(0 0 2px rgba(59,130,246,0.1))}
+            25%{color:#6d28d9;text-shadow:0 0 1px rgba(109,40,217,0.3),0 0 3px rgba(109,40,217,0.15),0 0 80px rgba(109,40,217,0.06),0 0 160px rgba(109,40,217,0.04),2px 2px 0 rgba(0,0,0,0.05);-webkit-text-stroke:1px rgba(109,40,217,0.06);filter:drop-shadow(0 0 2px rgba(109,40,217,0.1))}
+            50%{color:#8b5cf6;text-shadow:0 0 1px rgba(139,92,246,0.3),0 0 3px rgba(139,92,246,0.15),0 0 80px rgba(139,92,246,0.06),0 0 160px rgba(139,92,246,0.04),2px 2px 0 rgba(0,0,0,0.05);-webkit-text-stroke:1px rgba(139,92,246,0.06);filter:drop-shadow(0 0 2px rgba(139,92,246,0.1))}
+            75%{color:#3b82f6;text-shadow:0 0 1px rgba(59,130,246,0.3),0 0 3px rgba(59,130,246,0.15),0 0 80px rgba(59,130,246,0.06),0 0 160px rgba(59,130,246,0.04),2px 2px 0 rgba(0,0,0,0.05);-webkit-text-stroke:1px rgba(59,130,246,0.06);filter:drop-shadow(0 0 2px rgba(59,130,246,0.1))}
+        }
         .sovereign-active .watermark-v{
-            color:rgba(139,92,246,0.2) !important;
-            animation:slowRotate 40s linear infinite,sovereignWatermarkPulse 6s ease-in-out infinite;
-            text-shadow:
-                0 0 1px rgba(139,92,246,0.4),
-                0 0 3px rgba(139,92,246,0.2),
-                0 0 80px rgba(139,92,246,0.12),
-                0 0 160px rgba(139,92,246,0.06),
-                2px 2px 0 rgba(139,92,246,0.05);
-            -webkit-text-stroke:1px rgba(139,92,246,0.1);
-            filter:drop-shadow(0 0 3px rgba(139,92,246,0.15));
+            animation:slowRotate 40s linear infinite,sovereignWatermarkPulse 6s ease-in-out infinite,chameleonShiftSovereign 8s ease-in-out infinite;
         }
         @keyframes sovereignWatermarkPulse{
             0%,100%{opacity:0.5}
             50%{opacity:1}
+        }
+        @keyframes chameleonShiftSovereign{
+            0%,100%{color:#8b5cf6;text-shadow:0 0 1px rgba(139,92,246,0.4),0 0 3px rgba(139,92,246,0.2),0 0 80px rgba(139,92,246,0.12),0 0 160px rgba(139,92,246,0.06),2px 2px 0 rgba(139,92,246,0.05);-webkit-text-stroke:1px rgba(139,92,246,0.1);filter:drop-shadow(0 0 3px rgba(139,92,246,0.15))}
+            25%{color:#a78bfa;text-shadow:0 0 1px rgba(167,139,250,0.4),0 0 3px rgba(167,139,250,0.2),0 0 80px rgba(167,139,250,0.12),0 0 160px rgba(167,139,250,0.06),2px 2px 0 rgba(139,92,246,0.05);-webkit-text-stroke:1px rgba(167,139,250,0.1);filter:drop-shadow(0 0 3px rgba(167,139,250,0.15))}
+            50%{color:#6d28d9;text-shadow:0 0 1px rgba(109,40,217,0.4),0 0 3px rgba(109,40,217,0.2),0 0 80px rgba(109,40,217,0.12),0 0 160px rgba(109,40,217,0.06),2px 2px 0 rgba(139,92,246,0.05);-webkit-text-stroke:1px rgba(109,40,217,0.1);filter:drop-shadow(0 0 3px rgba(109,40,217,0.15))}
+            75%{color:#8b5cf6;text-shadow:0 0 1px rgba(139,92,246,0.4),0 0 3px rgba(139,92,246,0.2),0 0 80px rgba(139,92,246,0.12),0 0 160px rgba(139,92,246,0.06),2px 2px 0 rgba(139,92,246,0.05);-webkit-text-stroke:1px rgba(139,92,246,0.1);filter:drop-shadow(0 0 3px rgba(139,92,246,0.15))}
         }
         @media(max-width:768px){
             .watermark-v{font-size:10rem}
