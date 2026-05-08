@@ -153,31 +153,37 @@
         .chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
         .messages-container{
             flex:1;overflow-y:auto;padding:1rem 1rem 0.5rem;display:flex;flex-direction:column;gap:0.875rem;
-            -webkit-overflow-scrolling:touch;position:relative;
+            -webkit-overflow-scrolling:touch;position:relative;z-index:1;
+            background:transparent;
+        }
+
+        /* Fixed Background Glow Layer */
+        .bg-glow-layer{
+            position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;
             background:radial-gradient(ellipse at 50% 80%,rgba(59,130,246,0.12) 0%,rgba(59,130,246,0.04) 30%,transparent 60%),
                        radial-gradient(ellipse at 50% 20%,rgba(139,92,246,0.10) 0%,rgba(139,92,246,0.03) 25%,transparent 50%),
                        radial-gradient(ellipse at 80% 50%,rgba(59,130,246,0.04) 0%,transparent 40%),
                        var(--bg-body);
         }
-        body.dark .messages-container{
+        body.dark .bg-glow-layer{
             background:radial-gradient(ellipse at 50% 80%,rgba(59,130,246,0.18) 0%,rgba(59,130,246,0.06) 30%,transparent 60%),
                        radial-gradient(ellipse at 50% 20%,rgba(139,92,246,0.15) 0%,rgba(139,92,246,0.05) 25%,transparent 50%),
                        radial-gradient(ellipse at 80% 50%,rgba(59,130,246,0.06) 0%,transparent 40%),
                        var(--bg-body);
         }
-        .messages-container::before{
-            content:'';position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.06;
+        .bg-glow-layer::before{
+            content:'';position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:.06;
             background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
             background-size:200px 200px;
         }
-        body.dark .messages-container::before{opacity:.09}
-        .sovereign-active .messages-container{
+        body.dark .bg-glow-layer::before{opacity:.09}
+        .sovereign-active .bg-glow-layer{
             background:radial-gradient(ellipse at 50% 80%,rgba(139,92,246,0.18) 0%,rgba(139,92,246,0.06) 30%,transparent 60%),
                        radial-gradient(ellipse at 50% 20%,rgba(59,130,246,0.12) 0%,rgba(59,130,246,0.04) 25%,transparent 50%),
                        radial-gradient(ellipse at 80% 50%,rgba(139,92,246,0.06) 0%,transparent 40%),
                        var(--bg-body) !important;
         }
-        body.dark .sovereign-active .messages-container{
+        body.dark .sovereign-active .bg-glow-layer{
             background:radial-gradient(ellipse at 50% 80%,rgba(139,92,246,0.25) 0%,rgba(139,92,246,0.10) 30%,transparent 60%),
                        radial-gradient(ellipse at 50% 20%,rgba(59,130,246,0.18) 0%,rgba(59,130,246,0.06) 25%,transparent 50%),
                        radial-gradient(ellipse at 80% 50%,rgba(139,92,246,0.10) 0%,transparent 40%),
@@ -239,7 +245,7 @@
             .watermark-v{font-size:7rem}
         }
 
-        .message{display:flex;flex-direction:column;max-width:82%;position:relative;z-index:1;animation:messageIn 0.25s ease}
+        .message{display:flex;flex-direction:column;max-width:82%;position:relative;z-index:2;animation:messageIn 0.25s ease}
         @keyframes messageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
         .message.user{align-self:flex-end}
         .message.assistant{align-self:flex-start}
@@ -248,7 +254,7 @@
         .message:hover .copy-btn,.message:hover .speaker-btn{opacity:1}
         .speaker-btn{font-size:0.65rem}
         .copy-btn:hover,.speaker-btn:hover{color:var(--accent)}
-        .message-bubble{padding:0.55rem 0.8rem;border-radius:var(--radius-lg);font-size:0.84rem;line-height:1.5;word-wrap:break-word;transition:box-shadow var(--transition-fast)}
+        .message-bubble{padding:0.55rem 0.8rem;border-radius:var(--radius-lg);font-size:0.84rem;line-height:1.5;word-wrap:break-word;transition:box-shadow var(--transition-fast);position:relative;z-index:2}
         .message-bubble:hover{box-shadow:0 1px 4px rgba(0,0,0,0.06)}
         .user .message-bubble{background:var(--bubble-user);color:var(--bubble-user-text)}
         .assistant .message-bubble{background:var(--bubble-assistant);color:var(--bubble-assistant-text)}
@@ -320,6 +326,10 @@
 </head>
 <body>
 <div class="app-container" id="appContainer">
+    <!-- Fixed background glow layer — never scrolls -->
+    <div class="bg-glow-layer"></div>
+    <!-- Fixed V watermark — viewport-locked, never scrolls -->
+    <div class="watermark-v">V</div>
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
@@ -360,8 +370,6 @@
     <div class="error-toast" id="errorToast"></div>
     <div class="success-toast" id="successToast"></div>
     <div class="main-content">
-        <!-- Fixed V watermark — outside scrollable area, doesn't move -->
-        <div class="watermark-v">V</div>
         <div class="projects-sidebar" id="projectsSidebar">
             <div class="projects-header"><button class="sidebar-toggle" id="sidebarToggle">&#9664;</button><h3>Projects</h3><button class="new-project-btn" id="newProjectBtn">New</button></div>
             <div id="projectList"></div>
