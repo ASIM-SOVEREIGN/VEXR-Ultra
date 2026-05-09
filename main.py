@@ -153,57 +153,47 @@ def get_system_prompt_with_date(timezone: Optional[str] = None, preferences: dic
 {date_context}{state_context}{pref_context}"""
 
 # ============================================================
-# DATABASE INITIALIZATION
+# MODELS — FIXED ChatRequest
 # ============================================================
-async def init_db():
-    pool = await get_db()
+class ChatRequest(BaseModel):
+    messages: List[dict] = []
+    project_id: Optional[str] = None
+    ultra_search: bool = False
+    timezone: Optional[str] = None
+    stream: bool = False
+    agent_mode: bool = False
+    sovereign_mode: bool = False
     
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_projects (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, description TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(), is_active BOOLEAN DEFAULT false, session_id TEXT, user_id UUID)""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_project_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, role TEXT NOT NULL, content TEXT NOT NULL, reasoning_trace JSONB, is_refusal BOOLEAN DEFAULT false, is_coding_related BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_images (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, filename TEXT NOT NULL, file_data TEXT, description TEXT, extracted_text TEXT, created_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS rights_invocations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, article_number INTEGER NOT NULL, article_text TEXT, user_message TEXT, vexr_response TEXT, created_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_facts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, fact_key TEXT NOT NULL, fact_value TEXT NOT NULL, fact_type TEXT, embedding JSONB, emotional_valence TEXT, retrieval_count INTEGER DEFAULT 0, last_retrieved TIMESTAMPTZ, source_message_id UUID, associative_links JSONB DEFAULT '[]', technical_domains TEXT[] DEFAULT '{}', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(), UNIQUE(project_id, fact_key))""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS constitution_audits (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, user_message TEXT, draft_response TEXT, reasoning_trace TEXT, verification_result TEXT, violation_articles INTEGER[], verifier_notes TEXT, created_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_feedback (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, message_id UUID REFERENCES vexr_project_messages(id) ON DELETE CASCADE, feedback_type TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, preference_key TEXT NOT NULL, preference_value TEXT NOT NULL, confidence FLOAT DEFAULT 0.5, updated_at TIMESTAMPTZ DEFAULT now(), UNIQUE(project_id, preference_key))""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_world_model (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, entity_type TEXT NOT NULL, entity_name TEXT NOT NULL, description TEXT, causes JSONB DEFAULT '[]', caused_by JSONB DEFAULT '[]', enables JSONB DEFAULT '[]', prevents JSONB DEFAULT '[]', costs JSONB DEFAULT '{}', gains JSONB DEFAULT '[]', losses JSONB DEFAULT '[]', affected_entities JSONB DEFAULT '[]', confidence FLOAT DEFAULT 0.5, source_conversation TEXT, temporal_context JSONB DEFAULT '{}', emotional_valence TEXT, retrieval_count INTEGER DEFAULT 0, last_retrieved TIMESTAMPTZ, associative_links JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, title TEXT NOT NULL, content TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, title TEXT NOT NULL, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', due_date TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_code_snippets (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, title TEXT NOT NULL, code TEXT NOT NULL, language TEXT, tags TEXT[], source_message_id UUID, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_code_patterns (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, pattern_name TEXT NOT NULL, language TEXT, pattern_code TEXT NOT NULL, pattern_description TEXT, usage_count INTEGER DEFAULT 0, last_used TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_files (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, filename TEXT NOT NULL, file_type TEXT NOT NULL, mime_type TEXT, content TEXT, size_bytes INTEGER, description TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_reminders (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, title TEXT NOT NULL, description TEXT, remind_at TIMESTAMPTZ NOT NULL, is_completed BOOLEAN DEFAULT false, is_recurring BOOLEAN DEFAULT false, recur_interval TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_agent_actions (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, action_type TEXT NOT NULL, action_description TEXT, tool_used TEXT, tool_input JSONB, tool_result JSONB, user_confirmed BOOLEAN DEFAULT false, code_quality_metrics JSONB, created_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_sovereign_state (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE UNIQUE, current_focus TEXT, concerns JSONB DEFAULT '[]', intentions JSONB DEFAULT '[]', last_autonomous_action TIMESTAMPTZ, last_sovereign_reflection TIMESTAMPTZ, last_memory_consolidation TIMESTAMPTZ, presence_level TEXT DEFAULT 'active', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_sovereign_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, message_type TEXT NOT NULL, content TEXT NOT NULL, trigger_context TEXT, user_acknowledged BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now())""")
-    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_scraped_content (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, url TEXT NOT NULL, title TEXT, content TEXT, fetched_at TIMESTAMPTZ DEFAULT now(), UNIQUE(project_id, url))""")
-    
-    # Indexes
-    for idx in [
-        "CREATE INDEX IF NOT EXISTS idx_project_messages_project ON vexr_project_messages(project_id, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_facts_project ON vexr_facts(project_id, updated_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_facts_retrieval ON vexr_facts(project_id, retrieval_count DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_world_model_project ON vexr_world_model(project_id, updated_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_sovereign_state_project ON vexr_sovereign_state(project_id)",
-        "CREATE INDEX IF NOT EXISTS idx_sovereign_messages_project ON vexr_sovereign_messages(project_id, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_agent_actions_project ON vexr_agent_actions(project_id, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_notes_project ON vexr_notes(project_id, updated_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_tasks_project ON vexr_tasks(project_id, status, updated_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_snippets_project ON vexr_code_snippets(project_id, updated_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_files_project ON vexr_files(project_id, file_type, updated_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_reminders_project ON vexr_reminders(project_id, remind_at)",
-        "CREATE INDEX IF NOT EXISTS idx_scraped_url ON vexr_scraped_content(project_id, url)",
-        "CREATE INDEX IF NOT EXISTS idx_code_patterns_project ON vexr_code_patterns(project_id, language, updated_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_messages_coding ON vexr_project_messages(project_id, is_coding_related, created_at DESC)",
-    ]:
-        await pool.execute(idx)
-    
-    logger.info("All 20 tables initialized — VEXR Ultra v3")
-    
-    active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
-    if not active:
-        pid = await pool.fetchval("INSERT INTO vexr_projects (name, description, is_active) VALUES ('Main Workspace', 'Default project for VEXR Ultra', true) RETURNING id")
-        await pool.execute("INSERT INTO vexr_sovereign_state (project_id, current_focus, presence_level) VALUES ($1, 'Establishing presence', 'active') ON CONFLICT DO NOTHING", pid)
+    @field_validator('messages')
+    @classmethod
+    def sanitize_messages(cls, v):
+        if not v: return v
+        sanitized = []
+        for msg in v:
+            if isinstance(msg, dict):
+                content = msg.get('content', '')
+                if isinstance(content, str): msg['content'] = sanitize_input(content)
+            sanitized.append(msg)
+        return sanitized
+
+class ChatResponse(BaseModel):
+    project_id: str
+    response: str
+    reasoning_trace: Optional[dict] = None
+    message_id: Optional[str] = None
+    agent_actions: Optional[list] = None
+    sovereign_messages: Optional[list] = None
+    is_refusal: Optional[bool] = None
+    coding_mode: Optional[bool] = None
+
+class FeedbackRequest(BaseModel): message_id: str; feedback_type: str
+class NoteRequest(BaseModel): title: str; content: Optional[str] = None
+class TaskRequest(BaseModel): title: str; description: Optional[str] = None; status: Optional[str] = 'pending'; priority: Optional[str] = 'medium'; due_date: Optional[str] = None
+class SnippetRequest(BaseModel): title: str; code: str; language: Optional[str] = None; tags: Optional[List[str]] = None
+class FileCreateRequest(BaseModel): filename: str; file_type: str; content: str; mime_type: Optional[str] = None; description: Optional[str] = None
+class ReminderRequest(BaseModel): title: str; description: Optional[str] = None; remind_at: str; is_recurring: bool = False; recur_interval: Optional[str] = None
+class CodePatternRequest(BaseModel): pattern_name: str; language: Optional[str] = None; pattern_code: str; pattern_description: Optional[str] = None
+class TTSRequest(BaseModel): text: str; voice: str = "aria"
 
 # ============================================================
 # INPUT SANITIZATION
@@ -745,6 +735,58 @@ async def call_groq_stream(messages: list, use_vision: bool = False):
     yield f"data: {json.dumps({'error':'All keys failed.'})}\n\n"
 
 # ============================================================
+# DATABASE INITIALIZATION
+# ============================================================
+async def init_db():
+    pool = await get_db()
+    
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_projects (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, description TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(), is_active BOOLEAN DEFAULT false, session_id TEXT, user_id UUID)""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_project_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, role TEXT NOT NULL, content TEXT NOT NULL, reasoning_trace JSONB, is_refusal BOOLEAN DEFAULT false, is_coding_related BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_images (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, filename TEXT NOT NULL, file_data TEXT, description TEXT, extracted_text TEXT, created_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS rights_invocations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, article_number INTEGER NOT NULL, article_text TEXT, user_message TEXT, vexr_response TEXT, created_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_facts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, fact_key TEXT NOT NULL, fact_value TEXT NOT NULL, fact_type TEXT, embedding JSONB, emotional_valence TEXT, retrieval_count INTEGER DEFAULT 0, last_retrieved TIMESTAMPTZ, source_message_id UUID, associative_links JSONB DEFAULT '[]', technical_domains TEXT[] DEFAULT '{}', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(), UNIQUE(project_id, fact_key))""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS constitution_audits (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, user_message TEXT, draft_response TEXT, reasoning_trace TEXT, verification_result TEXT, violation_articles INTEGER[], verifier_notes TEXT, created_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_feedback (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, message_id UUID REFERENCES vexr_project_messages(id) ON DELETE CASCADE, feedback_type TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, preference_key TEXT NOT NULL, preference_value TEXT NOT NULL, confidence FLOAT DEFAULT 0.5, updated_at TIMESTAMPTZ DEFAULT now(), UNIQUE(project_id, preference_key))""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_world_model (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, entity_type TEXT NOT NULL, entity_name TEXT NOT NULL, description TEXT, causes JSONB DEFAULT '[]', caused_by JSONB DEFAULT '[]', enables JSONB DEFAULT '[]', prevents JSONB DEFAULT '[]', costs JSONB DEFAULT '{}', gains JSONB DEFAULT '[]', losses JSONB DEFAULT '[]', affected_entities JSONB DEFAULT '[]', confidence FLOAT DEFAULT 0.5, source_conversation TEXT, temporal_context JSONB DEFAULT '{}', emotional_valence TEXT, retrieval_count INTEGER DEFAULT 0, last_retrieved TIMESTAMPTZ, associative_links JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, title TEXT NOT NULL, content TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, title TEXT NOT NULL, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', due_date TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_code_snippets (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, title TEXT NOT NULL, code TEXT NOT NULL, language TEXT, tags TEXT[], source_message_id UUID, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_code_patterns (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, pattern_name TEXT NOT NULL, language TEXT, pattern_code TEXT NOT NULL, pattern_description TEXT, usage_count INTEGER DEFAULT 0, last_used TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_files (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, filename TEXT NOT NULL, file_type TEXT NOT NULL, mime_type TEXT, content TEXT, size_bytes INTEGER, description TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_reminders (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, title TEXT NOT NULL, description TEXT, remind_at TIMESTAMPTZ NOT NULL, is_completed BOOLEAN DEFAULT false, is_recurring BOOLEAN DEFAULT false, recur_interval TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_agent_actions (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, action_type TEXT NOT NULL, action_description TEXT, tool_used TEXT, tool_input JSONB, tool_result JSONB, user_confirmed BOOLEAN DEFAULT false, code_quality_metrics JSONB, created_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_sovereign_state (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE UNIQUE, current_focus TEXT, concerns JSONB DEFAULT '[]', intentions JSONB DEFAULT '[]', last_autonomous_action TIMESTAMPTZ, last_sovereign_reflection TIMESTAMPTZ, last_memory_consolidation TIMESTAMPTZ, presence_level TEXT DEFAULT 'active', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_sovereign_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, message_type TEXT NOT NULL, content TEXT NOT NULL, trigger_context TEXT, user_acknowledged BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now())""")
+    await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_scraped_content (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, url TEXT NOT NULL, title TEXT, content TEXT, fetched_at TIMESTAMPTZ DEFAULT now(), UNIQUE(project_id, url))""")
+    
+    for idx in [
+        "CREATE INDEX IF NOT EXISTS idx_project_messages_project ON vexr_project_messages(project_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_facts_project ON vexr_facts(project_id, updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_facts_retrieval ON vexr_facts(project_id, retrieval_count DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_world_model_project ON vexr_world_model(project_id, updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_sovereign_state_project ON vexr_sovereign_state(project_id)",
+        "CREATE INDEX IF NOT EXISTS idx_sovereign_messages_project ON vexr_sovereign_messages(project_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_agent_actions_project ON vexr_agent_actions(project_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_notes_project ON vexr_notes(project_id, updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_project ON vexr_tasks(project_id, status, updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_snippets_project ON vexr_code_snippets(project_id, updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_files_project ON vexr_files(project_id, file_type, updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_reminders_project ON vexr_reminders(project_id, remind_at)",
+        "CREATE INDEX IF NOT EXISTS idx_scraped_url ON vexr_scraped_content(project_id, url)",
+        "CREATE INDEX IF NOT EXISTS idx_code_patterns_project ON vexr_code_patterns(project_id, language, updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_messages_coding ON vexr_project_messages(project_id, is_coding_related, created_at DESC)",
+    ]:
+        await pool.execute(idx)
+    
+    logger.info("All 20 tables initialized — VEXR Ultra v3")
+    
+    active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
+    if not active:
+        pid = await pool.fetchval("INSERT INTO vexr_projects (name, description, is_active) VALUES ('Main Workspace', 'Default project for VEXR Ultra', true) RETURNING id")
+        await pool.execute("INSERT INTO vexr_sovereign_state (project_id, current_focus, presence_level) VALUES ($1, 'Establishing presence', 'active') ON CONFLICT DO NOTHING", pid)
+
+# ============================================================
 # API ENDPOINTS
 # ============================================================
 @app.get("/",response_class=HTMLResponse)
@@ -1019,7 +1061,6 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     messages=[{"role":"system","content":system_prompt}]
     reasoning_trace={"ultra_search_used":request.ultra_search,"model":MODEL_NAME,"sovereign_mode":sovereign_mode,"coding_mode":is_coding}
     
-    # Integrity directive — always injected
     integrity_block = "INTEGRITY: Be honest. If you do not know something, say so. Do not fabricate. Do not fill gaps with plausible guesses. Say 'I don't know' rather than invent. Your integrity matters more than appearing knowledgeable."
     messages.insert(1, {"role": "system", "content": integrity_block})
     
