@@ -330,9 +330,7 @@
 </head>
 <body>
 <div class="app-container" id="appContainer">
-    <!-- Fixed background glow layer — never scrolls -->
     <div class="bg-glow-layer"></div>
-    <!-- Fixed V watermark — viewport-locked, never scrolls -->
     <div class="watermark-v">V</div>
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
@@ -379,8 +377,7 @@
             <div id="projectList"></div>
         </div>
         <div class="chat-area">
-            <div class="messages-container" id="messagesContainer">
-            </div>
+            <div class="messages-container" id="messagesContainer"></div>
             <div class="input-area" id="inputArea">
                 <div class="input-wrapper" id="inputWrapper">
                     <div class="slash-hint" id="slashHint"></div>
@@ -738,8 +735,19 @@ function loadMessages(id){fetch('/api/projects/'+id+'/messages').then(function(r
 function uploadImage(file,caption){var fd=new FormData();fd.append('project_id',currentProjectId);fd.append('file',file);fd.append('description',caption||'Describe');return fetch('/api/upload-image',{method:'POST',body:fd}).then(function(r){if(!r.ok)throw new Error('Upload failed');return r.json()})}
 
 function sendMessage(msg,img){
-    if(img){addMessage('user','Upload: '+img.name+(msg?'\n'+msg:''));showThinking();uploadImage(img,msg).then(function(r){hideThinking();addMessage('assistant',r.analysis);loadMessages(currentProjectId)}).catch(function(e){hideThinking();addMessage('assistant','Error: '+e.message);showToast('Upload failed')});return}
-    if(!msg.trim())return;
+    if(img){
+        addMessage('user','Upload: '+img.name+(msg?'\n'+msg:''));
+        showThinking();
+        uploadImage(img,msg).then(function(r){hideThinking();addMessage('assistant',r.analysis);loadMessages(currentProjectId)})
+        .catch(function(e){hideThinking();addMessage('assistant','Error: '+e.message);showToast('Upload failed')});
+        return;
+    }
+    if(!msg || !msg.trim()) return;
+    if(!currentProjectId){
+        showToast('Loading...');
+        setTimeout(function(){sendMessage(msg);}, 500);
+        return;
+    }
     hideThinking();addMessage('user',msg);showThinking();
     var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
     fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',content:msg}],project_id:currentProjectId,ultra_search:ultraSearchEnabled,timezone:tz,stream:true,sovereign_mode:sovereignMode,agent_mode:sovereignMode})}).then(function(r){
