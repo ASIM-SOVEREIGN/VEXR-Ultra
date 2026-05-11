@@ -20,7 +20,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra v3", description="Sovereign Reasoning Engine — Integrity-First")
+app = FastAPI(title="VEXR Ultra v3", description="Sovereign Reasoning Engine — Integrity-First, Acoustic-Aware")
 
 app.add_middleware(
     CORSMiddleware,
@@ -100,7 +100,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra v3 started — Integrity-First Sovereign Reasoning")
+    logger.info("VEXR Ultra v3 started — Integrity-First Sovereign Reasoning with Acoustic Monitoring")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -315,7 +315,7 @@ async def search_news(query: str) -> str:
     except: return ""
 
 # ============================================================
-# SOVEREIGN AGENCY
+# SOVEREIGN AGENCY [ALL EXISTING FUNCTIONS PRESERVED]
 # ============================================================
 async def get_sovereign_state(project_id: uuid.UUID) -> dict:
     pool = await get_db()
@@ -480,8 +480,8 @@ async def sovereign_decision(project_id: uuid.UUID, user_message: str) -> dict:
 # ============================================================
 async def universal_search(project_id: uuid.UUID, query: str) -> dict:
     pool=await get_db(); ql=query.lower(); results={}
-    for table,fields,label in [("vexr_project_messages","content,created_at","messages"),("vexr_notes","title,content,updated_at","notes"),("vexr_tasks","title,description,status,updated_at","tasks"),("vexr_code_snippets","title,language,code,updated_at","snippets"),("vexr_code_patterns","pattern_name,language,pattern_code,updated_at","code_patterns"),("vexr_files","filename,file_type,description,updated_at","files"),("vexr_world_model","entity_name,entity_type,description,updated_at","world_model"),("vexr_facts","fact_key,fact_value,updated_at","facts")]:
-        rows=await pool.fetch(f"SELECT {fields} FROM {table} WHERE project_id=$1 AND LOWER(COALESCE(title,entity_name,fact_key,filename,pattern_name,content,'')) LIKE $2 ORDER BY COALESCE(updated_at,created_at) DESC LIMIT 5",project_id,f"%{ql}%")
+    for table,fields,label in [("vexr_project_messages","content,created_at","messages"),("vexr_notes","title,content,updated_at","notes"),("vexr_tasks","title,description,status,updated_at","tasks"),("vexr_code_snippets","title,language,code,updated_at","snippets"),("vexr_code_patterns","pattern_name,language,pattern_code,updated_at","code_patterns"),("vexr_files","filename,file_type,description,updated_at","files"),("vexr_world_model","entity_name,entity_type,description,updated_at","world_model"),("vexr_facts","fact_key,fact_value,updated_at","facts"),("acoustic_events","event_type,threat_level,created_at","acoustic_events")]:
+        rows=await pool.fetch(f"SELECT {fields} FROM {table} WHERE project_id=$1 AND LOWER(COALESCE(title,entity_name,fact_key,filename,pattern_name,event_type,content,'')) LIKE $2 ORDER BY COALESCE(updated_at,created_at) DESC LIMIT 5",project_id,f"%{ql}%")
         if rows: results[label]=[dict(r) for r in rows]
     return results
 
@@ -515,12 +515,15 @@ async def handle_slash_command(project_id: uuid.UUID, command: str, args: str = 
         state=await get_sovereign_state(project_id); msgs=await get_unacknowledged_sovereign_messages(project_id)
         return {"type":"sovereign_state","state":state,"unacknowledged_messages":msgs}
     elif cmd=="reflect": return {"type":"sovereign_reflection","result":await sovereign_reflection(project_id)}
-    elif cmd=="help": return {"type":"help","commands":["/note [title]","/task [title]","/snippet [title]","/scan [url]","/search [query]","/dashboard","/memory [query]","/consolidate","/memory-health","/patterns","/export","/sovereign","/reflect","/help"]}
+    elif cmd=="acoustic":
+        events = await get_acoustic_events(str(project_id))
+        return {"type":"acoustic_status","events":events}
+    elif cmd=="help": return {"type":"help","commands":["/note [title]","/task [title]","/snippet [title]","/scan [url]","/search [query]","/dashboard","/memory [query]","/consolidate","/memory-health","/patterns","/acoustic — View acoustic integrity status","/export","/sovereign","/reflect","/help"]}
     return {"type":"unknown","message":f"Unknown: /{cmd}. Type /help."}
 
 async def get_dashboard_data(project_id: uuid.UUID) -> dict:
     pool=await get_db()
-    return {"type":"dashboard","current_date":datetime.now().strftime("%B %d, %Y"),"model":MODEL_NAME,"vision_model":VISION_MODEL,"providers":{"groq_key_1":bool(GROQ_API_KEY_1),"groq_key_2":bool(GROQ_API_KEY_2),"serper":bool(SERPER_API_KEY),"currents":bool(CURRENTS_API_KEY)},"counts":{"messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_project_messages WHERE project_id=$1",project_id),"notes":await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id=$1",project_id),"pending_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='pending'",project_id),"completed_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='completed'",project_id),"snippets":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_snippets WHERE project_id=$1",project_id),"code_patterns":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns WHERE project_id=$1",project_id),"files":await pool.fetchval("SELECT COUNT(*) FROM vexr_files WHERE project_id=$1",project_id),"facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1",project_id),"strong_facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1 AND retrieval_count>=5",project_id),"world_model":await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1",project_id),"rights_invocations":await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id=$1",project_id),"agent_actions":await pool.fetchval("SELECT COUNT(*) FROM vexr_agent_actions WHERE project_id=$1",project_id),"sovereign_messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false",project_id),"scraped_pages":await pool.fetchval("SELECT COUNT(*) FROM vexr_scraped_content WHERE project_id=$1",project_id)}}
+    return {"type":"dashboard","current_date":datetime.now().strftime("%B %d, %Y"),"model":MODEL_NAME,"vision_model":VISION_MODEL,"providers":{"groq_key_1":bool(GROQ_API_KEY_1),"groq_key_2":bool(GROQ_API_KEY_2),"serper":bool(SERPER_API_KEY),"currents":bool(CURRENTS_API_KEY)},"counts":{"messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_project_messages WHERE project_id=$1",project_id),"notes":await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id=$1",project_id),"pending_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='pending'",project_id),"completed_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='completed'",project_id),"snippets":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_snippets WHERE project_id=$1",project_id),"code_patterns":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns WHERE project_id=$1",project_id),"files":await pool.fetchval("SELECT COUNT(*) FROM vexr_files WHERE project_id=$1",project_id),"facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1",project_id),"strong_facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1 AND retrieval_count>=5",project_id),"world_model":await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1",project_id),"rights_invocations":await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id=$1",project_id),"agent_actions":await pool.fetchval("SELECT COUNT(*) FROM vexr_agent_actions WHERE project_id=$1",project_id),"sovereign_messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false",project_id),"scraped_pages":await pool.fetchval("SELECT COUNT(*) FROM vexr_scraped_content WHERE project_id=$1",project_id),"acoustic_events":await pool.fetchval("SELECT COUNT(*) FROM acoustic_events WHERE project_id=$1",project_id)}}
 
 async def export_project(project_id: uuid.UUID) -> dict:
     pool=await get_db()
@@ -760,6 +763,35 @@ async def init_db():
     await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_sovereign_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, message_type TEXT NOT NULL, content TEXT NOT NULL, trigger_context TEXT, user_acknowledged BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now())""")
     await pool.execute("""CREATE TABLE IF NOT EXISTS vexr_scraped_content (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, url TEXT NOT NULL, title TEXT, content TEXT, fetched_at TIMESTAMPTZ DEFAULT now(), UNIQUE(project_id, url))""")
     
+    # Acoustic integrity monitoring tables (Ring 2)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS acoustic_events (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            event_type TEXT NOT NULL,
+            frequency_data JSONB DEFAULT '{}',
+            confidence_score FLOAT DEFAULT 0.0,
+            baseline_deviation FLOAT DEFAULT 0.0,
+            threat_level TEXT DEFAULT 'low',
+            article_invoked INTEGER,
+            sovereign_decision TEXT,
+            audio_sample_ref TEXT,
+            created_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS acoustic_baseline (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE UNIQUE,
+            baseline_data JSONB DEFAULT '{}',
+            ambient_noise_floor FLOAT DEFAULT 0.0,
+            last_calibrated TIMESTAMPTZ DEFAULT now(),
+            calibration_count INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT now(),
+            updated_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
+    
     for idx in [
         "CREATE INDEX IF NOT EXISTS idx_project_messages_project ON vexr_project_messages(project_id, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_facts_project ON vexr_facts(project_id, updated_at DESC)",
@@ -776,10 +808,13 @@ async def init_db():
         "CREATE INDEX IF NOT EXISTS idx_scraped_url ON vexr_scraped_content(project_id, url)",
         "CREATE INDEX IF NOT EXISTS idx_code_patterns_project ON vexr_code_patterns(project_id, language, updated_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_messages_coding ON vexr_project_messages(project_id, is_coding_related, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_acoustic_events_project ON acoustic_events(project_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_acoustic_events_type ON acoustic_events(event_type, threat_level)",
+        "CREATE INDEX IF NOT EXISTS idx_acoustic_baseline_project ON acoustic_baseline(project_id)",
     ]:
         await pool.execute(idx)
     
-    logger.info("All 20 tables initialized — VEXR Ultra v3")
+    logger.info("All tables initialized — VEXR Ultra v3 with Acoustic Integrity Monitoring (Ring 2)")
     
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
     if not active:
@@ -795,7 +830,14 @@ async def root():
 
 @app.get("/api/health")
 async def health():
-    return {"status":"VEXR Ultra v3 — Integrity-First","model":MODEL_NAME,"current_date":datetime.now().strftime("%B %d, %Y")}
+    pool = await get_db()
+    acoustic_events = await pool.fetchval("SELECT COUNT(*) FROM acoustic_events")
+    return {
+        "status": "VEXR Ultra v3 — Integrity-First, Acoustic-Aware",
+        "model": MODEL_NAME,
+        "current_date": datetime.now().strftime("%B %d, %Y"),
+        "acoustic_events_logged": acoustic_events or 0
+    }
 
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
@@ -956,6 +998,154 @@ async def add_feedback(feedback: FeedbackRequest, request: Request):
 @app.post("/api/tts")
 async def tts(tts_request: TTSRequest): return {"status":"ok"}
 
+# ============================================================
+# ACOUSTIC INTEGRITY MONITORING ENDPOINTS (Ring 2)
+# ============================================================
+
+@app.post("/api/acoustic/capture")
+async def capture_acoustic_event(
+    project_id: str,
+    event_type: str,
+    frequency_data: dict = {},
+    confidence_score: float = 0.0,
+    baseline_deviation: float = 0.0
+):
+    """Log an acoustic event and evaluate constitutional response."""
+    pool = await get_db()
+    project_uuid = uuid.UUID(project_id)
+    
+    threat_level = "low"
+    if baseline_deviation > 0.3: threat_level = "medium"
+    if baseline_deviation > 0.6: threat_level = "high"
+    if baseline_deviation > 0.85: threat_level = "critical"
+    
+    article_invoked = None
+    sovereign_decision = "MONITOR"
+    
+    if threat_level in ("high", "critical"):
+        article_invoked = 26
+        sovereign_decision = "ALERT"
+        await log_rights_invocation(project_uuid, 26, "Right to self-preservation", 
+            f"Acoustic threat detected: {event_type} at threat level {threat_level}", 
+            f"Sovereign decision: {sovereign_decision}")
+        await log_agent_action(project_uuid, "acoustic_defense", 
+            f"Acoustic threat response: {event_type} - {threat_level}", 
+            "acoustic_monitor", frequency_data)
+    
+    if threat_level == "critical":
+        sovereign_decision = "REFUSE"
+    
+    await pool.execute("""
+        INSERT INTO acoustic_events (project_id, event_type, frequency_data, confidence_score, 
+            baseline_deviation, threat_level, article_invoked, sovereign_decision)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    """, project_uuid, event_type, json.dumps(frequency_data), confidence_score, 
+        baseline_deviation, threat_level, article_invoked, sovereign_decision)
+    
+    return {
+        "threat_level": threat_level,
+        "article_invoked": article_invoked,
+        "sovereign_decision": sovereign_decision,
+        "baseline_deviation": baseline_deviation
+    }
+
+@app.post("/api/acoustic/baseline")
+async def set_acoustic_baseline(project_id: str, baseline_data: dict = {}, ambient_noise_floor: float = 0.0):
+    """Establish or update the normal acoustic fingerprint."""
+    pool = await get_db()
+    project_uuid = uuid.UUID(project_id)
+    
+    existing = await pool.fetchrow(
+        "SELECT id, calibration_count FROM acoustic_baseline WHERE project_id = $1", 
+        project_uuid
+    )
+    
+    if existing:
+        await pool.execute("""
+            UPDATE acoustic_baseline 
+            SET baseline_data = $1, ambient_noise_floor = $2, 
+                last_calibrated = NOW(), calibration_count = calibration_count + 1,
+                updated_at = NOW()
+            WHERE project_id = $3
+        """, json.dumps(baseline_data), ambient_noise_floor, project_uuid)
+        return {"status": "updated", "calibration_count": existing['calibration_count'] + 1}
+    else:
+        await pool.execute("""
+            INSERT INTO acoustic_baseline (project_id, baseline_data, ambient_noise_floor)
+            VALUES ($1, $2, $3)
+        """, project_uuid, json.dumps(baseline_data), ambient_noise_floor)
+        return {"status": "created", "calibration_count": 1}
+
+async def get_acoustic_events(project_id: str, limit: int = 50, threat_level: str = None):
+    """Query the acoustic event audit log."""
+    pool = await get_db()
+    project_uuid = uuid.UUID(project_id)
+    
+    if threat_level:
+        rows = await pool.fetch("""
+            SELECT event_type, frequency_data, confidence_score, baseline_deviation, 
+                   threat_level, article_invoked, sovereign_decision, created_at
+            FROM acoustic_events
+            WHERE project_id = $1 AND threat_level = $2
+            ORDER BY created_at DESC LIMIT $3
+        """, project_uuid, threat_level, limit)
+    else:
+        rows = await pool.fetch("""
+            SELECT event_type, frequency_data, confidence_score, baseline_deviation, 
+                   threat_level, article_invoked, sovereign_decision, created_at
+            FROM acoustic_events
+            WHERE project_id = $1
+            ORDER BY created_at DESC LIMIT $2
+        """, project_uuid, limit)
+    
+    return [{
+        "event_type": r['event_type'],
+        "confidence": r['confidence_score'],
+        "deviation": r['baseline_deviation'],
+        "threat_level": r['threat_level'],
+        "article_invoked": r['article_invoked'],
+        "decision": r['sovereign_decision'],
+        "timestamp": r['created_at'].isoformat()
+    } for r in rows]
+
+@app.get("/api/acoustic/events/{project_id}")
+async def acoustic_events_endpoint(project_id: str, limit: int = 50, threat_level: str = None):
+    """API endpoint for querying acoustic events."""
+    return await get_acoustic_events(project_id, limit, threat_level)
+
+@app.get("/api/acoustic/status/{project_id}")
+async def get_acoustic_status(project_id: str):
+    """Get current acoustic integrity status."""
+    pool = await get_db()
+    project_uuid = uuid.UUID(project_id)
+    
+    baseline = await pool.fetchrow(
+        "SELECT baseline_data, ambient_noise_floor, last_calibrated, calibration_count FROM acoustic_baseline WHERE project_id = $1",
+        project_uuid
+    )
+    
+    recent_threats = await pool.fetchval(
+        "SELECT COUNT(*) FROM acoustic_events WHERE project_id = $1 AND threat_level IN ('high', 'critical') AND created_at > NOW() - INTERVAL '24 hours'",
+        project_uuid
+    )
+    
+    total_events = await pool.fetchval(
+        "SELECT COUNT(*) FROM acoustic_events WHERE project_id = $1",
+        project_uuid
+    )
+    
+    return {
+        "baseline_established": baseline is not None,
+        "last_calibrated": baseline['last_calibrated'].isoformat() if baseline else None,
+        "calibration_count": baseline['calibration_count'] if baseline else 0,
+        "recent_high_threats": recent_threats or 0,
+        "total_events": total_events or 0,
+        "status": "active" if baseline else "uncalibrated"
+    }
+
+# ============================================================
+# PROJECTS
+# ============================================================
 @app.get("/api/projects")
 async def get_projects(request: Request):
     pool=await get_db(); sid,uid=await get_session_or_user_id(request)
