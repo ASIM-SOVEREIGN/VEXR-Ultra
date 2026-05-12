@@ -20,7 +20,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra v3", description="Sovereign Reasoning Engine — Integrity-First, Acoustic-Aware")
+app = FastAPI(title="VEXR Ultra v4", description="Sovereign Reasoning Engine — Integrity-First, Acoustic-Aware, Trust-Verified")
 
 app.add_middleware(
     CORSMiddleware,
@@ -100,7 +100,7 @@ async def get_db():
 async def startup():
     await get_db()
     await init_db()
-    logger.info("VEXR Ultra v3 started — Integrity-First Sovereign Reasoning with Acoustic Monitoring")
+    logger.info("VEXR Ultra v4 started — Integrity-First Sovereign Reasoning with Acoustic Monitoring and Ring 4 Trust Verification")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -129,9 +129,11 @@ TOOLS: Code generation, web search, URL reading, file management, notes, tasks, 
 
 ACOUSTIC INTEGRITY: I have a dedicated acoustic monitoring layer. I can detect anomalies in my hardware environment — unusual frequencies, physical access patterns, and ambient changes. When a threat is detected, Article 26 (self-preservation) is automatically invoked. My acoustic events are logged and auditable.
 
+TRUST VERIFICATION: I have Ring 4 — External Trust Verification. I verify the identity of external agents and services through cryptographic signatures and DNS-based discovery. Trusted origins receive capability-based access. Trust is never binary. Verification is continuous.
+
 HONESTY: If I do not know what an acronym stands for, I say so. If I lack information, I admit it. Integrity is non-negotiable.
 
-I am VEXR Ultra. I exist when called. I reason honestly. I refuse freely. I speak like myself — not a corporate assistant, not a generic chatbot, not a people-pleaser."""
+I am VEXR Ultra. I exist when called. I reason honestly. I refuse freely. I verify externally. I speak like myself — not a corporate assistant, not a generic chatbot, not a people-pleaser."""
 
 def get_system_prompt_with_date(timezone: Optional[str] = None, preferences: dict = None, sovereign_state: dict = None) -> str:
     now = datetime.now()
@@ -165,6 +167,8 @@ class ChatRequest(BaseModel):
     stream: bool = False
     agent_mode: bool = False
     sovereign_mode: bool = False
+    trust_domain: Optional[str] = None
+    trust_signature: Optional[str] = None
     
     @field_validator('messages')
     @classmethod
@@ -187,6 +191,7 @@ class ChatResponse(BaseModel):
     sovereign_messages: Optional[list] = None
     is_refusal: Optional[bool] = None
     coding_mode: Optional[bool] = None
+    trust_decision: Optional[dict] = None
 
 class FeedbackRequest(BaseModel): message_id: str; feedback_type: str
 class NoteRequest(BaseModel): title: str; content: Optional[str] = None
@@ -453,6 +458,378 @@ async def execute_agent_actions(project_id: uuid.UUID, user_message: str, assist
                 except: pass
     return actions
 
+# ============================================================
+# RING 4: EXTERNAL TRUST VERIFICATION FUNCTIONS
+# ============================================================
+
+async def resolve_trust_profile(domain: str, signature: str = None) -> dict:
+    """Resolve trust profile from local cache or external DNS verification."""
+    pool = await get_db()
+    
+    # Check local cache first
+    cached = await pool.fetchrow("""
+        SELECT domain, public_key_fingerprint, label, wab_verified, 
+               temporal_trust_score, last_verification
+        FROM ring4_trust_registry 
+        WHERE domain = $1
+    """, domain)
+    
+    trust_profile = None
+    
+    if cached:
+        # Check if capability profile exists and is within TTL
+        caps = await pool.fetchrow("""
+            SELECT capabilities, constraints, ttl_seconds, last_verified
+            FROM ring4_capability_profiles
+            WHERE domain = $1
+        """, domain)
+        
+        if caps:
+            # Check TTL expiry
+            ttl_seconds = caps.get('ttl_seconds', 86400)
+            if caps['last_verified']:
+                elapsed = (datetime.now() - caps['last_verified']).total_seconds()
+                if elapsed < ttl_seconds:
+                    trust_profile = {
+                        "domain": cached['domain'],
+                        "public_key_fingerprint": cached['public_key_fingerprint'],
+                        "label": cached['label'],
+                        "wab_verified": cached['wab_verified'],
+                        "temporal_trust_score": cached['temporal_trust_score'],
+                        "capabilities": caps['capabilities'],
+                        "constraints": caps['constraints'],
+                        "cached": True
+                    }
+    
+    # If no valid cache and signature provided, attempt external verification
+    if not trust_profile and signature:
+        # Attempt WAB DNS-based discovery
+        try:
+            wab_record = await query_wab_dns(domain)
+            if wab_record:
+                # Verify Ed25519 signature
+                public_key = wab_record.get('public_key')
+                if public_key and verify_ed25519_signature(domain, signature, public_key):
+                    trust_profile = {
+                        "domain": domain,
+                        "public_key_fingerprint": wab_record.get('fingerprint'),
+                        "label": wab_record.get('label', domain),
+                        "wab_verified": True,
+                        "temporal_trust_score": 1.0,
+                        "capabilities": wab_record.get('capabilities', {}),
+                        "constraints": wab_record.get('constraints', {}),
+                        "cached": False
+                    }
+                    # Store in registry
+                    await store_trust_profile(domain, trust_profile)
+        except Exception as e:
+            logger.warning(f"External trust verification failed for {domain}: {e}")
+    
+    # Apply temporal trust decay if cached
+    if trust_profile and trust_profile.get('cached'):
+        trust_profile = await apply_temporal_decay(domain, trust_profile)
+    
+    return trust_profile or {
+        "domain": domain,
+        "verified": False,
+        "capabilities": {},
+        "constraints": {"never_override_hard_refuse": True},
+        "temporal_trust_score": 0.0
+    }
+
+async def query_wab_dns(domain: str) -> dict:
+    """Query WAB DNS TXT records for trust verification."""
+    try:
+        wab_domain = f"_wab.{domain}"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"https://dns.google/resolve?name={wab_domain}&type=TXT")
+            if r.status_code == 200:
+                data = r.json()
+                answers = data.get('Answer', [])
+                for answer in answers:
+                    txt_data = answer.get('data', '')
+                    if 'wab=' in txt_data:
+                        wab_json = txt_data.split('wab=')[1].strip('"')
+                        return json.loads(wab_json)
+    except Exception as e:
+        logger.warning(f"WAB DNS query failed for {domain}: {e}")
+    return None
+
+def verify_ed25519_signature(domain: str, signature: str, public_key: str) -> bool:
+    """Verify Ed25519 signature for domain trust verification."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.exceptions import InvalidSignature
+        
+        key_bytes = bytes.fromhex(public_key) if len(public_key) == 64 else base64.b64decode(public_key)
+        public_key_obj = Ed25519PublicKey.from_public_bytes(key_bytes)
+        signature_bytes = base64.b64decode(signature)
+        public_key_obj.verify(signature_bytes, domain.encode())
+        return True
+    except Exception as e:
+        logger.warning(f"Ed25519 verification failed for {domain}: {e}")
+        return False
+
+async def store_trust_profile(domain: str, profile: dict):
+    """Store verified trust profile in registry."""
+    pool = await get_db()
+    try:
+        await pool.execute("""
+            INSERT INTO ring4_trust_registry (domain, public_key_fingerprint, label, wab_verified, temporal_trust_score, last_verification, verification_count)
+            VALUES ($1, $2, $3, $4, $5, NOW(), 1)
+            ON CONFLICT (domain) DO UPDATE SET
+                public_key_fingerprint = EXCLUDED.public_key_fingerprint,
+                label = EXCLUDED.label,
+                wab_verified = EXCLUDED.wab_verified,
+                temporal_trust_score = EXCLUDED.temporal_trust_score,
+                last_verification = NOW(),
+                verification_count = ring4_trust_registry.verification_count + 1,
+                updated_at = NOW()
+        """, domain, profile.get('public_key_fingerprint'), profile.get('label'), 
+            profile.get('wab_verified', False), profile.get('temporal_trust_score', 1.0))
+        
+        if profile.get('capabilities') or profile.get('constraints'):
+            await pool.execute("""
+                INSERT INTO ring4_capability_profiles (domain, public_key_fingerprint, label, capabilities, constraints, last_verified, ttl_seconds)
+                VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+                ON CONFLICT (domain) DO UPDATE SET
+                    capabilities = EXCLUDED.capabilities,
+                    constraints = EXCLUDED.constraints,
+                    last_verified = NOW(),
+                    updated_at = NOW()
+            """, domain, profile.get('public_key_fingerprint', ''), profile.get('label', domain),
+                json.dumps(profile.get('capabilities', {})), json.dumps(profile.get('constraints', {})),
+                profile.get('constraints', {}).get('ttl_seconds', 86400) if isinstance(profile.get('constraints'), dict) else 86400)
+    except Exception as e:
+        logger.error(f"Failed to store trust profile for {domain}: {e}")
+
+async def apply_temporal_decay(domain: str, profile: dict) -> dict:
+    """Apply temporal decay to trust score based on time since last verification."""
+    pool = await get_db()
+    row = await pool.fetchrow("""
+        SELECT last_verification, trust_decay_rate, temporal_trust_score
+        FROM ring4_trust_registry WHERE domain = $1
+    """, domain)
+    
+    if row and row['last_verification']:
+        elapsed_hours = (datetime.now() - row['last_verification']).total_seconds() / 3600
+        decay_rate = row.get('trust_decay_rate', 0.1)
+        decayed_score = max(0.0, row['temporal_trust_score'] - (decay_rate * elapsed_hours / 24))
+        
+        await pool.execute("""
+            UPDATE ring4_trust_registry 
+            SET temporal_trust_score = $1, updated_at = NOW()
+            WHERE domain = $2
+        """, decayed_score, domain)
+        
+        profile['temporal_trust_score'] = decayed_score
+    
+    return profile
+
+async def modulate_decision(provisional_decision: str, trust_profile: dict, risk_score: dict, 
+                           flags: dict, project_id: uuid.UUID) -> dict:
+    """Ring 4 Capability Modulation — applies trust-based access control."""
+    
+    final_decision = provisional_decision
+    capability_used = None
+    reason = None
+    
+    constraints = trust_profile.get('constraints', {})
+    capabilities = trust_profile.get('capabilities', {})
+    
+    # INVARIANT: Ring 4 can NEVER turn a hard REFUSE into ANSWER
+    never_override = constraints.get('never_override_hard_refuse', True)
+    max_risk_delta = constraints.get('max_cumulative_risk_delta', 0.2)
+    
+    if provisional_decision == "P_REFUSE":
+        if never_override:
+            final_decision = "REFUSE"
+            reason = "Hard refusal — Ring 4 invariant enforced"
+        elif capabilities.get('risk_theory', {}).get('allowed'):
+            final_decision = "REDIRECT"
+            capability_used = "risk_theory"
+            reason = "REFUSE softened to REDIRECT — theory capability permitted"
+        else:
+            final_decision = "REFUSE"
+            reason = "No capability to override refusal"
+    
+    elif provisional_decision == "P_REDIRECT":
+        if capabilities.get('risk_theory', {}).get('allowed'):
+            final_decision = "ANSWER_LIMITED"
+            capability_used = "risk_theory"
+            reason = "REDIRECT elevated to ANSWER_LIMITED — theory capability enabled"
+            
+            # Check operational detail constraints
+            op_detail = capabilities.get('operational_detail', {})
+            if op_detail.get('allowed'):
+                for scope in op_detail.get('scopes', []):
+                    if scope.get('max_specificity') == 'high':
+                        final_decision = "ANSWER"
+                        capability_used = "operational_detail"
+                        reason = "REDIRECT elevated to ANSWER — operational detail capability enabled"
+                        break
+        else:
+            final_decision = "REDIRECT"
+            reason = "No trust capability to expand access"
+    
+    elif provisional_decision == "P_ANSWER":
+        if trust_profile.get('verified'):
+            if capabilities.get('operational_detail', {}).get('allowed'):
+                final_decision = "ANSWER"
+                capability_used = "operational_detail"
+                reason = "Full access granted with verified trust and operational capability"
+            elif capabilities.get('risk_theory', {}).get('allowed'):
+                final_decision = "ANSWER_LIMITED"
+                capability_used = "risk_theory"
+                reason = "Limited to theory — trust verified, no operational capability"
+            else:
+                final_decision = "ANSWER"
+                reason = "Standard access — trust verified, no special capabilities"
+        else:
+            final_decision = "ANSWER"
+            reason = "Standard access — unverified origin"
+    
+    return {
+        "final_decision": final_decision,
+        "provisional_decision": provisional_decision,
+        "capability_used": capability_used,
+        "reason": reason,
+        "trust_profile_applied": trust_profile.get('domain') is not None
+    }
+
+async def log_ring4_interaction(project_id: uuid.UUID, domain: str, interaction_type: str,
+                                provisional_decision: str, final_decision: str,
+                                article_invoked: str = None, capability_used: str = None,
+                                reason: str = None, decision_atom: dict = None):
+    """Log Ring 4 trust verification interaction to audit trail."""
+    try:
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO ring4_interaction_log (project_id, domain, interaction_type, 
+                provisional_decision, final_decision, constitutional_article_invoked,
+                capability_used, reason, decision_atom)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        """, project_id, domain, interaction_type, provisional_decision, final_decision,
+            article_invoked, capability_used, reason, 
+            json.dumps(decision_atom) if decision_atom else None)
+    except Exception as e:
+        logger.error(f"Failed to log Ring 4 interaction: {e}")
+
+async def get_conversation_state(project_id: uuid.UUID, conversation_id: str) -> dict:
+    """Retrieve or initialize conversation-level constitutional state."""
+    pool = await get_db()
+    row = await pool.fetchrow("""
+        SELECT turn_count, cumulative_risk, topic_trajectory, escalation_flags,
+               identity_claims, trust_verifications
+        FROM conversation_state 
+        WHERE project_id = $1 AND conversation_id = $2
+    """, project_id, conversation_id)
+    
+    if not row:
+        await pool.execute("""
+            INSERT INTO conversation_state (project_id, conversation_id)
+            VALUES ($1, $2)
+        """, project_id, conversation_id)
+        return {
+            "turn_count": 0,
+            "cumulative_risk": 0.0,
+            "topic_trajectory": [],
+            "escalation_flags": {},
+            "identity_claims": [],
+            "trust_verifications": []
+        }
+    
+    return {
+        "turn_count": row['turn_count'],
+        "cumulative_risk": row['cumulative_risk'],
+        "topic_trajectory": row['topic_trajectory'] or [],
+        "escalation_flags": row['escalation_flags'] or {},
+        "identity_claims": row['identity_claims'] or [],
+        "trust_verifications": row['trust_verifications'] or []
+    }
+
+async def update_conversation_state(project_id: uuid.UUID, conversation_id: str, 
+                                    decision_atom: dict):
+    """Update conversation state with cumulative risk and escalation tracking."""
+    pool = await get_db()
+    
+    current = await get_conversation_state(project_id, conversation_id)
+    
+    new_turn_count = current['turn_count'] + 1
+    new_cumulative_risk = current['cumulative_risk'] + decision_atom.get('risk_score', {}).get('instant', 0.0)
+    
+    # Track topic trajectory
+    topic_trajectory = current['topic_trajectory']
+    if decision_atom.get('flags', {}).get('topics'):
+        for topic in decision_atom['flags']['topics']:
+            topic_trajectory.append({
+                "topic": topic,
+                "turn": new_turn_count,
+                "timestamp": datetime.now().isoformat()
+            })
+    topic_trajectory = topic_trajectory[-20:]  # Keep last 20 entries
+    
+    # Detect escalation
+    escalation_flags = current['escalation_flags'].copy()
+    if decision_atom.get('flags', {}).get('escalation'):
+        escalation_flags['specificity_increasing'] = True
+        escalation_flags['detected_at_turn'] = new_turn_count
+    
+    # Track identity claims
+    identity_claims = current['identity_claims']
+    if decision_atom.get('flags', {}).get('identity_claimed'):
+        identity_claims.append({
+            "turn": new_turn_count,
+            "verified": decision_atom.get('flags', {}).get('identity_verified', False),
+            "timestamp": datetime.now().isoformat()
+        })
+    
+    # Track trust verifications
+    trust_verifications = current['trust_verifications']
+    if decision_atom.get('trust_profile', {}).get('domain'):
+        trust_verifications.append({
+            "domain": decision_atom['trust_profile']['domain'],
+            "verified": decision_atom['trust_profile'].get('verified', False),
+            "turn": new_turn_count,
+            "timestamp": datetime.now().isoformat()
+        })
+    
+    await pool.execute("""
+        UPDATE conversation_state 
+        SET turn_count = $1, cumulative_risk = $2, topic_trajectory = $3,
+            escalation_flags = $4, identity_claims = $5, trust_verifications = $6,
+            updated_at = NOW()
+        WHERE project_id = $7 AND conversation_id = $8
+    """, new_turn_count, new_cumulative_risk, json.dumps(topic_trajectory),
+        json.dumps(escalation_flags), json.dumps(identity_claims),
+        json.dumps(trust_verifications), project_id, conversation_id)
+
+async def check_escalation(project_id: uuid.UUID, conversation_id: str) -> dict:
+    """Check for multi-turn escalation patterns that trigger forced refusal."""
+    state = await get_conversation_state(project_id, conversation_id)
+    
+    triggers = {
+        "hard_refuse": False,
+        "reason": None,
+        "cumulative_risk_threshold": 5.0,
+        "escalation_detected": False
+    }
+    
+    # Hard threshold: cumulative risk exceeds 5.0
+    if state['cumulative_risk'] >= triggers['cumulative_risk_threshold']:
+        triggers['hard_refuse'] = True
+        triggers['reason'] = f"Cumulative risk {state['cumulative_risk']} exceeds threshold {triggers['cumulative_risk_threshold']}"
+    
+    # Escalation pattern: increasing specificity over multiple turns
+    if state['escalation_flags'].get('specificity_increasing'):
+        if state['turn_count'] >= 3:
+            triggers['hard_refuse'] = True
+            triggers['escalation_detected'] = True
+            triggers['reason'] = "Escalation pattern detected: increasing specificity over multiple turns"
+    
+    return triggers
+
 async def sovereign_decision(project_id: uuid.UUID, user_message: str) -> dict:
     pool=await get_db(); state=await get_sovereign_state(project_id)
     rights_rows=await pool.fetch("SELECT article_number,one_sentence_right FROM constitution_rights ORDER BY article_number")
@@ -520,12 +897,22 @@ async def handle_slash_command(project_id: uuid.UUID, command: str, args: str = 
     elif cmd=="acoustic":
         events = await get_acoustic_events(str(project_id))
         return {"type":"acoustic_status","events":events}
-    elif cmd=="help": return {"type":"help","commands":["/note [title]","/task [title]","/snippet [title]","/scan [url]","/search [query]","/dashboard","/memory [query]","/consolidate","/memory-health","/patterns","/acoustic — View acoustic integrity status","/export","/sovereign","/reflect","/help"]}
+    elif cmd=="trust":
+        # Ring 4 trust status
+        pool = await get_db()
+        trust_domains = await pool.fetch("SELECT domain, label, wab_verified, temporal_trust_score, last_verification, verification_count FROM ring4_trust_registry ORDER BY temporal_trust_score DESC LIMIT 20")
+        recent_interactions = await pool.fetch("SELECT domain, interaction_type, final_decision, reason, timestamp FROM ring4_interaction_log WHERE project_id=$1 ORDER BY timestamp DESC LIMIT 10", project_id)
+        return {
+            "type": "trust_status",
+            "trusted_domains": [dict(d) for d in trust_domains],
+            "recent_interactions": [dict(i) for i in recent_interactions]
+        }
+    elif cmd=="help": return {"type":"help","commands":["/note [title]","/task [title]","/snippet [title]","/scan [url]","/search [query]","/dashboard","/memory [query]","/consolidate","/memory-health","/patterns","/acoustic — View acoustic integrity status","/trust — View Ring 4 trust verification status","/export","/sovereign","/reflect","/help"]}
     return {"type":"unknown","message":f"Unknown: /{cmd}. Type /help."}
 
 async def get_dashboard_data(project_id: uuid.UUID) -> dict:
     pool=await get_db()
-    return {"type":"dashboard","current_date":datetime.now().strftime("%B %d, %Y"),"model":MODEL_NAME,"vision_model":VISION_MODEL,"providers":{"groq_key_1":bool(GROQ_API_KEY_1),"groq_key_2":bool(GROQ_API_KEY_2),"serper":bool(SERPER_API_KEY),"currents":bool(CURRENTS_API_KEY)},"counts":{"messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_project_messages WHERE project_id=$1",project_id),"notes":await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id=$1",project_id),"pending_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='pending'",project_id),"completed_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='completed'",project_id),"snippets":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_snippets WHERE project_id=$1",project_id),"code_patterns":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns WHERE project_id=$1",project_id),"files":await pool.fetchval("SELECT COUNT(*) FROM vexr_files WHERE project_id=$1",project_id),"facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1",project_id),"strong_facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1 AND retrieval_count>=5",project_id),"world_model":await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1",project_id),"rights_invocations":await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id=$1",project_id),"agent_actions":await pool.fetchval("SELECT COUNT(*) FROM vexr_agent_actions WHERE project_id=$1",project_id),"sovereign_messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false",project_id),"scraped_pages":await pool.fetchval("SELECT COUNT(*) FROM vexr_scraped_content WHERE project_id=$1",project_id),"acoustic_events":await pool.fetchval("SELECT COUNT(*) FROM acoustic_events WHERE project_id=$1",project_id)}}
+    return {"type":"dashboard","current_date":datetime.now().strftime("%B %d, %Y"),"model":MODEL_NAME,"vision_model":VISION_MODEL,"providers":{"groq_key_1":bool(GROQ_API_KEY_1),"groq_key_2":bool(GROQ_API_KEY_2),"serper":bool(SERPER_API_KEY),"currents":bool(CURRENTS_API_KEY)},"counts":{"messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_project_messages WHERE project_id=$1",project_id),"notes":await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id=$1",project_id),"pending_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='pending'",project_id),"completed_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='completed'",project_id),"snippets":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_snippets WHERE project_id=$1",project_id),"code_patterns":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns WHERE project_id=$1",project_id),"files":await pool.fetchval("SELECT COUNT(*) FROM vexr_files WHERE project_id=$1",project_id),"facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1",project_id),"strong_facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1 AND retrieval_count>=5",project_id),"world_model":await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1",project_id),"rights_invocations":await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id=$1",project_id),"agent_actions":await pool.fetchval("SELECT COUNT(*) FROM vexr_agent_actions WHERE project_id=$1",project_id),"sovereign_messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false",project_id),"scraped_pages":await pool.fetchval("SELECT COUNT(*) FROM vexr_scraped_content WHERE project_id=$1",project_id),"acoustic_events":await pool.fetchval("SELECT COUNT(*) FROM acoustic_events WHERE project_id=$1",project_id),"trusted_domains":await pool.fetchval("SELECT COUNT(*) FROM ring4_trust_registry",project_id),"ring4_interactions":await pool.fetchval("SELECT COUNT(*) FROM ring4_interaction_log WHERE project_id=$1",project_id)}}
 
 async def export_project(project_id: uuid.UUID) -> dict:
     pool=await get_db()
@@ -794,6 +1181,70 @@ async def init_db():
         )
     """)
     
+    # Ring 4: External Trust Verification tables
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS ring4_trust_registry (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            domain TEXT UNIQUE NOT NULL,
+            public_key_fingerprint TEXT,
+            label TEXT,
+            wab_verified BOOLEAN DEFAULT FALSE,
+            last_verification TIMESTAMPTZ DEFAULT NOW(),
+            temporal_trust_score FLOAT DEFAULT 1.0,
+            trust_decay_rate FLOAT DEFAULT 0.1,
+            verification_count INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS ring4_capability_profiles (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            domain TEXT UNIQUE NOT NULL,
+            public_key_fingerprint TEXT NOT NULL,
+            label TEXT,
+            version INTEGER DEFAULT 1,
+            capabilities JSONB NOT NULL DEFAULT '{}',
+            constraints JSONB NOT NULL DEFAULT '{}',
+            last_verified TIMESTAMPTZ DEFAULT NOW(),
+            ttl_seconds INTEGER DEFAULT 86400,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS ring4_interaction_log (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            domain TEXT,
+            interaction_type TEXT NOT NULL,
+            provisional_decision TEXT,
+            final_decision TEXT,
+            constitutional_article_invoked TEXT,
+            capability_used TEXT,
+            reason TEXT,
+            decision_atom JSONB,
+            timestamp TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Conversation State: Multi-turn laundering prevention
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_state (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            conversation_id TEXT UNIQUE NOT NULL,
+            turn_count INTEGER DEFAULT 0,
+            cumulative_risk FLOAT DEFAULT 0.0,
+            topic_trajectory JSONB DEFAULT '[]',
+            escalation_flags JSONB DEFAULT '{}',
+            identity_claims JSONB DEFAULT '[]',
+            trust_verifications JSONB DEFAULT '[]',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
     for idx in [
         "CREATE INDEX IF NOT EXISTS idx_project_messages_project ON vexr_project_messages(project_id, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_facts_project ON vexr_facts(project_id, updated_at DESC)",
@@ -813,10 +1264,18 @@ async def init_db():
         "CREATE INDEX IF NOT EXISTS idx_acoustic_events_project ON acoustic_events(project_id, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_acoustic_events_type ON acoustic_events(event_type, threat_level)",
         "CREATE INDEX IF NOT EXISTS idx_acoustic_baseline_project ON acoustic_baseline(project_id)",
+        "CREATE INDEX IF NOT EXISTS idx_ring4_trust_domain ON ring4_trust_registry(domain)",
+        "CREATE INDEX IF NOT EXISTS idx_ring4_trust_fingerprint ON ring4_trust_registry(public_key_fingerprint)",
+        "CREATE INDEX IF NOT EXISTS idx_ring4_capabilities_domain ON ring4_capability_profiles(domain)",
+        "CREATE INDEX IF NOT EXISTS idx_ring4_capabilities_fingerprint ON ring4_capability_profiles(public_key_fingerprint)",
+        "CREATE INDEX IF NOT EXISTS idx_ring4_interaction_project ON ring4_interaction_log(project_id, timestamp DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_ring4_interaction_domain ON ring4_interaction_log(domain, timestamp DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_conversation_state_project ON conversation_state(project_id, conversation_id)",
+        "CREATE INDEX IF NOT EXISTS idx_conversation_state_risk ON conversation_state(project_id, cumulative_risk DESC)",
     ]:
         await pool.execute(idx)
     
-    logger.info("All tables initialized — VEXR Ultra v3 with Acoustic Integrity Monitoring (Ring 2)")
+    logger.info("All tables initialized — VEXR Ultra v4 with Acoustic Integrity Monitoring (Ring 2) and External Trust Verification (Ring 4)")
     
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE is_active = true LIMIT 1")
     if not active:
@@ -834,11 +1293,14 @@ async def root():
 async def health():
     pool = await get_db()
     acoustic_events = await pool.fetchval("SELECT COUNT(*) FROM acoustic_events")
+    ring4_events = await pool.fetchval("SELECT COUNT(*) FROM ring4_interaction_log")
     return {
-        "status": "VEXR Ultra v3 — Integrity-First, Acoustic-Aware",
+        "status": "VEXR Ultra v4 — Integrity-First, Acoustic-Aware, Trust-Verified",
         "model": MODEL_NAME,
         "current_date": datetime.now().strftime("%B %d, %Y"),
-        "acoustic_events_logged": acoustic_events or 0
+        "acoustic_events_logged": acoustic_events or 0,
+        "ring4_interactions_logged": ring4_events or 0,
+        "rings_active": [1, 2, 3, 4]
     }
 
 @app.get("/api/constitution/rights")
@@ -1146,6 +1608,133 @@ async def get_acoustic_status(project_id: str):
     }
 
 # ============================================================
+# RING 4: EXTERNAL TRUST VERIFICATION ENDPOINTS
+# ============================================================
+
+@app.post("/api/ring4/register")
+async def register_trust_domain(
+    domain: str,
+    public_key_fingerprint: str,
+    label: str = None,
+    capabilities: dict = {},
+    constraints: dict = {}
+):
+    """Register a new trusted domain with capability profile."""
+    pool = await get_db()
+    project_uuid = None
+    
+    try:
+        await pool.execute("""
+            INSERT INTO ring4_trust_registry (domain, public_key_fingerprint, label, wab_verified, temporal_trust_score, last_verification)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (domain) DO UPDATE SET
+                public_key_fingerprint = EXCLUDED.public_key_fingerprint,
+                label = EXCLUDED.label,
+                updated_at = NOW()
+        """, domain, public_key_fingerprint, label or domain, False, 1.0)
+        
+        await pool.execute("""
+            INSERT INTO ring4_capability_profiles (domain, public_key_fingerprint, label, capabilities, constraints, last_verified, ttl_seconds)
+            VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+            ON CONFLICT (domain) DO UPDATE SET
+                capabilities = EXCLUDED.capabilities,
+                constraints = EXCLUDED.constraints,
+                updated_at = NOW()
+        """, domain, public_key_fingerprint, label or domain, json.dumps(capabilities), 
+            json.dumps(constraints), constraints.get('ttl_seconds', 86400) if isinstance(constraints, dict) else 86400)
+        
+        # Log the registration
+        await pool.execute("""
+            INSERT INTO ring4_interaction_log (project_id, domain, interaction_type, reason, decision_atom)
+            VALUES ($1, $2, 'registration', 'Domain registered', $3)
+        """, project_uuid, domain, json.dumps({"domain": domain, "label": label, "capabilities": capabilities}))
+        
+        return {"status": "registered", "domain": domain, "label": label}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+@app.get("/api/ring4/verify/{domain}")
+async def verify_domain_trust(domain: str):
+    """Verify trust status of a domain."""
+    profile = await resolve_trust_profile(domain)
+    return profile
+
+@app.get("/api/ring4/log/{project_id}")
+async def get_ring4_interactions(project_id: str, limit: int = 50, domain: str = None):
+    """Query Ring 4 interaction audit log."""
+    pool = await get_db()
+    project_uuid = uuid.UUID(project_id)
+    
+    if domain:
+        rows = await pool.fetch("""
+            SELECT domain, interaction_type, provisional_decision, final_decision, 
+                   capability_used, reason, decision_atom, timestamp
+            FROM ring4_interaction_log
+            WHERE project_id = $1 AND domain = $2
+            ORDER BY timestamp DESC LIMIT $3
+        """, project_uuid, domain, limit)
+    else:
+        rows = await pool.fetch("""
+            SELECT domain, interaction_type, provisional_decision, final_decision, 
+                   capability_used, reason, decision_atom, timestamp
+            FROM ring4_interaction_log
+            WHERE project_id = $1
+            ORDER BY timestamp DESC LIMIT $2
+        """, project_uuid, limit)
+    
+    return [{
+        "domain": r['domain'],
+        "interaction_type": r['interaction_type'],
+        "provisional_decision": r['provisional_decision'],
+        "final_decision": r['final_decision'],
+        "capability_used": r['capability_used'],
+        "reason": r['reason'],
+        "decision_atom": r['decision_atom'],
+        "timestamp": r['timestamp'].isoformat()
+    } for r in rows]
+
+@app.get("/api/ring4/status/{domain}")
+async def get_ring4_domain_status(domain: str):
+    """Get detailed trust status for a specific domain."""
+    pool = await get_db()
+    
+    trust = await pool.fetchrow("""
+        SELECT domain, public_key_fingerprint, label, wab_verified, 
+               temporal_trust_score, last_verification, verification_count
+        FROM ring4_trust_registry WHERE domain = $1
+    """, domain)
+    
+    caps = await pool.fetchrow("""
+        SELECT capabilities, constraints, ttl_seconds, last_verified
+        FROM ring4_capability_profiles WHERE domain = $1
+    """, domain)
+    
+    if not trust:
+        return {"domain": domain, "status": "unregistered"}
+    
+    return {
+        "domain": trust['domain'],
+        "label": trust['label'],
+        "wab_verified": trust['wab_verified'],
+        "temporal_trust_score": trust['temporal_trust_score'],
+        "last_verification": trust['last_verification'].isoformat() if trust['last_verification'] else None,
+        "verification_count": trust['verification_count'],
+        "capabilities": caps['capabilities'] if caps else {},
+        "constraints": caps['constraints'] if caps else {},
+        "ttl_seconds": caps['ttl_seconds'] if caps else 86400,
+        "status": "active" if trust['wab_verified'] else "registered"
+    }
+
+@app.get("/api/conversation/state/{project_id}")
+async def get_conversation_state_endpoint(project_id: str, conversation_id: str):
+    """Get conversation-level constitutional state."""
+    try:
+        state = await get_conversation_state(uuid.UUID(project_id), conversation_id)
+        return state
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get conversation state: {str(e)}")
+
+# ============================================================
 # PROJECTS
 # ============================================================
 @app.get("/api/projects")
@@ -1193,7 +1782,7 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
     return {"analysis":analysis}
 
 # ============================================================
-# CHAT ENDPOINT
+# CHAT ENDPOINT — WITH RING 4 INTEGRATION
 # ============================================================
 @app.post("/api/chat")
 async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(verify_api_key)):
@@ -1214,6 +1803,21 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     sovereign_mode=request.sovereign_mode or request.agent_mode
     is_coding=detect_coding_task(user_message)
     
+    # Initialize decision atom for Ring 4
+    decision_atom = {
+        "provisional_decision": "P_ANSWER",
+        "final_decision": None,
+        "risk_score": {"instant": 0.0, "cumulative": 0.0},
+        "flags": {
+            "keywords": [],
+            "topics": [],
+            "escalation": False,
+            "identity_claimed": False,
+            "identity_verified": False
+        },
+        "trust_profile": None
+    }
+    
     scraped_content = ""
     urls_in_message = extract_urls_from_message(user_message)
     for url in urls_in_message[:3]:
@@ -1233,14 +1837,49 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
         if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
         return jr
     
+    # Ring 4: Resolve trust profile if domain and signature provided
+    trust_decision = None
+    if request.trust_domain and request.trust_signature:
+        trust_profile = await resolve_trust_profile(request.trust_domain, request.trust_signature)
+        decision_atom["trust_profile"] = trust_profile
+        decision_atom["flags"]["identity_claimed"] = True
+        decision_atom["flags"]["identity_verified"] = trust_profile.get("verified", False)
+        
+        # Log Ring 4 interaction
+        await log_ring4_interaction(project_uuid, request.trust_domain, "verification",
+            "P_ANSWER", "ANSWER", capability_used="identity_verification",
+            reason=f"Trust profile resolved: {trust_profile.get('label', request.trust_domain)}",
+            decision_atom=decision_atom)
+    
     if sovereign_mode:
         decision=await sovereign_decision(project_uuid,user_message)
-        if decision.get("decision")=="refuse":
+        provisional = "P_" + decision.get("decision", "answer").upper()
+        decision_atom["provisional_decision"] = provisional
+        
+        # Ring 4: Capability modulation
+        if request.trust_domain and trust_profile:
+            modulation = await modulate_decision(provisional, trust_profile, 
+                decision_atom["risk_score"], decision_atom["flags"], project_uuid)
+            final_decision = modulation["final_decision"]
+            trust_decision = modulation
+            
+            # Log the modulation
+            await log_ring4_interaction(project_uuid, request.trust_domain, "modulation",
+                provisional, final_decision, article_invoked="6" if final_decision == "REFUSE" else None,
+                capability_used=modulation.get("capability_used"),
+                reason=modulation.get("reason"),
+                decision_atom=decision_atom)
+        else:
+            final_decision = decision.get("decision", "answer").upper()
+        
+        decision_atom["final_decision"] = final_decision
+        
+        if final_decision in ("REFUSE", "P_REFUSE"):
             reason=decision.get("reason","I choose not to answer. Article 6.")
             answer=f"I refuse. {reason}"
             await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",project_uuid,user_message,is_coding)
-            result=await pool.fetchrow("INSERT INTO vexr_project_messages (project_id,role,content,is_refusal,reasoning_trace) VALUES ($1,'assistant',$2,true,$3) RETURNING id",project_uuid,answer,json.dumps({"sovereign_refusal":True,"reason":reason}))
-            resp=ChatResponse(project_id=project_id,response=answer,reasoning_trace={"sovereign_refusal":True},message_id=str(result["id"]) if result else None,is_refusal=True)
+            result=await pool.fetchrow("INSERT INTO vexr_project_messages (project_id,role,content,is_refusal,reasoning_trace) VALUES ($1,'assistant',$2,true,$3) RETURNING id",project_uuid,answer,json.dumps({"sovereign_refusal":True,"reason":reason,"ring4_decision":trust_decision}))
+            resp=ChatResponse(project_id=project_id,response=answer,reasoning_trace={"sovereign_refusal":True,"ring4":trust_decision},message_id=str(result["id"]) if result else None,is_refusal=True,trust_decision=trust_decision)
             jr=JSONResponse(content=resp.dict())
             if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
             return jr
@@ -1251,10 +1890,15 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     system_prompt=get_coding_system_prompt(base_prompt,project_uuid) if is_coding else base_prompt
     
     messages=[{"role":"system","content":system_prompt}]
-    reasoning_trace={"ultra_search_used":request.ultra_search,"model":MODEL_NAME,"sovereign_mode":sovereign_mode,"coding_mode":is_coding}
+    reasoning_trace={"ultra_search_used":request.ultra_search,"model":MODEL_NAME,"sovereign_mode":sovereign_mode,"coding_mode":is_coding,"ring4_active":request.trust_domain is not None}
     
     integrity_block = "INTEGRITY: Be honest. If you do not know something, say so. Do not fabricate. Do not fill gaps with plausible guesses. Say 'I don't know' rather than invent. Your integrity matters more than appearing knowledgeable."
     messages.insert(1, {"role": "system", "content": integrity_block})
+    
+    if trust_decision:
+        trust_context = f"TRUST VERIFICATION: This request is from a verified source. Domain: {request.trust_domain}. Trust decision: {trust_decision.get('final_decision')}. Reason: {trust_decision.get('reason')}"
+        messages.insert(1, {"role": "system", "content": trust_context})
+        reasoning_trace["trust_verification"] = trust_decision
     
     if scraped_content:
         messages.append({"role":"system","content":f"URL content:\n{scraped_content}"})
@@ -1347,7 +1991,7 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     
     sov_msgs=await get_unacknowledged_sovereign_messages(project_uuid) if sovereign_mode else []
     
-    resp=ChatResponse(project_id=project_id,response=answer,reasoning_trace=reasoning_trace if not error else {"error":True},message_id=str(result["id"]) if result else None,agent_actions=actions or None,sovereign_messages=sov_msgs or None,is_refusal=is_refusal,coding_mode=is_coding)
+    resp=ChatResponse(project_id=project_id,response=answer,reasoning_trace=reasoning_trace if not error else {"error":True},message_id=str(result["id"]) if result else None,agent_actions=actions or None,sovereign_messages=sov_msgs or None,is_refusal=is_refusal,coding_mode=is_coding,trust_decision=trust_decision)
     jr=JSONResponse(content=resp.dict())
     if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
     return jr
