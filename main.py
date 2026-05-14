@@ -1852,7 +1852,7 @@ decision_atom = {
     "trust_profile": None
 }
 
-    scraped_content = ""
+        scraped_content = ""
         urls_in_message = extract_urls_from_message(user_message)
         for url in urls_in_message[:3]:
             try:
