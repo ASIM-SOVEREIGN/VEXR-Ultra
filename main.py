@@ -1852,24 +1852,24 @@ decision_atom = {
     "trust_profile": None
 }
 
-scraped_content = ""
-urls_in_message = extract_urls_from_message(user_message)
-for url in urls_in_message[:3]:
-    try:
-        result = await fetch_url_content(url, project_uuid)
-        if result.get("content") and not result.get("error"):
-            scraped_content += f"\n\n--- Content from {url} ---\nTitle: {result.get('title', 'Untitled')}\n\n{result['content']}"
+    scraped_content = ""
+        urls_in_message = extract_urls_from_message(user_message)
+        for url in urls_in_message[:3]:
+            try:
+            result = await fetch_url_content(url, project_uuid)
+            if result.get("content") and not result.get("error"):
+                scraped_content += f"\n\n--- Content from {url} ---\nTitle: {result.get('title', 'Untitled')}\n\n{result['content']}"
     except: pass
     
-    if user_message.startswith("/"):
-        parts=user_message[1:].split(" ",1)
-        result=await handle_slash_command(project_uuid,parts[0].lower(),parts[1] if len(parts)>1 else None)
-        await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",project_uuid,user_message,is_coding)
-        await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace) VALUES ($1,'assistant',$2,$3)",project_uuid,json.dumps(result),json.dumps({"slash":True}))
-        resp=ChatResponse(project_id=project_id,response=json.dumps(result),reasoning_trace={"slash":True})
-        jr=JSONResponse(content=resp.dict())
-        if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
-        return jr
+        if user_message.startswith("/"):
+            parts=user_message[1:].split(" ",1)
+            result=await handle_slash_command(project_uuid,parts[0].lower(),parts[1] if len(parts)>1 else None)
+            await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",project_uuid,user_message,is_coding)
+            await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace) VALUES ($1,'assistant',$2,$3)",project_uuid,json.dumps(result),json.dumps({"slash":True}))
+            resp=ChatResponse(project_id=project_id,response=json.dumps(result),reasoning_trace={"slash":True})
+            jr=JSONResponse(content=resp.dict())
+            if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
+            return jr
         
         # Ring 4: Resolve trust profile if domain provided (signature optional)
     trust_decision = None
