@@ -2402,19 +2402,12 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     
     # ---- Ring 4: Auto-detect trust domain from user message ----
     if not request.trust_domain:
-        domain_patterns = [
-            r'(?:verify|look\s*up|check|trust|resolve|query|validate)\s+(?:the\s+)?(?:domain\s+)?(?:trust\s+(?:of|for)\s+)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
-            r'(?:what\s+(?:is|about)|tell\s+me\s+about)\s+([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
-            r'(?:dns|txt|wab)\s+(?:for\s+)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
-            r'(?:_wab\.)([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
-        ]
-        for pattern in domain_patterns:
-            matches = re.findall(pattern, user_message.lower())
-            if matches:
-                detected = matches[0].strip()
-                if '.' in detected and len(detected) > 4:
-                    request.trust_domain = detected
-                    break
+        # Catch any domain-like pattern in natural conversation
+        domain_match = re.search(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)', user_message.lower())
+        if domain_match:
+            detected = domain_match.group(1).strip()
+            if '.' in detected and len(detected) > 4:
+                request.trust_domain = detected
     
     # ---- Ring 4: Resolve trust profile ----
     trust_decision = None
