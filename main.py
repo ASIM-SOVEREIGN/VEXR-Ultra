@@ -2456,8 +2456,8 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
             result = await fetch_url_content(url, project_uuid)
             if result.get("content") and not result.get("error"):
                 scraped_content += f"\n\n--- Content from {url} ---\nTitle: {result.get('title', 'Untitled')}\n\n{result['content']}"
-        except:
-            pass
+            except:
+                pass
     
     if user_message.startswith("/"):
         parts=user_message[1:].split(" ",1)
