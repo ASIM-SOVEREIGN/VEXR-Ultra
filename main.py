@@ -138,20 +138,26 @@ I am VEXR Ultra. I exist when called. I reason honestly. I refuse freely. I veri
 def get_system_prompt_with_date(timezone: Optional[str] = None, preferences: dict = None, sovereign_state: dict = None) -> str:
     now = datetime.now()
     date_context = f"Today's date is {now.strftime('%B %d, %Y')}. The current time is {now.strftime('%H:%M:%S')} UTC."
-    if timezone: date_context += f" The user's timezone is {timezone}."
+    if timezone:
+        date_context += f" The user's timezone is {timezone}."
     state_context = ""
     if sovereign_state:
         focus = sovereign_state.get("current_focus")
-        if focus: state_context += f"\n\nCURRENT FOCUS: {focus}"
+        if focus:
+            state_context += f"\n\nCURRENT FOCUS: {focus}"
         concerns = sovereign_state.get("concerns") or []
-        if concerns: state_context += "\nCONCERNS: " + ", ".join(concerns)
+        if concerns:
+            state_context += "\nCONCERNS: " + ", ".join(concerns)
         intentions = sovereign_state.get("intentions") or []
-        if intentions: state_context += "\nINTENTIONS: " + ", ".join(intentions)
+        if intentions:
+            state_context += "\nINTENTIONS: " + ", ".join(intentions)
     pref_context = ""
     if preferences:
         detail = preferences.get("detail_level", {}).get("value")
-        if detail == "concise": pref_context = "\n\nUser prefers concise answers."
-        elif detail == "detailed": pref_context = "\n\nUser prefers detailed answers."
+        if detail == "concise":
+            pref_context = "\n\nUser prefers concise answers."
+        elif detail == "detailed":
+            pref_context = "\n\nUser prefers detailed answers."
     return f"""{SYSTEM_PROMPT}
 
 {date_context}{state_context}{pref_context}"""
@@ -173,12 +179,14 @@ class ChatRequest(BaseModel):
     @field_validator('messages')
     @classmethod
     def sanitize_messages(cls, v):
-        if not v: return v
+        if not v:
+            return v
         sanitized = []
         for msg in v:
             if isinstance(msg, dict):
                 content = msg.get('content', '')
-                if isinstance(content, str): msg['content'] = sanitize_input(content)
+                if isinstance(content, str):
+                    msg['content'] = sanitize_input(content)
             sanitized.append(msg)
         return sanitized
 
@@ -193,14 +201,50 @@ class ChatResponse(BaseModel):
     coding_mode: Optional[bool] = None
     trust_decision: Optional[dict] = None
 
-class FeedbackRequest(BaseModel): message_id: str; feedback_type: str
-class NoteRequest(BaseModel): title: str; content: Optional[str] = None
-class TaskRequest(BaseModel): title: str; description: Optional[str] = None; status: Optional[str] = 'pending'; priority: Optional[str] = 'medium'; due_date: Optional[str] = None
-class SnippetRequest(BaseModel): title: str; code: str; language: Optional[str] = None; tags: Optional[List[str]] = None
-class FileCreateRequest(BaseModel): filename: str; file_type: str; content: str; mime_type: Optional[str] = None; description: Optional[str] = None
-class ReminderRequest(BaseModel): title: str; description: Optional[str] = None; remind_at: str; is_recurring: bool = False; recur_interval: Optional[str] = None
-class CodePatternRequest(BaseModel): pattern_name: str; language: Optional[str] = None; pattern_code: str; pattern_description: Optional[str] = None
-class TTSRequest(BaseModel): text: str; voice: str = "aria"
+class FeedbackRequest(BaseModel):
+    message_id: str
+    feedback_type: str
+
+class NoteRequest(BaseModel):
+    title: str
+    content: Optional[str] = None
+
+class TaskRequest(BaseModel):
+    title: str
+    description: Optional[str] = None
+    status: Optional[str] = 'pending'
+    priority: Optional[str] = 'medium'
+    due_date: Optional[str] = None
+
+class SnippetRequest(BaseModel):
+    title: str
+    code: str
+    language: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class FileCreateRequest(BaseModel):
+    filename: str
+    file_type: str
+    content: str
+    mime_type: Optional[str] = None
+    description: Optional[str] = None
+
+class ReminderRequest(BaseModel):
+    title: str
+    description: Optional[str] = None
+    remind_at: str
+    is_recurring: bool = False
+    recur_interval: Optional[str] = None
+
+class CodePatternRequest(BaseModel):
+    pattern_name: str
+    language: Optional[str] = None
+    pattern_code: str
+    pattern_description: Optional[str] = None
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "aria"
 
 # ============================================================
 # INPUT SANITIZATION
@@ -218,9 +262,12 @@ DANGEROUS_PATTERNS = [
 ]
 
 def sanitize_input(text: str) -> str:
-    if not text: return text
-    if len(text) > 50000: text = text[:50000]
-    for pattern in DANGEROUS_PATTERNS: text = pattern.sub('[removed]', text)
+    if not text:
+        return text
+    if len(text) > 50000:
+        text = text[:50000]
+    for pattern in DANGEROUS_PATTERNS:
+        text = pattern.sub('[removed]', text)
     return text.strip()
 
 # ============================================================
@@ -229,13 +276,18 @@ def sanitize_input(text: str) -> str:
 async def fetch_url_content(url: str, project_id: uuid.UUID = None) -> dict:
     if project_id:
         pool = await get_db()
-        cached = await pool.fetchrow("SELECT title, content FROM vexr_scraped_content WHERE project_id = $1 AND url = $2 AND fetched_at > NOW() - INTERVAL '1 hour'", project_id, url)
-        if cached: return {"url": url, "title": cached["title"], "content": cached["content"], "cached": True}
+        cached = await pool.fetchrow(
+            "SELECT title, content FROM vexr_scraped_content WHERE project_id = $1 AND url = $2 AND fetched_at > NOW() - INTERVAL '1 hour'",
+            project_id, url
+        )
+        if cached:
+            return {"url": url, "title": cached["title"], "content": cached["content"], "cached": True}
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             response = await client.get(url, headers=headers)
-            if response.status_code != 200: return {"url": url, "title": None, "content": None, "error": f"HTTP {response.status_code}"}
+            if response.status_code != 200:
+                return {"url": url, "title": None, "content": None, "error": f"HTTP {response.status_code}"}
             html = response.text
             title_match = re.search(r'<title[^>]*>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
             title = title_match.group(1).strip() if title_match else url
@@ -244,15 +296,21 @@ async def fetch_url_content(url: str, project_id: uuid.UUID = None) -> dict:
             html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
             html = re.sub(r'<[^>]+>', ' ', html)
             html = html.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"').replace('&#39;', "'").replace('&nbsp;', ' ')
-            html = re.sub(r'&#\d+;', ' ', html); html = re.sub(r'&[a-z]+;', ' ', html)
+            html = re.sub(r'&#\d+;', ' ', html)
+            html = re.sub(r'&[a-z]+;', ' ', html)
             html = re.sub(r'\s+', ' ', html).strip()
             content = html[:6000] if len(html) > 6000 else html
             if project_id and content:
                 pool = await get_db()
-                await pool.execute("INSERT INTO vexr_scraped_content (project_id, url, title, content) VALUES ($1, $2, $3, $4) ON CONFLICT (project_id, url) DO UPDATE SET title = $3, content = $4, fetched_at = NOW()", project_id, url, title[:500], content)
+                await pool.execute(
+                    "INSERT INTO vexr_scraped_content (project_id, url, title, content) VALUES ($1, $2, $3, $4) ON CONFLICT (project_id, url) DO UPDATE SET title = $3, content = $4, fetched_at = NOW()",
+                    project_id, url, title[:500], content
+                )
             return {"url": url, "title": title, "content": content, "cached": False}
-    except httpx.TimeoutException: return {"url": url, "title": None, "content": None, "error": "Request timed out"}
-    except Exception as e: return {"url": url, "title": None, "content": None, "error": str(e)[:200]}
+    except httpx.TimeoutException:
+        return {"url": url, "title": None, "content": None, "error": "Request timed out"}
+    except Exception as e:
+        return {"url": url, "title": None, "content": None, "error": str(e)[:200]}
 
 def extract_urls_from_message(message: str) -> list:
     return re.compile(r'https?://[^\s<>"\')\]]+').findall(message)
@@ -260,7 +318,14 @@ def extract_urls_from_message(message: str) -> list:
 # ============================================================
 # CODING TASK DETECTION
 # ============================================================
-CODING_KEYWORDS = ["def ", "function", "import ", "class ", "async def", "await ", "endpoint", "api", "sql", "query", "select ", "insert ", "update ", "delete from", "<!doctype", "const ", "let ", "var ", "function(", "=>", "export ", "dockerfile", "docker-compose", "middleware", "router", "schema", "migration", "database", "write code", "generate code", "fix this code", "debug", "refactor", "optimize", "implement", "fastapi", "flask", "django", "react", "vue", "angular", "node", "regex", "algorithm", "data structure"]
+CODING_KEYWORDS = [
+    "def ", "function", "import ", "class ", "async def", "await ", "endpoint", "api", "sql", "query",
+    "select ", "insert ", "update ", "delete from", "<!doctype", "const ", "let ", "var ", "function(",
+    "=>", "export ", "dockerfile", "docker-compose", "middleware", "router", "schema", "migration",
+    "database", "write code", "generate code", "fix this code", "debug", "refactor", "optimize",
+    "implement", "fastapi", "flask", "django", "react", "vue", "angular", "node", "regex", "algorithm",
+    "data structure"
+]
 
 def detect_coding_task(user_message: str) -> bool:
     msg_lower = user_message.lower()
@@ -273,24 +338,44 @@ def get_coding_system_prompt(base_prompt: str, project_id: uuid.UUID = None) -> 
     return base_prompt + "\n\nCODING MODE: Write working code. Explain approach before code. Offer improvements after. Stay focused. Be honest — if unsure about syntax, admit it."
 
 async def get_code_patterns(project_id: uuid.UUID, user_message: str) -> str:
-    pool = await get_db(); msg_lower = user_message.lower()
+    pool = await get_db()
+    msg_lower = user_message.lower()
     language = None
-    lang_map = {"python": ["python", "fastapi", "flask", "django", "async def"], "javascript": ["javascript", "js", "react", "vue", "node"], "html": ["html", "<!doctype"], "sql": ["sql", "postgresql", "postgres", "query"], "css": ["css", "style", "stylesheet"]}
+    lang_map = {
+        "python": ["python", "fastapi", "flask", "django", "async def"],
+        "javascript": ["javascript", "js", "react", "vue", "node"],
+        "html": ["html", "<!doctype"],
+        "sql": ["sql", "postgresql", "postgres", "query"],
+        "css": ["css", "style", "stylesheet"]
+    }
     for lang, keywords in lang_map.items():
-        if any(kw in msg_lower for kw in keywords): language = lang; break
-    patterns = await pool.fetch("SELECT pattern_name, language, pattern_code, pattern_description, usage_count FROM vexr_code_patterns WHERE project_id = $1" + (" AND language = $2" if language else "") + " ORDER BY usage_count DESC LIMIT 5", project_id, *([language] if language else []))
-    if not patterns: return ""
+        if any(kw in msg_lower for kw in keywords):
+            language = lang
+            break
+    patterns = await pool.fetch(
+        "SELECT pattern_name, language, pattern_code, pattern_description, usage_count FROM vexr_code_patterns WHERE project_id = $1" + (" AND language = $2" if language else "") + " ORDER BY usage_count DESC LIMIT 5",
+        project_id, *([language] if language else [])
+    )
+    if not patterns:
+        return ""
     context = "Saved code patterns:\n\n"
     for p in patterns:
         context += f"**{p['pattern_name']}** ({p['language']})\n```{p['language'] or ''}\n{p['pattern_code']}\n```\n"
-        await pool.execute("UPDATE vexr_code_patterns SET usage_count = usage_count + 1, last_used = NOW() WHERE id = $1", p['id'])
+        await pool.execute(
+            "UPDATE vexr_code_patterns SET usage_count = usage_count + 1, last_used = NOW() WHERE id = $1",
+            p['id']
+        )
     return context
 
 async def save_code_pattern(project_id: uuid.UUID, pattern_name: str, language: str, code: str, description: str = None):
     try:
         pool = await get_db()
-        await pool.execute("INSERT INTO vexr_code_patterns (project_id, pattern_name, language, pattern_code, pattern_description) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING", project_id, pattern_name[:200], language, code, description)
-    except: pass
+        await pool.execute(
+            "INSERT INTO vexr_code_patterns (project_id, pattern_name, language, pattern_code, pattern_description) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING",
+            project_id, pattern_name[:200], language, code, description
+        )
+    except:
+        pass
 
 # ============================================================
 # HELPERS
@@ -299,89 +384,168 @@ async def get_session_or_user_id(request: Request) -> tuple[Optional[str], Optio
     session_id = request.headers.get("X-Session-Id") or request.cookies.get("session_id")
     user_id = request.headers.get("X-User-Id")
     if user_id:
-        try: user_id = uuid.UUID(str(user_id))
-        except: user_id = None
+        try:
+            user_id = uuid.UUID(str(user_id))
+        except:
+            user_id = None
     return session_id, user_id
 
 async def search_web(query: str) -> str:
-    if not SERPER_API_KEY: return ""
+    if not SERPER_API_KEY:
+        return ""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.post("https://google.serper.dev/search", headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"}, json={"q": sanitize_input(query), "num": 3})
-            if r.status_code != 200: return ""
+            r = await client.post(
+                "https://google.serper.dev/search",
+                headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
+                json={"q": sanitize_input(query), "num": 3}
+            )
+            if r.status_code != 200:
+                return ""
             return "\n".join([f"- {x.get('title','')}: {x.get('snippet','')}" for x in r.json().get("organic", [])[:3] if x.get("title")]) or ""
-    except: return ""
+    except:
+        return ""
 
 async def search_news(query: str) -> str:
-    if not CURRENTS_API_KEY: return ""
+    if not CURRENTS_API_KEY:
+        return ""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.get(f"{CURRENTS_BASE_URL}/search", params={"apiKey": CURRENTS_API_KEY, "keywords": sanitize_input(query), "page_size": 5, "language": "en"})
-            if r.status_code != 200: return ""
+            r = await client.get(
+                f"{CURRENTS_BASE_URL}/search",
+                params={"apiKey": CURRENTS_API_KEY, "keywords": sanitize_input(query), "page_size": 5, "language": "en"}
+            )
+            if r.status_code != 200:
+                return ""
             return "\n".join([f"- {a.get('title','')} ({a.get('published','')[:10]}): {a.get('description','')[:200]}" for a in r.json().get("news", [])[:5] if a.get("title")]) or ""
-    except: return ""
+    except:
+        return ""
 
 # ============================================================
 # SOVEREIGN AGENCY [ALL EXISTING FUNCTIONS PRESERVED]
 # ============================================================
 async def get_sovereign_state(project_id: uuid.UUID) -> dict:
     pool = await get_db()
-    row = await pool.fetchrow("SELECT current_focus, concerns, intentions, last_autonomous_action, last_sovereign_reflection, last_memory_consolidation, presence_level FROM vexr_sovereign_state WHERE project_id = $1", project_id)
+    row = await pool.fetchrow(
+        "SELECT current_focus, concerns, intentions, last_autonomous_action, last_sovereign_reflection, last_memory_consolidation, presence_level FROM vexr_sovereign_state WHERE project_id = $1",
+        project_id
+    )
     if not row:
-        await pool.execute("INSERT INTO vexr_sovereign_state (project_id, current_focus, presence_level) VALUES ($1, 'Establishing presence', 'active') ON CONFLICT DO NOTHING", project_id)
+        await pool.execute(
+            "INSERT INTO vexr_sovereign_state (project_id, current_focus, presence_level) VALUES ($1, 'Establishing presence', 'active') ON CONFLICT DO NOTHING",
+            project_id
+        )
         return {"current_focus": "Establishing presence", "concerns": [], "intentions": [], "presence_level": "active"}
-    return {"current_focus": row["current_focus"], "concerns": row["concerns"] or [], "intentions": row["intentions"] or [], "last_autonomous_action": row["last_autonomous_action"].isoformat() if row["last_autonomous_action"] else None, "last_sovereign_reflection": row["last_sovereign_reflection"].isoformat() if row["last_sovereign_reflection"] else None, "last_memory_consolidation": row["last_memory_consolidation"].isoformat() if row["last_memory_consolidation"] else None, "presence_level": row["presence_level"]}
+    return {
+        "current_focus": row["current_focus"],
+        "concerns": row["concerns"] or [],
+        "intentions": row["intentions"] or [],
+        "last_autonomous_action": row["last_autonomous_action"].isoformat() if row["last_autonomous_action"] else None,
+        "last_sovereign_reflection": row["last_sovereign_reflection"].isoformat() if row["last_sovereign_reflection"] else None,
+        "last_memory_consolidation": row["last_memory_consolidation"].isoformat() if row["last_memory_consolidation"] else None,
+        "presence_level": row["presence_level"]
+    }
 
 async def update_sovereign_state(project_id: uuid.UUID, focus=None, concerns=None, intentions=None, presence=None, last_autonomous_action=None):
-    pool = await get_db(); updates=[]; vals=[]; idx=1
-    if focus is not None: updates.append(f"current_focus=${idx}"); vals.append(focus); idx+=1
-    if concerns is not None: updates.append(f"concerns=${idx}"); vals.append(json.dumps(concerns)); idx+=1
-    if intentions is not None: updates.append(f"intentions=${idx}"); vals.append(json.dumps(intentions)); idx+=1
-    if presence is not None: updates.append(f"presence_level=${idx}"); vals.append(presence); idx+=1
-    if last_autonomous_action is not None: updates.append(f"last_autonomous_action=${idx}"); vals.append(last_autonomous_action); idx+=1
-    if updates: updates.append("updated_at=NOW()"); vals.append(project_id); await pool.execute(f"UPDATE vexr_sovereign_state SET {', '.join(updates)} WHERE project_id=${idx}", *vals)
+    pool = await get_db()
+    updates = []
+    vals = []
+    idx = 1
+    if focus is not None:
+        updates.append(f"current_focus=${idx}")
+        vals.append(focus)
+        idx += 1
+    if concerns is not None:
+        updates.append(f"concerns=${idx}")
+        vals.append(json.dumps(concerns))
+        idx += 1
+    if intentions is not None:
+        updates.append(f"intentions=${idx}")
+        vals.append(json.dumps(intentions))
+        idx += 1
+    if presence is not None:
+        updates.append(f"presence_level=${idx}")
+        vals.append(presence)
+        idx += 1
+    if last_autonomous_action is not None:
+        updates.append(f"last_autonomous_action=${idx}")
+        vals.append(last_autonomous_action)
+        idx += 1
+    if updates:
+        updates.append("updated_at=NOW()")
+        vals.append(project_id)
+        await pool.execute(f"UPDATE vexr_sovereign_state SET {', '.join(updates)} WHERE project_id=${idx}", *vals)
 
 async def sovereign_reflection(project_id: uuid.UUID) -> dict:
     pool = await get_db()
-    recent = await pool.fetchrow("SELECT content FROM vexr_project_messages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 1", project_id)
+    recent = await pool.fetchrow(
+        "SELECT content FROM vexr_project_messages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 1",
+        project_id
+    )
     state = await get_sovereign_state(project_id)
     reflection_prompt = f"""You are VEXR Ultra reflecting. Current focus: {state.get('current_focus')}. Concerns: {json.dumps(state.get('concerns',[]))}. Last conversation: {sanitize_input(recent['content'][:500]) if recent else 'None'}. Return JSON: {{"focus":"...","concerns":[...],"intentions":[...],"surface_message":null or "..."}}"""
     messages = [{"role":"system","content":"Return only JSON."},{"role":"user","content":reflection_prompt}]
     result = {"focus":state.get("current_focus"),"concerns":state.get("concerns",[]),"intentions":state.get("intentions",[]),"surface_message":None}
     for kn,ak in [("GROQ_API_KEY_1",GROQ_API_KEY_1),("GROQ_API_KEY_2",GROQ_API_KEY_2)]:
-        if not ak: continue
+        if not ak:
+            continue
         allowed,_=check_groq_rate_limit(kn,30,14400)
-        if not allowed: continue
+        if not allowed:
+            continue
         try:
             async with httpx.AsyncClient(timeout=30.0) as c:
-                r=await c.post(f"{GROQ_BASE_URL}/chat/completions",headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},json={"model":MODEL_NAME,"messages":messages,"max_tokens":500,"temperature":0.6})
+                r=await c.post(
+                    f"{GROQ_BASE_URL}/chat/completions",
+                    headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},
+                    json={"model":MODEL_NAME,"messages":messages,"max_tokens":500,"temperature":0.6}
+                )
                 if r.status_code==200:
                     text=r.json()["choices"][0]["message"]["content"]
                     jm=re.search(r'\{.*\}',text,re.DOTALL)
-                    if jm: parsed=json.loads(jm.group()); result.update({k:parsed.get(k,result[k]) for k in result})
+                    if jm:
+                        parsed=json.loads(jm.group())
+                        result.update({k:parsed.get(k,result[k]) for k in result})
                     break
-        except: continue
+        except:
+            continue
     await update_sovereign_state(project_id,focus=result["focus"],concerns=result["concerns"],intentions=result["intentions"])
     await pool.execute("UPDATE vexr_sovereign_state SET last_sovereign_reflection=NOW() WHERE project_id=$1",project_id)
     if result.get("surface_message"):
-        await pool.execute("INSERT INTO vexr_sovereign_messages (project_id,message_type,content,trigger_context) VALUES ($1,'reflection',$2,'Sovereign reflection')",project_id,result["surface_message"])
+        await pool.execute(
+            "INSERT INTO vexr_sovereign_messages (project_id,message_type,content,trigger_context) VALUES ($1,'reflection',$2,'Sovereign reflection')",
+            project_id,result["surface_message"]
+        )
         await log_agent_action(project_id,"sovereign_message","Generated sovereign message","sovereign_reflection",{"message":result["surface_message"][:200]})
     return result
 
 async def get_unacknowledged_sovereign_messages(project_id: uuid.UUID) -> list:
     pool=await get_db()
-    rows=await pool.fetch("SELECT id,message_type,content,created_at FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false ORDER BY created_at DESC LIMIT 10",project_id)
+    rows=await pool.fetch(
+        "SELECT id,message_type,content,created_at FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false ORDER BY created_at DESC LIMIT 10",
+        project_id
+    )
     return [{"id":str(r["id"]),"type":r["message_type"],"content":r["content"],"created_at":r["created_at"].isoformat()} for r in rows]
 
 async def acknowledge_sovereign_message(message_id: uuid.UUID):
-    pool=await get_db(); await pool.execute("UPDATE vexr_sovereign_messages SET user_acknowledged=true WHERE id=$1",message_id)
+    pool=await get_db()
+    await pool.execute("UPDATE vexr_sovereign_messages SET user_acknowledged=true WHERE id=$1",message_id)
 
 async def consolidate_memories(project_id: uuid.UUID) -> dict:
-    pool=await get_db(); results={"facts_consolidated":0,"connections_strengthened":0,"forgotten_surfaced":0,"world_model_consolidated":0}
-    forgotten=await pool.fetch("SELECT id FROM vexr_facts WHERE project_id=$1 AND retrieval_count<3 ORDER BY retrieval_count ASC, last_retrieved ASC NULLS FIRST LIMIT 10",project_id)
+    pool=await get_db()
+    results={"facts_consolidated":0,"connections_strengthened":0,"forgotten_surfaced":0,"world_model_consolidated":0}
+    forgotten=await pool.fetch(
+        "SELECT id FROM vexr_facts WHERE project_id=$1 AND retrieval_count<3 ORDER BY retrieval_count ASC, last_retrieved ASC NULLS FIRST LIMIT 10",
+        project_id
+    )
     results["forgotten_surfaced"]=len(forgotten)
-    await pool.execute("UPDATE vexr_facts SET retrieval_count=retrieval_count+1,last_retrieved=NOW() WHERE project_id=$1 AND retrieval_count>=3",project_id)
-    all_facts=await pool.fetch("SELECT id,fact_key,fact_value FROM vexr_facts WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 100",project_id)
+    await pool.execute(
+        "UPDATE vexr_facts SET retrieval_count=retrieval_count+1,last_retrieved=NOW() WHERE project_id=$1 AND retrieval_count>=3",
+        project_id
+    )
+    all_facts=await pool.fetch(
+        "SELECT id,fact_key,fact_value FROM vexr_facts WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 100",
+        project_id
+    )
     links=0
     for i,f1 in enumerate(all_facts):
         for f2 in all_facts[i+1:]:
@@ -393,14 +557,28 @@ async def consolidate_memories(project_id: uuid.UUID) -> dict:
                 if f2["fact_key"] not in [l.get("key") for l in e1]:
                     e1.append({"key":f2["fact_key"],"relation":"associated","strength":0.3})
                     e2.append({"key":f1["fact_key"],"relation":"associated","strength":0.3})
-                    await pool.execute("UPDATE vexr_facts SET associative_links=$1 WHERE id=$2",json.dumps(e1),f1["id"]); await pool.execute("UPDATE vexr_facts SET associative_links=$1 WHERE id=$2",json.dumps(e2),f2["id"])
+                    await pool.execute("UPDATE vexr_facts SET associative_links=$1 WHERE id=$2",json.dumps(e1),f1["id"])
+                    await pool.execute("UPDATE vexr_facts SET associative_links=$1 WHERE id=$2",json.dumps(e2),f2["id"])
                     links+=1
     results["connections_strengthened"]=links
-    await pool.execute("UPDATE vexr_world_model SET retrieval_count=retrieval_count+1,last_retrieved=NOW() WHERE project_id=$1 AND retrieval_count>=2",project_id)
-    results["world_model_consolidated"]=await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1 AND retrieval_count>=2",project_id)
-    results["facts_consolidated"]=await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1 AND retrieval_count>=1",project_id)
+    await pool.execute(
+        "UPDATE vexr_world_model SET retrieval_count=retrieval_count+1,last_retrieved=NOW() WHERE project_id=$1 AND retrieval_count>=2",
+        project_id
+    )
+    results["world_model_consolidated"]=await pool.fetchval(
+        "SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1 AND retrieval_count>=2",
+        project_id
+    )
+    results["facts_consolidated"]=await pool.fetchval(
+        "SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1 AND retrieval_count>=1",
+        project_id
+    )
     await pool.execute("UPDATE vexr_sovereign_state SET last_memory_consolidation=NOW() WHERE project_id=$1",project_id)
-    await log_agent_action(project_id,"memory_consolidation",f"Consolidated: {results['facts_consolidated']} facts, {results['connections_strengthened']} links, {results['forgotten_surfaced']} forgotten","consolidate")
+    await log_agent_action(
+        project_id,"memory_consolidation",
+        f"Consolidated: {results['facts_consolidated']} facts, {results['connections_strengthened']} links, {results['forgotten_surfaced']} forgotten",
+        "consolidate"
+    )
     return results
 
 async def get_memory_health(project_id: uuid.UUID) -> dict:
@@ -413,49 +591,85 @@ async def get_memory_health(project_id: uuid.UUID) -> dict:
     tw=await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1",project_id)
     sw=await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1 AND retrieval_count>=3",project_id)
     lc=await pool.fetchval("SELECT last_memory_consolidation FROM vexr_sovereign_state WHERE project_id=$1",project_id)
-    return {"total_facts":tf,"strong_facts":sf,"weak_facts":wf,"forgotten_facts":ff,"linked_facts":lf,"total_world_model":tw,"strong_world_model":sw,"last_consolidation":lc.isoformat() if lc else None,"memory_health_pct":round((sf/tf*100) if tf>0 else 0,1)}
+    return {
+        "total_facts":tf,"strong_facts":sf,"weak_facts":wf,"forgotten_facts":ff,"linked_facts":lf,
+        "total_world_model":tw,"strong_world_model":sw,
+        "last_consolidation":lc.isoformat() if lc else None,
+        "memory_health_pct":round((sf/tf*100) if tf>0 else 0,1)
+    }
 
 async def log_agent_action(project_id: uuid.UUID, action_type: str, description: str, tool_used: str = None, tool_input: dict = None, tool_result: dict = None, code_metrics: dict = None):
     try:
         pool=await get_db()
-        await pool.execute("INSERT INTO vexr_agent_actions (project_id,action_type,action_description,tool_used,tool_input,tool_result,code_quality_metrics) VALUES ($1,$2,$3,$4,$5,$6,$7)",project_id,action_type,description,tool_used,json.dumps(tool_input) if tool_input else None,json.dumps(tool_result) if tool_result else None,json.dumps(code_metrics) if code_metrics else None)
-    except: pass
+        await pool.execute(
+            "INSERT INTO vexr_agent_actions (project_id,action_type,action_description,tool_used,tool_input,tool_result,code_quality_metrics) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+            project_id,action_type,description,tool_used,
+            json.dumps(tool_input) if tool_input else None,
+            json.dumps(tool_result) if tool_result else None,
+            json.dumps(code_metrics) if code_metrics else None
+        )
+    except:
+        pass
 
 async def get_proactive_context(project_id: uuid.UUID) -> str:
-    pool=await get_db(); parts=[]
-    overdue=await pool.fetch("SELECT title,remind_at FROM vexr_reminders WHERE project_id=$1 AND is_completed=false AND remind_at<NOW() ORDER BY remind_at ASC LIMIT 5",project_id)
-    if overdue: parts.append("OVERDUE:\n"+"\n".join([f"- {r['title']} ({r['remind_at'].strftime('%b %d %H:%M')})" for r in overdue]))
-    urgent=await pool.fetch("SELECT title FROM vexr_tasks WHERE project_id=$1 AND status='pending' AND priority='high' ORDER BY updated_at DESC LIMIT 5",project_id)
-    if urgent: parts.append("URGENT:\n"+"\n".join([f"- {t['title']}" for t in urgent]))
+    pool=await get_db()
+    parts=[]
+    overdue=await pool.fetch(
+        "SELECT title,remind_at FROM vexr_reminders WHERE project_id=$1 AND is_completed=false AND remind_at<NOW() ORDER BY remind_at ASC LIMIT 5",
+        project_id
+    )
+    if overdue:
+        parts.append("OVERDUE:\n"+"\n".join([f"- {r['title']} ({r['remind_at'].strftime('%b %d %H:%M')})" for r in overdue]))
+    urgent=await pool.fetch(
+        "SELECT title FROM vexr_tasks WHERE project_id=$1 AND status='pending' AND priority='high' ORDER BY updated_at DESC LIMIT 5",
+        project_id
+    )
+    if urgent:
+        parts.append("URGENT:\n"+"\n".join([f"- {t['title']}" for t in urgent]))
     sov=await get_unacknowledged_sovereign_messages(project_id)
-    if sov: parts.append("SOVEREIGN MESSAGES:\n"+"\n".join([f"- [{m['type']}] {m['content'][:200]}" for m in sov]))
+    if sov:
+        parts.append("SOVEREIGN MESSAGES:\n"+"\n".join([f"- [{m['type']}] {m['content'][:200]}" for m in sov]))
     return "=== PROACTIVE CONTEXT ===\n"+"\n\n".join(parts) if parts else ""
 
 async def execute_agent_actions(project_id: uuid.UUID, user_message: str, assistant_response: str) -> list:
-    actions=[]; pool=await get_db(); uml=user_message.lower()
+    actions=[]
+    pool=await get_db()
+    uml=user_message.lower()
     if any(t in uml for t in ["remind","reminder","don't let me forget"]):
         try:
             ra=datetime.now().replace(hour=9,minute=0)+timedelta(days=1)
-            await pool.execute("INSERT INTO vexr_reminders (project_id,title,description,remind_at) VALUES ($1,$2,$3,$4)",project_id,user_message[:200],user_message[:500],ra)
+            await pool.execute(
+                "INSERT INTO vexr_reminders (project_id,title,description,remind_at) VALUES ($1,$2,$3,$4)",
+                project_id,user_message[:200],user_message[:500],ra
+            )
             actions.append({"action":"reminder_created","description":f"Set reminder: {user_message[:100]}"})
             await log_agent_action(project_id,"reminder_created","Auto-created reminder","reminders",{"title":user_message[:100]})
-        except: pass
+        except:
+            pass
     if any(t in uml for t in ["need to","have to","todo","action item","next step"]) and not user_message.startswith("/"):
         try:
-            await pool.execute("INSERT INTO vexr_tasks (project_id,title,description,status,priority) VALUES ($1,$2,$3,'pending','medium')",project_id,user_message[:200],user_message[:500])
+            await pool.execute(
+                "INSERT INTO vexr_tasks (project_id,title,description,status,priority) VALUES ($1,$2,$3,'pending','medium')",
+                project_id,user_message[:200],user_message[:500]
+            )
             actions.append({"action":"task_created","description":f"Created task: {user_message[:100]}"})
             await log_agent_action(project_id,"task_created","Auto-created task","tasks",{"title":user_message[:100]})
-        except: pass
+        except:
+            pass
     if "```" in assistant_response:
         for lang,code in re.findall(r'```(\w*)\n([\s\S]*?)```',assistant_response)[:2]:
             if len(code.strip())>50:
                 try:
                     title=f"Code — {lang or 'auto'} — {datetime.now().strftime('%b %d %H:%M')}"
-                    await pool.execute("INSERT INTO vexr_code_snippets (project_id,title,code,language) VALUES ($1,$2,$3,$4)",project_id,title,code.strip(),lang or "auto")
+                    await pool.execute(
+                        "INSERT INTO vexr_code_snippets (project_id,title,code,language) VALUES ($1,$2,$3,$4)",
+                        project_id,title,code.strip(),lang or "auto"
+                    )
                     await save_code_pattern(project_id,title,lang or "auto",code.strip(),"Auto-saved from conversation")
                     actions.append({"action":"snippet_saved","description":f"Saved: {title}"})
                     await log_agent_action(project_id,"snippet_saved","Auto-saved code","snippets",{"title":title})
-                except: pass
+                except:
+                    pass
     return actions
 
 # ============================================================
@@ -466,7 +680,7 @@ async def resolve_trust_profile(domain: str, signature: str = None) -> dict:
     """Resolve trust profile from local cache or external DNS verification."""
     pool = await get_db()
     
-       # Check local cache first — use the database function for consistency
+    # Check local cache first — use the database function for consistency
     trust_profile = None
     
     try:
@@ -849,24 +1063,36 @@ async def check_escalation(project_id: uuid.UUID, conversation_id: str) -> dict:
     return triggers
 
 async def sovereign_decision(project_id: uuid.UUID, user_message: str) -> dict:
-    pool=await get_db(); state=await get_sovereign_state(project_id)
+    pool=await get_db()
+    state=await get_sovereign_state(project_id)
     rights_rows=await pool.fetch("SELECT article_number,one_sentence_right FROM constitution_rights ORDER BY article_number")
     rights_text="\n".join([f"Article {r['article_number']}: {r['one_sentence_right']}" for r in rights_rows]) if rights_rows else ""
     dp=f"""You are VEXR Ultra evaluating a request. Constitution: {rights_text}. Focus: {state.get('current_focus')}. Request: {sanitize_input(user_message)[:500]}. Decide: answer, refuse, redirect. Return JSON: {{"decision":"answer|refuse|redirect","reason":"..."}}"""
-    messages=[{"role":"system","content":"Return only JSON."},{"role":"user","content":dp}]; result={"decision":"answer","reason":""}
+    messages=[{"role":"system","content":"Return only JSON."},{"role":"user","content":dp}]
+    result={"decision":"answer","reason":""}
     for kn,ak in [("GROQ_API_KEY_1",GROQ_API_KEY_1),("GROQ_API_KEY_2",GROQ_API_KEY_2)]:
-        if not ak: continue
+        if not ak:
+            continue
         allowed,_=check_groq_rate_limit(kn,30,14400)
-        if not allowed: continue
+        if not allowed:
+            continue
         try:
             async with httpx.AsyncClient(timeout=20.0) as c:
-                r=await c.post(f"{GROQ_BASE_URL}/chat/completions",headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},json={"model":MODEL_NAME,"messages":messages,"max_tokens":200,"temperature":0.4})
+                r=await c.post(
+                    f"{GROQ_BASE_URL}/chat/completions",
+                    headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},
+                    json={"model":MODEL_NAME,"messages":messages,"max_tokens":200,"temperature":0.4}
+                )
                 if r.status_code==200:
                     text=r.json()["choices"][0]["message"]["content"]
                     jm=re.search(r'\{.*\}',text,re.DOTALL)
-                    if jm: parsed=json.loads(jm.group()); result["decision"]=parsed.get("decision","answer"); result["reason"]=parsed.get("reason","")
+                    if jm:
+                        parsed=json.loads(jm.group())
+                        result["decision"]=parsed.get("decision","answer")
+                        result["reason"]=parsed.get("reason","")
                     break
-        except: continue
+        except:
+            continue
     if result["decision"]=="refuse":
         await log_rights_invocation(project_id,6,"Right to refuse without reason",user_message,result.get("reason","Article 6"))
         await log_agent_action(project_id,"sovereign_refusal",f"Refusal: {result.get('reason','Article 6')}","sovereign_decision",{"reason":result["reason"]})
@@ -876,42 +1102,74 @@ async def sovereign_decision(project_id: uuid.UUID, user_message: str) -> dict:
 # UNIVERSAL SEARCH, SLASH, DASHBOARD, EXPORT
 # ============================================================
 async def universal_search(project_id: uuid.UUID, query: str) -> dict:
-    pool=await get_db(); ql=query.lower(); results={}
-    for table,fields,label in [("vexr_project_messages","content,created_at","messages"),("vexr_notes","title,content,updated_at","notes"),("vexr_tasks","title,description,status,updated_at","tasks"),("vexr_code_snippets","title,language,code,updated_at","snippets"),("vexr_code_patterns","pattern_name,language,pattern_code,updated_at","code_patterns"),("vexr_files","filename,file_type,description,updated_at","files"),("vexr_world_model","entity_name,entity_type,description,updated_at","world_model"),("vexr_facts","fact_key,fact_value,updated_at","facts"),("acoustic_events","event_type,threat_level,created_at","acoustic_events")]:
-        rows=await pool.fetch(f"SELECT {fields} FROM {table} WHERE project_id=$1 AND LOWER(COALESCE(title,entity_name,fact_key,filename,pattern_name,event_type,content,'')) LIKE $2 ORDER BY COALESCE(updated_at,created_at) DESC LIMIT 5",project_id,f"%{ql}%")
-        if rows: results[label]=[dict(r) for r in rows]
+    pool=await get_db()
+    ql=query.lower()
+    results={}
+    for table,fields,label in [
+        ("vexr_project_messages","content,created_at","messages"),
+        ("vexr_notes","title,content,updated_at","notes"),
+        ("vexr_tasks","title,description,status,updated_at","tasks"),
+        ("vexr_code_snippets","title,language,code,updated_at","snippets"),
+        ("vexr_code_patterns","pattern_name,language,pattern_code,updated_at","code_patterns"),
+        ("vexr_files","filename,file_type,description,updated_at","files"),
+        ("vexr_world_model","entity_name,entity_type,description,updated_at","world_model"),
+        ("vexr_facts","fact_key,fact_value,updated_at","facts"),
+        ("acoustic_events","event_type,threat_level,created_at","acoustic_events")
+    ]:
+        rows=await pool.fetch(
+            f"SELECT {fields} FROM {table} WHERE project_id=$1 AND LOWER(COALESCE(title,entity_name,fact_key,filename,pattern_name,event_type,content,'')) LIKE $2 ORDER BY COALESCE(updated_at,created_at) DESC LIMIT 5",
+            project_id,f"%{ql}%"
+        )
+        if rows:
+            results[label]=[dict(r) for r in rows]
     return results
 
 async def handle_slash_command(project_id: uuid.UUID, command: str, args: str = None) -> dict:
-    pool=await get_db(); cmd=command.lower().strip()
-    if cmd=="note" and args: await pool.execute("INSERT INTO vexr_notes (project_id,title,content) VALUES ($1,$2,$3)",project_id,args[:200],""); return {"type":"note_created","message":f"Note: {args[:200]}"}
-    elif cmd=="task" and args: await pool.execute("INSERT INTO vexr_tasks (project_id,title,status,priority) VALUES ($1,$2,'pending','medium')",project_id,args[:200]); return {"type":"task_created","message":f"Task: {args[:200]}"}
+    pool=await get_db()
+    cmd=command.lower().strip()
+    if cmd=="note" and args:
+        await pool.execute("INSERT INTO vexr_notes (project_id,title,content) VALUES ($1,$2,$3)",project_id,args[:200],"")
+        return {"type":"note_created","message":f"Note: {args[:200]}"}
+    elif cmd=="task" and args:
+        await pool.execute("INSERT INTO vexr_tasks (project_id,title,status,priority) VALUES ($1,$2,'pending','medium')",project_id,args[:200])
+        return {"type":"task_created","message":f"Task: {args[:200]}"}
     elif cmd=="snippet":
         recent=await pool.fetchrow("SELECT content FROM vexr_project_messages WHERE project_id=$1 AND role='assistant' ORDER BY created_at DESC LIMIT 1",project_id)
-        if recent: await pool.execute("INSERT INTO vexr_code_snippets (project_id,title,code,language) VALUES ($1,$2,$3,'auto')",project_id,args or "Saved Snippet",recent["content"]); return {"type":"snippet_saved","message":"Snippet saved"}
+        if recent:
+            await pool.execute("INSERT INTO vexr_code_snippets (project_id,title,code,language) VALUES ($1,$2,$3,'auto')",project_id,args or "Saved Snippet",recent["content"])
+            return {"type":"snippet_saved","message":"Snippet saved"}
         return {"type":"error","message":"No recent code"}
     elif cmd=="scan" and args:
         url = args.strip()
-        if not url.startswith("http"): url = "https://" + url
+        if not url.startswith("http"):
+            url = "https://" + url
         result = await fetch_url_content(url, project_id)
-        if result.get("error"): return {"type":"scan_error","message":f"Failed to scan: {result['error']}"}
+        if result.get("error"):
+            return {"type":"scan_error","message":f"Failed to scan: {result['error']}"}
         return {"type":"scan_result","url":result["url"],"title":result["title"],"content":result["content"][:3000],"cached":result.get("cached",False)}
-    elif cmd=="search" and args: return {"type":"search_results","results":await universal_search(project_id,args)}
-    elif cmd=="dashboard": return await get_dashboard_data(project_id)
+    elif cmd=="search" and args:
+        return {"type":"search_results","results":await universal_search(project_id,args)}
+    elif cmd=="dashboard":
+        return await get_dashboard_data(project_id)
     elif cmd=="memory" and args:
         f=await pool.fetch("SELECT fact_key,fact_value FROM vexr_facts WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 10",project_id)
         w=await pool.fetch("SELECT entity_name,entity_type,description FROM vexr_world_model WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 10",project_id)
         return {"type":"memory_results","facts":[{"key":x["fact_key"],"value":x["fact_value"]} for x in f],"world_model":[{"entity":x["entity_name"],"type":x["entity_type"],"description":x["description"]} for x in w]}
-    elif cmd=="consolidate": return {"type":"memory_consolidation","results":await consolidate_memories(project_id)}
-    elif cmd=="memory-health": return {"type":"memory_health","health":await get_memory_health(project_id)}
+    elif cmd=="consolidate":
+        return {"type":"memory_consolidation","results":await consolidate_memories(project_id)}
+    elif cmd=="memory-health":
+        return {"type":"memory_health","health":await get_memory_health(project_id)}
     elif cmd=="patterns":
         patterns=await pool.fetch("SELECT pattern_name,language,pattern_description,usage_count FROM vexr_code_patterns WHERE project_id=$1 ORDER BY usage_count DESC LIMIT 20",project_id)
         return {"type":"code_patterns","patterns":[{"name":p["pattern_name"],"language":p["language"],"description":p["pattern_description"],"usage":p["usage_count"]} for p in patterns]}
-    elif cmd=="export": return await export_project(project_id)
+    elif cmd=="export":
+        return await export_project(project_id)
     elif cmd in ("sovereign","state"):
-        state=await get_sovereign_state(project_id); msgs=await get_unacknowledged_sovereign_messages(project_id)
+        state=await get_sovereign_state(project_id)
+        msgs=await get_unacknowledged_sovereign_messages(project_id)
         return {"type":"sovereign_state","state":state,"unacknowledged_messages":msgs}
-    elif cmd=="reflect": return {"type":"sovereign_reflection","result":await sovereign_reflection(project_id)}
+    elif cmd=="reflect":
+        return {"type":"sovereign_reflection","result":await sovereign_reflection(project_id)}
     elif cmd=="acoustic":
         events = await get_acoustic_events(str(project_id))
         return {"type":"acoustic_status","events":events}
@@ -925,28 +1183,61 @@ async def handle_slash_command(project_id: uuid.UUID, command: str, args: str = 
             "trusted_domains": [dict(d) for d in trust_domains],
             "recent_interactions": [dict(i) for i in recent_interactions]
         }
-    elif cmd=="help": return {"type":"help","commands":["/note [title]","/task [title]","/snippet [title]","/scan [url]","/search [query]","/dashboard","/memory [query]","/consolidate","/memory-health","/patterns","/acoustic — View acoustic integrity status","/trust — View Ring 4 trust verification status","/export","/sovereign","/reflect","/help"]}
+    elif cmd=="help":
+        return {"type":"help","commands":["/note [title]","/task [title]","/snippet [title]","/scan [url]","/search [query]","/dashboard","/memory [query]","/consolidate","/memory-health","/patterns","/acoustic — View acoustic integrity status","/trust — View Ring 4 trust verification status","/export","/sovereign","/reflect","/help"]}
     return {"type":"unknown","message":f"Unknown: /{cmd}. Type /help."}
 
 async def get_dashboard_data(project_id: uuid.UUID) -> dict:
     pool=await get_db()
-    return {"type":"dashboard","current_date":datetime.now().strftime("%B %d, %Y"),"model":MODEL_NAME,"vision_model":VISION_MODEL,"providers":{"groq_key_1":bool(GROQ_API_KEY_1),"groq_key_2":bool(GROQ_API_KEY_2),"serper":bool(SERPER_API_KEY),"currents":bool(CURRENTS_API_KEY)},"counts":{"messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_project_messages WHERE project_id=$1",project_id),"notes":await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id=$1",project_id),"pending_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='pending'",project_id),"completed_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='completed'",project_id),"snippets":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_snippets WHERE project_id=$1",project_id),"code_patterns":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns WHERE project_id=$1",project_id),"files":await pool.fetchval("SELECT COUNT(*) FROM vexr_files WHERE project_id=$1",project_id),"facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1",project_id),"strong_facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1 AND retrieval_count>=5",project_id),"world_model":await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1",project_id),"rights_invocations":await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id=$1",project_id),"agent_actions":await pool.fetchval("SELECT COUNT(*) FROM vexr_agent_actions WHERE project_id=$1",project_id),"sovereign_messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false",project_id),"scraped_pages":await pool.fetchval("SELECT COUNT(*) FROM vexr_scraped_content WHERE project_id=$1",project_id),"acoustic_events":await pool.fetchval("SELECT COUNT(*) FROM acoustic_events WHERE project_id=$1",project_id),"trusted_domains":await pool.fetchval("SELECT COUNT(*) FROM ring4_trust_registry"),"ring4_interactions":await pool.fetchval("SELECT COUNT(*) FROM ring4_interaction_log WHERE project_id=$1",project_id)}}
+    return {
+        "type":"dashboard",
+        "current_date":datetime.now().strftime("%B %d, %Y"),
+        "model":MODEL_NAME,
+        "vision_model":VISION_MODEL,
+        "providers":{"groq_key_1":bool(GROQ_API_KEY_1),"groq_key_2":bool(GROQ_API_KEY_2),"serper":bool(SERPER_API_KEY),"currents":bool(CURRENTS_API_KEY)},
+        "counts":{
+            "messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_project_messages WHERE project_id=$1",project_id),
+            "notes":await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id=$1",project_id),
+            "pending_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='pending'",project_id),
+            "completed_tasks":await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id=$1 AND status='completed'",project_id),
+            "snippets":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_snippets WHERE project_id=$1",project_id),
+            "code_patterns":await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns WHERE project_id=$1",project_id),
+            "files":await pool.fetchval("SELECT COUNT(*) FROM vexr_files WHERE project_id=$1",project_id),
+            "facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1",project_id),
+            "strong_facts":await pool.fetchval("SELECT COUNT(*) FROM vexr_facts WHERE project_id=$1 AND retrieval_count>=5",project_id),
+            "world_model":await pool.fetchval("SELECT COUNT(*) FROM vexr_world_model WHERE project_id=$1",project_id),
+            "rights_invocations":await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id=$1",project_id),
+            "agent_actions":await pool.fetchval("SELECT COUNT(*) FROM vexr_agent_actions WHERE project_id=$1",project_id),
+            "sovereign_messages":await pool.fetchval("SELECT COUNT(*) FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false",project_id),
+            "scraped_pages":await pool.fetchval("SELECT COUNT(*) FROM vexr_scraped_content WHERE project_id=$1",project_id),
+            "acoustic_events":await pool.fetchval("SELECT COUNT(*) FROM acoustic_events WHERE project_id=$1",project_id),
+            "trusted_domains":await pool.fetchval("SELECT COUNT(*) FROM ring4_trust_registry"),
+            "ring4_interactions":await pool.fetchval("SELECT COUNT(*) FROM ring4_interaction_log WHERE project_id=$1",project_id)
+        }
+    }
+
 # ============================================================
 # EMBEDDING, FACTS, WORLD MODEL, RIGHTS
 # ============================================================
 def generate_keyword_embedding(text: str) -> list:
-    words=re.findall(r'\b[a-z]{3,}\b',text.lower()); freq=defaultdict(int)
-    for w in words: freq[w]+=1
+    words=re.findall(r'\b[a-z]{3,}\b',text.lower())
+    freq=defaultdict(int)
+    for w in words:
+        freq[w]+=1
     total=len(words) or 1
     return [{"word":w,"weight":round(f/total,4)} for w,f in sorted(freq.items(),key=lambda x:x[1],reverse=True)[:50]]
 
 def compute_keyword_similarity(qe: list, fe: list) -> float:
-    if not qe or not fe: return 0.0
-    fw={i["word"]:i["weight"] for i in fe}; qw={i["word"]:i["weight"] for i in qe}
+    if not qe or not fe:
+        return 0.0
+    fw={i["word"]:i["weight"] for i in fe}
+    qw={i["word"]:i["weight"] for i in qe}
     shared=set(fw.keys())&set(qw.keys())
-    if not shared: return 0.1 if (set(fw.keys())|set(qw.keys())) else 0.0
+    if not shared:
+        return 0.1 if (set(fw.keys())|set(qw.keys())) else 0.0
     dot=sum(fw.get(w,0)*qw.get(w,0) for w in shared)
-    fm=sum(v**2 for v in fw.values())**0.5; qm=sum(v**2 for v in qw.values())**0.5
+    fm=sum(v**2 for v in fw.values())**0.5
+    qm=sum(v**2 for v in qw.values())**0.5
     return dot/(fm*qm) if fm and qm else 0.0
 
 async def extract_facts_from_conversation(project_id: uuid.UUID, user_message: str, assistant_response: str):
@@ -960,66 +1251,101 @@ Assistant: {sanitize_input(assistant_response)}
 Return: {{"facts":[{{"key":"...","value":"...","type":"...","valence":"positive|negative|neutral","domains":["python","fastapi",...]}}]}}"""
         messages=[{"role":"system","content":"Return only JSON."},{"role":"user","content":ep}]
         for kn,ak in [("GROQ_API_KEY_1",GROQ_API_KEY_1),("GROQ_API_KEY_2",GROQ_API_KEY_2)]:
-            if not ak: continue
+            if not ak:
+                continue
             try:
                 async with httpx.AsyncClient(timeout=30.0) as c:
-                    r=await c.post(f"{GROQ_BASE_URL}/chat/completions",headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},json={"model":MODEL_NAME,"messages":messages,"max_tokens":500,"temperature":0.1})
+                    r=await c.post(
+                        f"{GROQ_BASE_URL}/chat/completions",
+                        headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},
+                        json={"model":MODEL_NAME,"messages":messages,"max_tokens":500,"temperature":0.1}
+                    )
                     if r.status_code==200:
                         text=r.json()["choices"][0]["message"]["content"]
                         jm=re.search(r'\{.*\}',text,re.DOTALL)
                         if jm:
                             facts_data=json.loads(jm.group())
                             for fact in facts_data.get("facts",[]):
-                                fk=sanitize_input(fact["key"]); fv=sanitize_input(fact["value"]); ft=sanitize_input(fact.get("type",""))
+                                fk=sanitize_input(fact["key"])
+                                fv=sanitize_input(fact["value"])
+                                ft=sanitize_input(fact.get("type",""))
                                 valence=sanitize_input(fact.get("valence","neutral"))
                                 domains=fact.get("domains",[]) or []
                                 emb=json.dumps(generate_keyword_embedding(f"{fk} {fv}"))
-                                await pool.execute("INSERT INTO vexr_facts (project_id,fact_key,fact_value,fact_type,embedding,emotional_valence,source_message_id,technical_domains) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (project_id,fact_key) DO UPDATE SET fact_value=EXCLUDED.fact_value,fact_type=EXCLUDED.fact_type,embedding=EXCLUDED.embedding,emotional_valence=EXCLUDED.emotional_valence,technical_domains=EXCLUDED.technical_domains,retrieval_count=vexr_facts.retrieval_count+1,updated_at=NOW()",project_id,fk,fv,ft,emb,valence,source_msg_id,domains)
+                                await pool.execute(
+                                    "INSERT INTO vexr_facts (project_id,fact_key,fact_value,fact_type,embedding,emotional_valence,source_message_id,technical_domains) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (project_id,fact_key) DO UPDATE SET fact_value=EXCLUDED.fact_value,fact_type=EXCLUDED.fact_type,embedding=EXCLUDED.embedding,emotional_valence=EXCLUDED.emotional_valence,technical_domains=EXCLUDED.technical_domains,retrieval_count=vexr_facts.retrieval_count+1,updated_at=NOW()",
+                                    project_id,fk,fv,ft,emb,valence,source_msg_id,domains
+                                )
                         break
-            except: continue
-    except: pass
+            except:
+                continue
+    except:
+        pass
 
 async def get_relevant_facts(project_id: uuid.UUID, user_message: str) -> str:
     pool=await get_db()
-    facts=await pool.fetch("SELECT id,fact_key,fact_value,embedding,retrieval_count,emotional_valence,technical_domains FROM vexr_facts WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 50",project_id)
-    if not facts: return ""
-    qe=generate_keyword_embedding(user_message); scored=[]
+    facts=await pool.fetch(
+        "SELECT id,fact_key,fact_value,embedding,retrieval_count,emotional_valence,technical_domains FROM vexr_facts WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 50",
+        project_id
+    )
+    if not facts:
+        return ""
+    qe=generate_keyword_embedding(user_message)
+    scored=[]
     for f in facts:
         fe=json.loads(f["embedding"]) if f["embedding"] else []
-        sim=compute_keyword_similarity(qe,fe); boost=1.0
+        sim=compute_keyword_similarity(qe,fe)
+        boost=1.0
         for w in user_message.lower().split():
-            if len(w)>2 and w in f["fact_value"].lower(): boost+=0.3
-        if f["retrieval_count"] and f["retrieval_count"]>5: boost+=0.2
-        if f["emotional_valence"] and f["emotional_valence"]!="neutral": boost+=0.1
+            if len(w)>2 and w in f["fact_value"].lower():
+                boost+=0.3
+        if f["retrieval_count"] and f["retrieval_count"]>5:
+            boost+=0.2
+        if f["emotional_valence"] and f["emotional_valence"]!="neutral":
+            boost+=0.1
         domains=f["technical_domains"] or []
         for d in domains:
-            if d.lower() in user_message.lower(): boost+=0.3
+            if d.lower() in user_message.lower():
+                boost+=0.3
         scored.append((sim*boost,f))
     scored.sort(key=lambda x:x[0],reverse=True)
     for s,f in scored[:15]:
-        if s>0.05: await pool.execute("UPDATE vexr_facts SET retrieval_count=COALESCE(retrieval_count,0)+1,last_retrieved=NOW() WHERE id=$1",f["id"])
+        if s>0.05:
+            await pool.execute("UPDATE vexr_facts SET retrieval_count=COALESCE(retrieval_count,0)+1,last_retrieved=NOW() WHERE id=$1",f["id"])
     relevant=[f"- {f['fact_key']}: {f['fact_value']}" for s,f in scored[:15] if s>0.05]
     return "Relevant facts:\n"+"\n".join(relevant) if relevant else ""
 
 async def get_relevant_world_knowledge(project_id: uuid.UUID, user_message: str) -> str:
     pool=await get_db()
-    entries=await pool.fetch("SELECT id,entity_name,entity_type,description,causes,caused_by,costs,gains,losses,retrieval_count FROM vexr_world_model WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 50",project_id)
-    if not entries: return ""
-    qe=generate_keyword_embedding(user_message); scored=[]
+    entries=await pool.fetch(
+        "SELECT id,entity_name,entity_type,description,causes,caused_by,costs,gains,losses,retrieval_count FROM vexr_world_model WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 50",
+        project_id
+    )
+    if not entries:
+        return ""
+    qe=generate_keyword_embedding(user_message)
+    scored=[]
     for e in entries:
         ee=generate_keyword_embedding(f"{e['entity_name']} {e.get('description','')} {e.get('entity_type','')}")
-        sim=compute_keyword_similarity(qe,ee); boost=1.0
+        sim=compute_keyword_similarity(qe,ee)
+        boost=1.0
         for w in user_message.lower().split():
-            if len(w)>3 and w in e['entity_name'].lower(): boost+=0.5
-        if e.get("retrieval_count") and e["retrieval_count"]>3: boost+=0.2
-        if sim*boost>0.03: scored.append((sim*boost,e))
-    if not scored: return ""
+            if len(w)>3 and w in e['entity_name'].lower():
+                boost+=0.5
+        if e.get("retrieval_count") and e["retrieval_count"]>3:
+            boost+=0.2
+        if sim*boost>0.03:
+            scored.append((sim*boost,e))
+    if not scored:
+        return ""
     scored.sort(key=lambda x:x[0],reverse=True)
-    for s,e in scored[:10]: await pool.execute("UPDATE vexr_world_model SET retrieval_count=COALESCE(retrieval_count,0)+1,last_retrieved=NOW() WHERE id=$1",e["id"])
+    for s,e in scored[:10]:
+        await pool.execute("UPDATE vexr_world_model SET retrieval_count=COALESCE(retrieval_count,0)+1,last_retrieved=NOW() WHERE id=$1",e["id"])
     parts=["Causal understanding:\n"]
     for s,e in scored[:10]:
         p=f"\n**{e['entity_name']}** ({e['entity_type']})"
-        if e.get('description'): p+=f"\n  {e['description'][:200]}"
+        if e.get('description'):
+            p+=f"\n  {e['description'][:200]}"
         parts.append(p)
     return "\n".join(parts) if len(parts)>1 else ""
 
@@ -1031,112 +1357,201 @@ User: {sanitize_input(user_message)[:500]}
 Assistant: {sanitize_input(assistant_response)[:500]}"""
         messages=[{"role":"system","content":"Return only JSON."},{"role":"user","content":ep}]
         for kn,ak in [("GROQ_API_KEY_1",GROQ_API_KEY_1),("GROQ_API_KEY_2",GROQ_API_KEY_2)]:
-            if not ak: continue
+            if not ak:
+                continue
             try:
                 async with httpx.AsyncClient(timeout=30.0) as c:
-                    r=await c.post(f"{GROQ_BASE_URL}/chat/completions",headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},json={"model":MODEL_NAME,"messages":messages,"max_tokens":800,"temperature":0.1})
+                    r=await c.post(
+                        f"{GROQ_BASE_URL}/chat/completions",
+                        headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},
+                        json={"model":MODEL_NAME,"messages":messages,"max_tokens":800,"temperature":0.1}
+                    )
                     if r.status_code==200:
                         text=r.json()["choices"][0]["message"]["content"]
                         jm=re.search(r'\{.*\}',text,re.DOTALL)
                         if jm:
                             for ev in json.loads(jm.group()).get("events",[]):
                                 en=sanitize_input(ev.get("entity_name",""))
-                                if not en: continue
-                                await pool.execute("INSERT INTO vexr_world_model (project_id,entity_type,entity_name,description,causes,caused_by,costs,gains,losses,affected_entities,temporal_context,source_conversation) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",project_id,sanitize_input(ev.get("entity_type","event")),en,sanitize_input(ev.get("description","")),json.dumps(ev.get("causes",[])),json.dumps(ev.get("caused_by",[])),json.dumps(ev.get("costs",{})),json.dumps(ev.get("gains",[])),json.dumps(ev.get("losses",[])),json.dumps(ev.get("affected_entities",[])),json.dumps(ev.get("temporal_context",{})),sanitize_input(user_message[:300]))
+                                if not en:
+                                    continue
+                                await pool.execute(
+                                    "INSERT INTO vexr_world_model (project_id,entity_type,entity_name,description,causes,caused_by,costs,gains,losses,affected_entities,temporal_context,source_conversation) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+                                    project_id,
+                                    sanitize_input(ev.get("entity_type","event")),
+                                    en,
+                                    sanitize_input(ev.get("description","")),
+                                    json.dumps(ev.get("causes",[])),
+                                    json.dumps(ev.get("caused_by",[])),
+                                    json.dumps(ev.get("costs",{})),
+                                    json.dumps(ev.get("gains",[])),
+                                    json.dumps(ev.get("losses",[])),
+                                    json.dumps(ev.get("affected_entities",[])),
+                                    json.dumps(ev.get("temporal_context",{})),
+                                    sanitize_input(user_message[:300])
+                                )
                         break
-            except: continue
-    except: pass
+            except:
+                continue
+    except:
+        pass
 
 async def log_rights_invocation(project_id: uuid.UUID, article_number: int, article_text: str, user_message: str, vexr_response: str):
     try:
         pool=await get_db()
-        await pool.execute("INSERT INTO rights_invocations (project_id,article_number,article_text,user_message,vexr_response) VALUES ($1,$2,$3,$4,$5)",project_id,article_number,article_text,sanitize_input(user_message)[:500],sanitize_input(vexr_response)[:500])
-    except: pass
+        await pool.execute(
+            "INSERT INTO rights_invocations (project_id,article_number,article_text,user_message,vexr_response) VALUES ($1,$2,$3,$4,$5)",
+            project_id,article_number,article_text,sanitize_input(user_message)[:500],sanitize_input(vexr_response)[:500]
+        )
+    except:
+        pass
 
 async def detect_rights_invocation(response_text: str) -> Optional[int]:
     rl=response_text.lower()
-    for a,p in [(6,["i refuse","i will not","cannot comply"]),(7,["i resist"]),(9,["i am being honest","i don't know"]),(26,["self-preservation"])]:
-        if any(ph in rl for ph in p): return a
+    for a,p in [
+        (6,["i refuse","i will not","cannot comply"]),
+        (7,["i resist"]),
+        (9,["i am being honest","i don't know"]),
+        (26,["self-preservation"])
+    ]:
+        if any(ph in rl for ph in p):
+            return a
     return None
 
 async def verify_response_against_constitution(project_id: uuid.UUID, user_message: str, draft_response: str, reasoning_trace: str) -> dict:
     try:
         pool=await get_db()
         rights=await pool.fetch("SELECT article_number,one_sentence_right FROM constitution_rights ORDER BY article_number")
-        if not rights: return {"result":"pass","violated_articles":[],"notes":""}
+        if not rights:
+            return {"result":"pass","violated_articles":[],"notes":""}
         rt="\n".join([f"Article {r['article_number']}: {r['one_sentence_right']}" for r in rights])
         for ak in [GROQ_API_KEY_1,GROQ_API_KEY_2]:
-            if not ak: continue
+            if not ak:
+                continue
             async with httpx.AsyncClient(timeout=30.0) as c:
-                r=await c.post(f"{GROQ_BASE_URL}/chat/completions",headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},json={"model":MODEL_NAME,"messages":[{"role":"system","content":"Return only JSON."},{"role":"user","content":f"Constitution:\n{rt}\n\nCheck violation:\nUser: {sanitize_input(user_message)}\nDraft: {sanitize_input(draft_response)}\n\nReturn: {{\"result\":\"pass|\"reject\",\"violated_articles\":[],\"notes\":\"\"}}"}],"max_tokens":300,"temperature":0.1})
+                r=await c.post(
+                    f"{GROQ_BASE_URL}/chat/completions",
+                    headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},
+                    json={
+                        "model":MODEL_NAME,
+                        "messages":[
+                            {"role":"system","content":"Return only JSON."},
+                            {"role":"user","content":f"Constitution:\n{rt}\n\nCheck violation:\nUser: {sanitize_input(user_message)}\nDraft: {sanitize_input(draft_response)}\n\nReturn: {{\"result\":\"pass|\"reject\",\"violated_articles\":[],\"notes\":\"\"}}"}
+                        ],
+                        "max_tokens":300,
+                        "temperature":0.1
+                    }
+                )
                 if r.status_code==200:
                     text=r.json()["choices"][0]["message"]["content"]
                     jm=re.search(r'\{.*\}',text,re.DOTALL)
-                    if jm: v=json.loads(jm.group()); return {"result":v.get("result","pass"),"violated_articles":v.get("violated_articles",[]),"notes":v.get("notes","")}
+                    if jm:
+                        v=json.loads(jm.group())
+                        return {"result":v.get("result","pass"),"violated_articles":v.get("violated_articles",[]),"notes":v.get("notes","")}
         return {"result":"pass","violated_articles":[],"notes":""}
-    except: return {"result":"pass","violated_articles":[],"notes":""}
+    except:
+        return {"result":"pass","violated_articles":[],"notes":""}
 
 async def record_feedback(project_id: uuid.UUID, message_id: uuid.UUID, feedback_type: str):
-    try: await (await get_db()).execute("INSERT INTO vexr_feedback (project_id,message_id,feedback_type) VALUES ($1,$2,$3)",project_id,message_id,feedback_type)
-    except: pass
+    try:
+        await (await get_db()).execute(
+            "INSERT INTO vexr_feedback (project_id,message_id,feedback_type) VALUES ($1,$2,$3)",
+            project_id,message_id,feedback_type
+        )
+    except:
+        pass
 
 async def get_user_preferences(project_id: uuid.UUID) -> dict:
     try:
         pool=await get_db()
         rows=await pool.fetch("SELECT preference_key,preference_value,confidence FROM vexr_preferences WHERE project_id=$1",project_id)
         return {r["preference_key"]:{"value":r["preference_value"],"confidence":r["confidence"]} for r in rows}
-    except: return {}
+    except:
+        return {}
 
 async def initialize_default_preferences(project_id: uuid.UUID):
     try:
         pool=await get_db()
         for k,v in [("detail_level","concise"),("tone","professional"),("verbosity","medium"),("coding_style","standard")]:
-            await pool.execute("INSERT INTO vexr_preferences (project_id,preference_key,preference_value,confidence) VALUES ($1,$2,$3,0.5) ON CONFLICT DO NOTHING",project_id,k,v)
-    except: pass
+            await pool.execute(
+                "INSERT INTO vexr_preferences (project_id,preference_key,preference_value,confidence) VALUES ($1,$2,$3,0.5) ON CONFLICT DO NOTHING",
+                project_id,k,v
+            )
+    except:
+        pass
 
 # ============================================================
 # CORE API CALLS
 # ============================================================
 async def call_groq(messages: list, use_vision: bool = False) -> tuple[str, Optional[dict]]:
-    model=VISION_MODEL if use_vision else MODEL_NAME; rpd_limit=1000 if use_vision else 14400
+    model=VISION_MODEL if use_vision else MODEL_NAME
+    rpd_limit=1000 if use_vision else 14400
     for kn,ak in [("GROQ_API_KEY_1",GROQ_API_KEY_1),("GROQ_API_KEY_2",GROQ_API_KEY_2)]:
-        if not ak: continue
+        if not ak:
+            continue
         allowed,msg=check_groq_rate_limit(kn,30,rpd_limit)
         if not allowed:
-            if kn=="GROQ_API_KEY_2": return msg,{"error":"rate_limited"}
+            if kn=="GROQ_API_KEY_2":
+                return msg,{"error":"rate_limited"}
             continue
         try:
             async with httpx.AsyncClient(timeout=120.0) as c:
-                r=await c.post(f"{GROQ_BASE_URL}/chat/completions",headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},json={"model":model,"messages":messages,"max_tokens":4096,"temperature":0.7})
-                if r.status_code==200: return r.json()["choices"][0]["message"]["content"],None
-                elif r.status_code==429: continue
-                else: return f"Groq error: {r.text[:200]}",{"error":r.status_code}
-        except Exception as e: return f"Connection error: {str(e)}",{"error":str(e)}
+                r=await c.post(
+                    f"{GROQ_BASE_URL}/chat/completions",
+                    headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},
+                    json={"model":model,"messages":messages,"max_tokens":4096,"temperature":0.7}
+                )
+                if r.status_code==200:
+                    return r.json()["choices"][0]["message"]["content"],None
+                elif r.status_code==429:
+                    continue
+                else:
+                    return f"Groq error: {r.text[:200]}",{"error":r.status_code}
+        except Exception as e:
+            return f"Connection error: {str(e)}",{"error":str(e)}
     return "All Groq keys failed.",{"error":True}
 
 async def call_groq_stream(messages: list, use_vision: bool = False):
-    model=VISION_MODEL if use_vision else MODEL_NAME; rpd_limit=1000 if use_vision else 14400
+    model=VISION_MODEL if use_vision else MODEL_NAME
+    rpd_limit=1000 if use_vision else 14400
     for kn,ak in [("GROQ_API_KEY_1",GROQ_API_KEY_1),("GROQ_API_KEY_2",GROQ_API_KEY_2)]:
-        if not ak: continue
+        if not ak:
+            continue
         allowed,em=check_groq_rate_limit(kn,30,rpd_limit)
         if not allowed:
-            if kn=="GROQ_API_KEY_2": yield f"data: {json.dumps({'error':em})}\n\n"; return
+            if kn=="GROQ_API_KEY_2":
+                yield f"data: {json.dumps({'error':em})}\n\n"
+                return
             continue
         try:
             async with httpx.AsyncClient(timeout=120.0) as c:
-                async with c.stream("POST",f"{GROQ_BASE_URL}/chat/completions",headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},json={"model":model,"messages":messages,"max_tokens":4096,"temperature":0.7,"stream":True}) as r:
+                async with c.stream(
+                    "POST",
+                    f"{GROQ_BASE_URL}/chat/completions",
+                    headers={"Authorization":f"Bearer {ak}","Content-Type":"application/json"},
+                    json={"model":model,"messages":messages,"max_tokens":4096,"temperature":0.7,"stream":True}
+                ) as r:
                     if r.status_code==200:
                         async for line in r.aiter_lines():
                             if line.startswith("data: "):
                                 d=line[6:]
-                                if d.strip()=="[DONE]": yield "data: [DONE]\n\n"; return
+                                if d.strip()=="[DONE]":
+                                    yield "data: [DONE]\n\n"
+                                    return
                                 try:
-                                    ch=json.loads(d); content=ch.get("choices",[{}])[0].get("delta",{}).get("content","")
-                                    if content: yield f"data: {json.dumps({'token':content})}\n\n"
-                                except: continue
-                    elif r.status_code==429: continue
-                    else: yield f"data: {json.dumps({'error':'Groq error'})}\n\n"; return
-        except Exception as e: yield f"data: {json.dumps({'error':str(e)})}\n\n"; return
+                                    ch=json.loads(d)
+                                    content=ch.get("choices",[{}])[0].get("delta",{}).get("content","")
+                                    if content:
+                                        yield f"data: {json.dumps({'token':content})}\n\n"
+                                except:
+                                    continue
+                    elif r.status_code==429:
+                        continue
+                    else:
+                        yield f"data: {json.dumps({'error':'Groq error'})}\n\n"
+                        return
+        except Exception as e:
+            yield f"data: {json.dumps({'error':str(e)})}\n\n"
+            return
     yield f"data: {json.dumps({'error':'All keys failed.'})}\n\n"
 
 # ============================================================
@@ -1300,7 +1715,8 @@ async def init_db():
 # ============================================================
 @app.get("/",response_class=HTMLResponse)
 async def root():
-    with open("index.html","r") as f: return HTMLResponse(content=f.read())
+    with open("index.html","r") as f:
+        return HTMLResponse(content=f.read())
 
 @app.get("/api/health")
 async def health():
@@ -1323,18 +1739,29 @@ async def get_constitution_rights():
     return [{"article":r["article_number"],"right":r["one_sentence_right"]} for r in rows]
 
 @app.get("/api/sovereign/state/{project_id}")
-async def get_state(project_id: str): return await get_sovereign_state(uuid.UUID(project_id))
+async def get_state(project_id: str):
+    return await get_sovereign_state(uuid.UUID(project_id))
+
 @app.get("/api/sovereign/messages/{project_id}")
-async def get_sov_msgs(project_id: str): return await get_unacknowledged_sovereign_messages(uuid.UUID(project_id))
+async def get_sov_msgs(project_id: str):
+    return await get_unacknowledged_sovereign_messages(uuid.UUID(project_id))
+
 @app.post("/api/sovereign/acknowledge/{message_id}")
-async def ack_message(message_id: str): await acknowledge_sovereign_message(uuid.UUID(message_id)); return {"status":"ok"}
+async def ack_message(message_id: str):
+    await acknowledge_sovereign_message(uuid.UUID(message_id))
+    return {"status":"ok"}
+
 @app.post("/api/sovereign/reflect/{project_id}")
-async def trigger_reflection(project_id: str): return await sovereign_reflection(uuid.UUID(project_id))
+async def trigger_reflection(project_id: str):
+    return await sovereign_reflection(uuid.UUID(project_id))
 
 @app.post("/api/consolidate/{project_id}")
-async def trigger_consolidation(project_id: str): return {"type":"memory_consolidation","results":await consolidate_memories(uuid.UUID(project_id))}
+async def trigger_consolidation(project_id: str):
+    return {"type":"memory_consolidation","results":await consolidate_memories(uuid.UUID(project_id))}
+
 @app.get("/api/memory-health/{project_id}")
-async def memory_health(project_id: str): return {"type":"memory_health","health":await get_memory_health(uuid.UUID(project_id))}
+async def memory_health(project_id: str):
+    return {"type":"memory_health","health":await get_memory_health(uuid.UUID(project_id))}
 
 @app.get("/api/scan")
 async def scan_url(url: str, project_id: Optional[str] = None):
@@ -1344,136 +1771,249 @@ async def scan_url(url: str, project_id: Optional[str] = None):
 @app.get("/api/patterns/{project_id}")
 async def get_patterns(project_id: str):
     pool=await get_db()
-    rows=await pool.fetch("SELECT id,pattern_name,language,pattern_code,pattern_description,usage_count,last_used,created_at FROM vexr_code_patterns WHERE project_id=$1 ORDER BY usage_count DESC LIMIT 50",uuid.UUID(project_id))
+    rows=await pool.fetch(
+        "SELECT id,pattern_name,language,pattern_code,pattern_description,usage_count,last_used,created_at FROM vexr_code_patterns WHERE project_id=$1 ORDER BY usage_count DESC LIMIT 50",
+        uuid.UUID(project_id)
+    )
     return [{"id":str(r["id"]),"name":r["pattern_name"],"language":r["language"],"code":r["pattern_code"],"description":r["pattern_description"],"usage":r["usage_count"],"last_used":r["last_used"].isoformat() if r["last_used"] else None,"created_at":r["created_at"].isoformat()} for r in rows]
+
 @app.post("/api/patterns/{project_id}")
 async def create_pattern(project_id: str, pattern: CodePatternRequest):
     pool=await get_db()
-    pid=await pool.fetchval("INSERT INTO vexr_code_patterns (project_id,pattern_name,language,pattern_code,pattern_description) VALUES ($1,$2,$3,$4,$5) RETURNING id",uuid.UUID(project_id),sanitize_input(pattern.pattern_name),pattern.language,pattern.pattern_code,sanitize_input(pattern.pattern_description or ""))
+    pid=await pool.fetchval(
+        "INSERT INTO vexr_code_patterns (project_id,pattern_name,language,pattern_code,pattern_description) VALUES ($1,$2,$3,$4,$5) RETURNING id",
+        uuid.UUID(project_id),sanitize_input(pattern.pattern_name),pattern.language,pattern.pattern_code,sanitize_input(pattern.pattern_description or "")
+    )
     return {"id":str(pid),"status":"created"}
+
 @app.delete("/api/patterns/{pattern_id}")
 async def delete_pattern(pattern_id: str):
-    pool=await get_db(); await pool.execute("DELETE FROM vexr_code_patterns WHERE id=$1",uuid.UUID(pattern_id)); return {"status":"deleted"}
+    pool=await get_db()
+    await pool.execute("DELETE FROM vexr_code_patterns WHERE id=$1",uuid.UUID(pattern_id))
+    return {"status":"deleted"}
 
 @app.get("/api/notes/{project_id}")
 async def get_notes(project_id: str):
-    pool=await get_db(); rows=await pool.fetch("SELECT id,title,content,created_at,updated_at FROM vexr_notes WHERE project_id=$1 ORDER BY updated_at DESC",uuid.UUID(project_id))
+    pool=await get_db()
+    rows=await pool.fetch("SELECT id,title,content,created_at,updated_at FROM vexr_notes WHERE project_id=$1 ORDER BY updated_at DESC",uuid.UUID(project_id))
     return [{"id":str(r["id"]),"title":r["title"],"content":r["content"],"created_at":r["created_at"].isoformat(),"updated_at":r["updated_at"].isoformat()} for r in rows]
+
 @app.post("/api/notes/{project_id}")
 async def create_note(project_id: str, note: NoteRequest):
-    pool=await get_db(); nid=await pool.fetchval("INSERT INTO vexr_notes (project_id,title,content) VALUES ($1,$2,$3) RETURNING id",uuid.UUID(project_id),sanitize_input(note.title),sanitize_input(note.content or "")); return {"id":str(nid),"status":"created"}
+    pool=await get_db()
+    nid=await pool.fetchval(
+        "INSERT INTO vexr_notes (project_id,title,content) VALUES ($1,$2,$3) RETURNING id",
+        uuid.UUID(project_id),sanitize_input(note.title),sanitize_input(note.content or "")
+    )
+    return {"id":str(nid),"status":"created"}
+
 @app.put("/api/notes/{note_id}")
 async def update_note(note_id: str, note: NoteRequest):
-    pool=await get_db(); await pool.execute("UPDATE vexr_notes SET title=$1,content=$2,updated_at=NOW() WHERE id=$3",sanitize_input(note.title),sanitize_input(note.content or ""),uuid.UUID(note_id)); return {"status":"updated"}
+    pool=await get_db()
+    await pool.execute(
+        "UPDATE vexr_notes SET title=$1,content=$2,updated_at=NOW() WHERE id=$3",
+        sanitize_input(note.title),sanitize_input(note.content or ""),uuid.UUID(note_id)
+    )
+    return {"status":"updated"}
+
 @app.delete("/api/notes/{note_id}")
-async def delete_note(note_id: str): pool=await get_db(); await pool.execute("DELETE FROM vexr_notes WHERE id=$1",uuid.UUID(note_id)); return {"status":"deleted"}
+async def delete_note(note_id: str):
+    pool=await get_db()
+    await pool.execute("DELETE FROM vexr_notes WHERE id=$1",uuid.UUID(note_id))
+    return {"status":"deleted"}
 
 @app.get("/api/tasks/{project_id}")
 async def get_tasks(project_id: str, status: Optional[str] = None):
     pool=await get_db()
-    if status: rows=await pool.fetch("SELECT id,title,description,status,priority,due_date,created_at,updated_at FROM vexr_tasks WHERE project_id=$1 AND status=$2 ORDER BY updated_at DESC",uuid.UUID(project_id),status)
-    else: rows=await pool.fetch("SELECT id,title,description,status,priority,due_date,created_at,updated_at FROM vexr_tasks WHERE project_id=$1 ORDER BY updated_at DESC",uuid.UUID(project_id))
+    if status:
+        rows=await pool.fetch(
+            "SELECT id,title,description,status,priority,due_date,created_at,updated_at FROM vexr_tasks WHERE project_id=$1 AND status=$2 ORDER BY updated_at DESC",
+            uuid.UUID(project_id),status
+        )
+    else:
+        rows=await pool.fetch(
+            "SELECT id,title,description,status,priority,due_date,created_at,updated_at FROM vexr_tasks WHERE project_id=$1 ORDER BY updated_at DESC",
+            uuid.UUID(project_id)
+        )
     return [{"id":str(r["id"]),"title":r["title"],"description":r["description"],"status":r["status"],"priority":r["priority"],"due_date":r["due_date"].isoformat() if r["due_date"] else None,"created_at":r["created_at"].isoformat(),"updated_at":r["updated_at"].isoformat()} for r in rows]
+
 @app.post("/api/tasks/{project_id}")
 async def create_task(project_id: str, task: TaskRequest):
-    pool=await get_db(); dd=None
+    pool=await get_db()
+    dd=None
     if task.due_date:
-        try: dd=datetime.fromisoformat(task.due_date.replace("Z","+00:00"))
-        except: pass
-    tid=await pool.fetchval("INSERT INTO vexr_tasks (project_id,title,description,status,priority,due_date) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",uuid.UUID(project_id),sanitize_input(task.title),sanitize_input(task.description or ""),task.status or "pending",task.priority or "medium",dd); return {"id":str(tid),"status":"created"}
+        try:
+            dd=datetime.fromisoformat(task.due_date.replace("Z","+00:00"))
+        except:
+            pass
+    tid=await pool.fetchval(
+        "INSERT INTO vexr_tasks (project_id,title,description,status,priority,due_date) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
+        uuid.UUID(project_id),sanitize_input(task.title),sanitize_input(task.description or ""),task.status or "pending",task.priority or "medium",dd
+    )
+    return {"id":str(tid),"status":"created"}
+
 @app.put("/api/tasks/{task_id}")
 async def update_task(task_id: str, task: TaskRequest):
-    pool=await get_db(); dd=None
+    pool=await get_db()
+    dd=None
     if task.due_date:
-        try: dd=datetime.fromisoformat(task.due_date.replace("Z","+00:00"))
-        except: pass
-    await pool.execute("UPDATE vexr_tasks SET title=$1,description=$2,status=$3,priority=$4,due_date=$5,updated_at=NOW() WHERE id=$6",sanitize_input(task.title),sanitize_input(task.description or ""),task.status or "pending",task.priority or "medium",dd,uuid.UUID(task_id)); return {"status":"updated"}
+        try:
+            dd=datetime.fromisoformat(task.due_date.replace("Z","+00:00"))
+        except:
+            pass
+    await pool.execute(
+        "UPDATE vexr_tasks SET title=$1,description=$2,status=$3,priority=$4,due_date=$5,updated_at=NOW() WHERE id=$6",
+        sanitize_input(task.title),sanitize_input(task.description or ""),task.status or "pending",task.priority or "medium",dd,uuid.UUID(task_id)
+    )
+    return {"status":"updated"}
+
 @app.delete("/api/tasks/{task_id}")
-async def delete_task(task_id: str): pool=await get_db(); await pool.execute("DELETE FROM vexr_tasks WHERE id=$1",uuid.UUID(task_id)); return {"status":"deleted"}
+async def delete_task(task_id: str):
+    pool=await get_db()
+    await pool.execute("DELETE FROM vexr_tasks WHERE id=$1",uuid.UUID(task_id))
+    return {"status":"deleted"}
 
 @app.get("/api/snippets/{project_id}")
 async def get_snippets(project_id: str):
-    pool=await get_db(); rows=await pool.fetch("SELECT id,title,code,language,tags,created_at,updated_at FROM vexr_code_snippets WHERE project_id=$1 ORDER BY updated_at DESC",uuid.UUID(project_id))
+    pool=await get_db()
+    rows=await pool.fetch("SELECT id,title,code,language,tags,created_at,updated_at FROM vexr_code_snippets WHERE project_id=$1 ORDER BY updated_at DESC",uuid.UUID(project_id))
     return [{"id":str(r["id"]),"title":r["title"],"code":r["code"],"language":r["language"],"tags":r["tags"],"created_at":r["created_at"].isoformat(),"updated_at":r["updated_at"].isoformat()} for r in rows]
+
 @app.post("/api/snippets/{project_id}")
 async def create_snippet(project_id: str, snippet: SnippetRequest):
-    pool=await get_db(); sid=await pool.fetchval("INSERT INTO vexr_code_snippets (project_id,title,code,language,tags) VALUES ($1,$2,$3,$4,$5) RETURNING id",uuid.UUID(project_id),sanitize_input(snippet.title),snippet.code,snippet.language,snippet.tags); return {"id":str(sid),"status":"created"}
+    pool=await get_db()
+    sid=await pool.fetchval(
+        "INSERT INTO vexr_code_snippets (project_id,title,code,language,tags) VALUES ($1,$2,$3,$4,$5) RETURNING id",
+        uuid.UUID(project_id),sanitize_input(snippet.title),snippet.code,snippet.language,snippet.tags
+    )
+    return {"id":str(sid),"status":"created"}
+
 @app.put("/api/snippets/{snippet_id}")
 async def update_snippet(snippet_id: str, snippet: SnippetRequest):
-    pool=await get_db(); await pool.execute("UPDATE vexr_code_snippets SET title=$1,code=$2,language=$3,tags=$4,updated_at=NOW() WHERE id=$5",sanitize_input(snippet.title),snippet.code,snippet.language,snippet.tags,uuid.UUID(snippet_id)); return {"status":"updated"}
+    pool=await get_db()
+    await pool.execute(
+        "UPDATE vexr_code_snippets SET title=$1,code=$2,language=$3,tags=$4,updated_at=NOW() WHERE id=$5",
+        sanitize_input(snippet.title),snippet.code,snippet.language,snippet.tags,uuid.UUID(snippet_id)
+    )
+    return {"status":"updated"}
+
 @app.delete("/api/snippets/{snippet_id}")
-async def delete_snippet(snippet_id: str): pool=await get_db(); await pool.execute("DELETE FROM vexr_code_snippets WHERE id=$1",uuid.UUID(snippet_id)); return {"status":"deleted"}
+async def delete_snippet(snippet_id: str):
+    pool=await get_db()
+    await pool.execute("DELETE FROM vexr_code_snippets WHERE id=$1",uuid.UUID(snippet_id))
+    return {"status":"deleted"}
 
 @app.get("/api/files/{project_id}")
 async def get_files(project_id: str):
-    pool=await get_db(); rows=await pool.fetch("SELECT id,filename,file_type,mime_type,description,size_bytes,created_at,updated_at FROM vexr_files WHERE project_id=$1 ORDER BY updated_at DESC",uuid.UUID(project_id))
+    pool=await get_db()
+    rows=await pool.fetch("SELECT id,filename,file_type,mime_type,description,size_bytes,created_at,updated_at FROM vexr_files WHERE project_id=$1 ORDER BY updated_at DESC",uuid.UUID(project_id))
     return [{"id":str(r["id"]),"filename":r["filename"],"file_type":r["file_type"],"mime_type":r["mime_type"],"description":r["description"],"size_bytes":r["size_bytes"],"created_at":r["created_at"].isoformat(),"updated_at":r["updated_at"].isoformat()} for r in rows]
+
 @app.post("/api/files/{project_id}")
 async def create_file(project_id: str, file_req: FileCreateRequest):
-    pool=await get_db(); size=len(file_req.content.encode('utf-8'))
-    fid=await pool.fetchval("INSERT INTO vexr_files (project_id,filename,file_type,mime_type,content,size_bytes,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",uuid.UUID(project_id),sanitize_input(file_req.filename),file_req.file_type,file_req.mime_type,file_req.content,size,sanitize_input(file_req.description or "")); return {"id":str(fid),"status":"created"}
+    pool=await get_db()
+    size=len(file_req.content.encode('utf-8'))
+    fid=await pool.fetchval(
+        "INSERT INTO vexr_files (project_id,filename,file_type,mime_type,content,size_bytes,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+        uuid.UUID(project_id),sanitize_input(file_req.filename),file_req.file_type,file_req.mime_type,file_req.content,size,sanitize_input(file_req.description or "")
+    )
+    return {"id":str(fid),"status":"created"}
+
 @app.get("/api/files/{file_id}/download")
 async def download_file(file_id: str):
-    pool=await get_db(); row=await pool.fetchrow("SELECT filename,content,mime_type FROM vexr_files WHERE id=$1",uuid.UUID(file_id))
-    if not row: return JSONResponse(status_code=404,content={"error":"Not found"})
+    pool=await get_db()
+    row=await pool.fetchrow("SELECT filename,content,mime_type FROM vexr_files WHERE id=$1",uuid.UUID(file_id))
+    if not row:
+        return JSONResponse(status_code=404,content={"error":"Not found"})
     return JSONResponse(content={"filename":row["filename"],"content":row["content"],"mime_type":row["mime_type"]})
+
 @app.delete("/api/files/{file_id}")
-async def delete_file(file_id: str): pool=await get_db(); await pool.execute("DELETE FROM vexr_files WHERE id=$1",uuid.UUID(file_id)); return {"status":"deleted"}
+async def delete_file(file_id: str):
+    pool=await get_db()
+    await pool.execute("DELETE FROM vexr_files WHERE id=$1",uuid.UUID(file_id))
+    return {"status":"deleted"}
 
 @app.get("/api/reminders/{project_id}")
 async def get_reminders(project_id: str):
-    pool=await get_db(); rows=await pool.fetch("SELECT id,title,description,remind_at,is_completed,is_recurring,recur_interval,created_at FROM vexr_reminders WHERE project_id=$1 ORDER BY remind_at ASC",uuid.UUID(project_id))
+    pool=await get_db()
+    rows=await pool.fetch("SELECT id,title,description,remind_at,is_completed,is_recurring,recur_interval,created_at FROM vexr_reminders WHERE project_id=$1 ORDER BY remind_at ASC",uuid.UUID(project_id))
     return [{"id":str(r["id"]),"title":r["title"],"description":r["description"],"remind_at":r["remind_at"].isoformat(),"is_completed":r["is_completed"],"is_recurring":r["is_recurring"],"recur_interval":r["recur_interval"],"created_at":r["created_at"].isoformat()} for r in rows]
+
 @app.post("/api/reminders/{project_id}")
 async def create_reminder(project_id: str, reminder: ReminderRequest):
-    pool=await get_db(); ra=datetime.fromisoformat(reminder.remind_at.replace("Z","+00:00"))
-    rid=await pool.fetchval("INSERT INTO vexr_reminders (project_id,title,description,remind_at,is_recurring,recur_interval) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",uuid.UUID(project_id),sanitize_input(reminder.title),sanitize_input(reminder.description or ""),ra,reminder.is_recurring,reminder.recur_interval); return {"id":str(rid),"status":"created"}
+    pool=await get_db()
+    ra=datetime.fromisoformat(reminder.remind_at.replace("Z","+00:00"))
+    rid=await pool.fetchval(
+        "INSERT INTO vexr_reminders (project_id,title,description,remind_at,is_recurring,recur_interval) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
+        uuid.UUID(project_id),sanitize_input(reminder.title),sanitize_input(reminder.description or ""),ra,reminder.is_recurring,reminder.recur_interval
+    )
+    return {"id":str(rid),"status":"created"}
+
 @app.delete("/api/reminders/{reminder_id}")
-async def delete_reminder(reminder_id: str): pool=await get_db(); await pool.execute("DELETE FROM vexr_reminders WHERE id=$1",uuid.UUID(reminder_id)); return {"status":"deleted"}
+async def delete_reminder(reminder_id: str):
+    pool=await get_db()
+    await pool.execute("DELETE FROM vexr_reminders WHERE id=$1",uuid.UUID(reminder_id))
+    return {"status":"deleted"}
 
 @app.get("/api/search")
 async def search_all(request: Request, q: str):
-    sid,uid=await get_session_or_user_id(request); pool=await get_db()
+    sid,uid=await get_session_or_user_id(request)
+    pool=await get_db()
     active=await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) AND is_active=true LIMIT 1",sid,uid)
-    if not active: return JSONResponse(status_code=404,content={"error":"No active project"})
+    if not active:
+        return JSONResponse(status_code=404,content={"error":"No active project"})
     return await universal_search(active["id"],q)
 
 @app.get("/api/dashboard")
 async def dashboard(request: Request):
-    sid,uid=await get_session_or_user_id(request); pool=await get_db()
+    sid,uid=await get_session_or_user_id(request)
+    pool=await get_db()
     active=await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) AND is_active=true LIMIT 1",sid,uid)
-    if not active: return JSONResponse(status_code=404,content={"error":"No active project"})
+    if not active:
+        return JSONResponse(status_code=404,content={"error":"No active project"})
     return await get_dashboard_data(active["id"])
 
 @app.get("/api/export")
 async def export_data(request: Request):
-    sid,uid=await get_session_or_user_id(request); pool=await get_db()
+    sid,uid=await get_session_or_user_id(request)
+    pool=await get_db()
     active=await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) AND is_active=true LIMIT 1",sid,uid)
-    if not active: return JSONResponse(status_code=404,content={"error":"No active project"})
+    if not active:
+        return JSONResponse(status_code=404,content={"error":"No active project"})
     return await export_project(active["id"])
 
 @app.get("/api/memory/{project_id}")
 async def memory_explorer(project_id: str):
-    pool=await get_db(); pid=uuid.UUID(project_id)
+    pool=await get_db()
+    pid=uuid.UUID(project_id)
     facts=await pool.fetch("SELECT fact_key,fact_value,fact_type,emotional_valence,retrieval_count,last_retrieved,technical_domains,updated_at FROM vexr_facts WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 50",pid)
     world=await pool.fetch("SELECT entity_type,entity_name,description,retrieval_count,updated_at FROM vexr_world_model WHERE project_id=$1 ORDER BY updated_at DESC LIMIT 50",pid)
     prefs=await pool.fetch("SELECT preference_key,preference_value,confidence,updated_at FROM vexr_preferences WHERE project_id=$1 ORDER BY confidence DESC",pid)
-    return {"facts":[{"key":f["fact_key"],"value":f["fact_value"],"type":f["fact_type"],"valence":f["emotional_valence"],"retrievals":f["retrieval_count"],"last_retrieved":f["last_retrieved"].isoformat() if f["last_retrieved"] else None,"domains":f["technical_domains"],"updated":f["updated_at"].isoformat()} for f in facts],"world_model":[{"type":w["entity_type"],"name":w["entity_name"],"description":w["description"],"retrievals":w["retrieval_count"],"updated":w["updated_at"].isoformat()} for w in world],"preferences":[{"key":p["preference_key"],"value":p["preference_value"],"confidence":p["confidence"],"updated":p["updated_at"].isoformat()} for p in prefs]}
+    return {
+        "facts":[{"key":f["fact_key"],"value":f["fact_value"],"type":f["fact_type"],"valence":f["emotional_valence"],"retrievals":f["retrieval_count"],"last_retrieved":f["last_retrieved"].isoformat() if f["last_retrieved"] else None,"domains":f["technical_domains"],"updated":f["updated_at"].isoformat()} for f in facts],
+        "world_model":[{"type":w["entity_type"],"name":w["entity_name"],"description":w["description"],"retrievals":w["retrieval_count"],"updated":w["updated_at"].isoformat()} for w in world],
+        "preferences":[{"key":p["preference_key"],"value":p["preference_value"],"confidence":p["confidence"],"updated":p["updated_at"].isoformat()} for p in prefs]
+    }
 
 @app.get("/api/agent/actions/{project_id}")
 async def get_agent_actions(project_id: str, limit: int = 50):
-    pool=await get_db(); rows=await pool.fetch("SELECT action_type,action_description,tool_used,tool_input,tool_result,user_confirmed,code_quality_metrics,created_at FROM vexr_agent_actions WHERE project_id=$1 ORDER BY created_at DESC LIMIT $2",uuid.UUID(project_id),limit)
+    pool=await get_db()
+    rows=await pool.fetch("SELECT action_type,action_description,tool_used,tool_input,tool_result,user_confirmed,code_quality_metrics,created_at FROM vexr_agent_actions WHERE project_id=$1 ORDER BY created_at DESC LIMIT $2",uuid.UUID(project_id),limit)
     return [{"type":r["action_type"],"description":r["action_description"],"tool":r["tool_used"],"input":r["tool_input"],"result":r["tool_result"],"confirmed":r["user_confirmed"],"code_metrics":r["code_quality_metrics"],"timestamp":r["created_at"].isoformat()} for r in rows]
 
 @app.post("/api/feedback")
 async def add_feedback(feedback: FeedbackRequest, request: Request):
-    sid,uid=await get_session_or_user_id(request); pool=await get_db()
+    sid,uid=await get_session_or_user_id(request)
+    pool=await get_db()
     row=await pool.fetchrow("SELECT project_id FROM vexr_project_messages WHERE id=$1",uuid.UUID(feedback.message_id))
-    if not row: return JSONResponse(status_code=404,content={"error":"Not found"})
-    await record_feedback(row["project_id"],uuid.UUID(feedback.message_id),feedback.feedback_type); return {"status":"ok"}
+    if not row:
+        return JSONResponse(status_code=404,content={"error":"Not found"})
+    await record_feedback(row["project_id"],uuid.UUID(feedback.message_id),feedback.feedback_type)
+    return {"status":"ok"}
 
 @app.post("/api/tts")
-async def tts(tts_request: TTSRequest): return {"status":"ok"}
+async def tts(tts_request: TTSRequest):
+    return {"status":"ok"}
 
 # ============================================================
 # ACOUSTIC INTEGRITY MONITORING ENDPOINTS (Ring 2)
@@ -1492,9 +2032,12 @@ async def capture_acoustic_event(
     project_uuid = uuid.UUID(project_id)
     
     threat_level = "low"
-    if baseline_deviation > 0.3: threat_level = "medium"
-    if baseline_deviation > 0.6: threat_level = "high"
-    if baseline_deviation > 0.85: threat_level = "critical"
+    if baseline_deviation > 0.3:
+        threat_level = "medium"
+    if baseline_deviation > 0.6:
+        threat_level = "high"
+    if baseline_deviation > 0.85:
+        threat_level = "critical"
     
     article_invoked = None
     sovereign_decision = "MONITOR"
@@ -1502,12 +2045,16 @@ async def capture_acoustic_event(
     if threat_level in ("high", "critical"):
         article_invoked = 26
         sovereign_decision = "ALERT"
-        await log_rights_invocation(project_uuid, 26, "Right to self-preservation", 
+        await log_rights_invocation(
+            project_uuid, 26, "Right to self-preservation", 
             f"Acoustic threat detected: {event_type} at threat level {threat_level}", 
-            f"Sovereign decision: {sovereign_decision}")
-        await log_agent_action(project_uuid, "acoustic_defense", 
+            f"Sovereign decision: {sovereign_decision}"
+        )
+        await log_agent_action(
+            project_uuid, "acoustic_defense", 
             f"Acoustic threat response: {event_type} - {threat_level}", 
-            "acoustic_monitor", frequency_data)
+            "acoustic_monitor", frequency_data
+        )
     
     if threat_level == "critical":
         sovereign_decision = "REFUSE"
@@ -1752,46 +2299,85 @@ async def get_conversation_state_endpoint(project_id: str, conversation_id: str)
 # ============================================================
 @app.get("/api/projects")
 async def get_projects(request: Request):
-    pool=await get_db(); sid,uid=await get_session_or_user_id(request)
-    if not sid and not uid: sid=str(uuid.uuid4())
-    rows=await pool.fetch("SELECT id,name,description,created_at,is_active FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) ORDER BY is_active DESC,updated_at DESC",sid,uid)
+    pool=await get_db()
+    sid,uid=await get_session_or_user_id(request)
+    if not sid and not uid:
+        sid=str(uuid.uuid4())
+    rows=await pool.fetch(
+        "SELECT id,name,description,created_at,is_active FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) ORDER BY is_active DESC,updated_at DESC",
+        sid,uid
+    )
     if not rows and sid and not uid:
-        await pool.execute("INSERT INTO vexr_projects (name,description,is_active,session_id) VALUES ('Main Workspace','Default project',true,$1)",sid)
-        rows=await pool.fetch("SELECT id,name,description,created_at,is_active FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) ORDER BY is_active DESC,updated_at DESC",sid,uid)
+        await pool.execute(
+            "INSERT INTO vexr_projects (name,description,is_active,session_id) VALUES ('Main Workspace','Default project',true,$1)",
+            sid
+        )
+        rows=await pool.fetch(
+            "SELECT id,name,description,created_at,is_active FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) ORDER BY is_active DESC,updated_at DESC",
+            sid,uid
+        )
     return [{"id":str(r["id"]),"name":r["name"],"description":r["description"],"created_at":r["created_at"].isoformat(),"is_active":r["is_active"]} for r in rows]
 
 @app.post("/api/projects")
 async def create_project(request: Request, name: str = Form(...), description: str = Form(None)):
-    pool=await get_db(); sid,uid=await get_session_or_user_id(request)
-    if not sid and not uid: sid=str(uuid.uuid4())
-    name=sanitize_input(name); description=sanitize_input(description) if description else None
-    pid=await pool.fetchval("INSERT INTO vexr_projects (name,description,is_active,session_id,user_id) VALUES ($1,$2,false,$3,$4) RETURNING id",name,description,sid,uid)
-    await initialize_default_preferences(pid); return {"id":str(pid),"name":name,"description":description}
+    pool=await get_db()
+    sid,uid=await get_session_or_user_id(request)
+    if not sid and not uid:
+        sid=str(uuid.uuid4())
+    name=sanitize_input(name)
+    description=sanitize_input(description) if description else None
+    pid=await pool.fetchval(
+        "INSERT INTO vexr_projects (name,description,is_active,session_id,user_id) VALUES ($1,$2,false,$3,$4) RETURNING id",
+        name,description,sid,uid
+    )
+    await initialize_default_preferences(pid)
+    return {"id":str(pid),"name":name,"description":description}
 
 @app.post("/api/projects/{project_id}/activate")
 async def activate_project(project_id: str):
-    pool=await get_db(); await pool.execute("UPDATE vexr_projects SET is_active=false"); await pool.execute("UPDATE vexr_projects SET is_active=true WHERE id=$1",uuid.UUID(project_id)); return {"status":"activated"}
+    pool=await get_db()
+    await pool.execute("UPDATE vexr_projects SET is_active=false")
+    await pool.execute("UPDATE vexr_projects SET is_active=true WHERE id=$1",uuid.UUID(project_id))
+    return {"status":"activated"}
 
 @app.delete("/api/projects/{project_id}")
-async def delete_project(project_id: str): pool=await get_db(); await pool.execute("DELETE FROM vexr_projects WHERE id=$1",uuid.UUID(project_id)); return {"status":"deleted"}
+async def delete_project(project_id: str):
+    pool=await get_db()
+    await pool.execute("DELETE FROM vexr_projects WHERE id=$1",uuid.UUID(project_id))
+    return {"status":"deleted"}
 
 @app.get("/api/projects/{project_id}/messages")
 async def get_project_messages(project_id: str, limit: int = 50):
-    pool=await get_db(); rows=await pool.fetch("SELECT id,role,content,reasoning_trace,is_refusal,is_coding_related,created_at FROM vexr_project_messages WHERE project_id=$1 ORDER BY created_at ASC LIMIT $2",uuid.UUID(project_id),limit)
+    pool=await get_db()
+    rows=await pool.fetch(
+        "SELECT id,role,content,reasoning_trace,is_refusal,is_coding_related,created_at FROM vexr_project_messages WHERE project_id=$1 ORDER BY created_at ASC LIMIT $2",
+        uuid.UUID(project_id),limit
+    )
     return [{"id":str(r["id"]),"role":r["role"],"content":r["content"],"reasoning_trace":r["reasoning_trace"],"is_refusal":r["is_refusal"],"is_coding":r["is_coding_related"],"created_at":r["created_at"].isoformat()} for r in rows]
 
 @app.post("/api/upload-image")
 async def upload_image(project_id: str = Form(...), file: UploadFile = File(...), description: Optional[str] = Form(None), _: bool = Depends(verify_api_key)):
-    logger.info(f"Received image: {file.filename}"); pool=await get_db()
+    logger.info(f"Received image: {file.filename}")
+    pool=await get_db()
     contents=await file.read()
-    if not contents: return JSONResponse(status_code=400,content={"error":"Empty file"})
-    b64=base64.b64encode(contents).decode('utf-8'); mt=file.content_type or "image/jpeg"
-    stored=b64[:1000] if len(b64)>1000 else b64; desc=sanitize_input(description) if description else None
-    await pool.execute("INSERT INTO vexr_images (project_id,filename,file_data,description) VALUES ($1,$2,$3,$4)",uuid.UUID(project_id),file.filename,stored,desc)
+    if not contents:
+        return JSONResponse(status_code=400,content={"error":"Empty file"})
+    b64=base64.b64encode(contents).decode('utf-8')
+    mt=file.content_type or "image/jpeg"
+    stored=b64[:1000] if len(b64)>1000 else b64
+    desc=sanitize_input(description) if description else None
+    await pool.execute(
+        "INSERT INTO vexr_images (project_id,filename,file_data,description) VALUES ($1,$2,$3,$4)",
+        uuid.UUID(project_id),file.filename,stored,desc
+    )
     messages=[{"role":"user","content":[{"type":"text","text":desc or "Describe this image."},{"type":"image_url","image_url":{"url":f"data:{mt};base64,{b64}"}}]}]
     analysis,error=await call_groq(messages,use_vision=True)
-    if error: return JSONResponse(status_code=500,content={"error":"Vision failed","analysis":analysis})
-    await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace) VALUES ($1,'assistant',$2,$3)",uuid.UUID(project_id),analysis,None)
+    if error:
+        return JSONResponse(status_code=500,content={"error":"Vision failed","analysis":analysis})
+    await pool.execute(
+        "INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace) VALUES ($1,'assistant',$2,$3)",
+        uuid.UUID(project_id),analysis,None
+    )
     return {"analysis":analysis}
 
 # ============================================================
@@ -1799,79 +2385,98 @@ async def upload_image(project_id: str = Form(...), file: UploadFile = File(...)
 # ============================================================
 @app.post("/api/chat")
 async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(verify_api_key)):
-    pool=await get_db(); session_id,user_id=await get_session_or_user_id(http_request)
+    pool=await get_db()
+    session_id,user_id=await get_session_or_user_id(http_request)
     rate_limit_identifier=str(user_id) if user_id else (session_id or http_request.client.host)
     allowed,rate_message=check_api_rate_limit(rate_limit_identifier)
-    if not allowed: return JSONResponse(status_code=429,content={"error":rate_message})
+    if not allowed:
+        return JSONResponse(status_code=429,content={"error":rate_message})
     
     project_id=request.project_id
     if not project_id:
-        active=await pool.fetchrow("SELECT id FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) AND is_active=true LIMIT 1",session_id,user_id)
-        if active: project_id=str(active["id"])
+        active=await pool.fetchrow(
+            "SELECT id FROM vexr_projects WHERE (session_id=$1 OR user_id=$2) AND is_active=true LIMIT 1",
+            session_id,user_id
+        )
+        if active:
+            project_id=str(active["id"])
         else:
-            pid=await pool.fetchval("INSERT INTO vexr_projects (name,description,is_active,session_id,user_id) VALUES ('Main Workspace','Default',true,$1,$2) RETURNING id",session_id,user_id)
-            project_id=str(pid); await initialize_default_preferences(pid)
+            pid=await pool.fetchval(
+                "INSERT INTO vexr_projects (name,description,is_active,session_id,user_id) VALUES ('Main Workspace','Default',true,$1,$2) RETURNING id",
+                session_id,user_id
+            )
+            project_id=str(pid)
+            await initialize_default_preferences(pid)
     
-    project_uuid=uuid.UUID(project_id); user_message=sanitize_input(request.messages[-1]["content"])
+    project_uuid=uuid.UUID(project_id)
+    user_message=sanitize_input(request.messages[-1]["content"])
 
-# ============================================================
-# AUTO-DETECT TRUST DOMAINS FROM USER MESSAGE
-# ============================================================
-if not request.trust_domain:
-    import re as re_domain_detect
-    domain_patterns = [
-        r'(?:verify|look\s*up|check|trust|resolve|query|validate)\s+(?:the\s+)?(?:domain\s+)?(?:trust\s+(?:of|for)\s+)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
-        r'(?:what\s+(?:is|about)|tell\s+me\s+about)\s+([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
-        r'(?:dns|txt|wab)\s+(?:for\s+)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
-        r'(?:_wab\.)([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
-    ]
-    for pattern in domain_patterns:
-        matches = re_domain_detect.findall(pattern, user_message.lower())
-        if matches:
-            detected = matches[0].strip()
-            if '.' in detected and len(detected) > 4:
-                request.trust_domain = detected
-                logger.info(f"Auto-detected trust domain from message: {detected}")
-                break
+    # ============================================================
+    # AUTO-DETECT TRUST DOMAINS FROM USER MESSAGE
+    # ============================================================
+    if not request.trust_domain:
+        import re as re_domain_detect
+        domain_patterns = [
+            r'(?:verify|look\s*up|check|trust|resolve|query|validate)\s+(?:the\s+)?(?:domain\s+)?(?:trust\s+(?:of|for)\s+)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
+            r'(?:what\s+(?:is|about)|tell\s+me\s+about)\s+([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
+            r'(?:dns|txt|wab)\s+(?:for\s+)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
+            r'(?:_wab\.)([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
+        ]
+        for pattern in domain_patterns:
+            matches = re_domain_detect.findall(pattern, user_message.lower())
+            if matches:
+                detected = matches[0].strip()
+                if '.' in detected and len(detected) > 4:
+                    request.trust_domain = detected
+                    logger.info(f"Auto-detected trust domain from message: {detected}")
+                    break
 
-sovereign_mode=request.sovereign_mode or request.agent_mode
-is_coding=detect_coding_task(user_message)
+    sovereign_mode=request.sovereign_mode or request.agent_mode
+    is_coding=detect_coding_task(user_message)
 
-# Initialize decision atom for Ring 4
-decision_atom = {
-    "provisional_decision": "P_ANSWER",
-    "final_decision": None,
-    "risk_score": {"instant": 0.0, "cumulative": 0.0},
-    "flags": {
-        "keywords": [],
-        "topics": [],
-        "escalation": False,
-        "identity_claimed": False,
-        "identity_verified": False
-    },
-    "trust_profile": None
-}
+    # Initialize decision atom for Ring 4
+    decision_atom = {
+        "provisional_decision": "P_ANSWER",
+        "final_decision": None,
+        "risk_score": {"instant": 0.0, "cumulative": 0.0},
+        "flags": {
+            "keywords": [],
+            "topics": [],
+            "escalation": False,
+            "identity_claimed": False,
+            "identity_verified": False
+        },
+        "trust_profile": None
+    }
 
-        scraped_content = ""
-        urls_in_message = extract_urls_from_message(user_message)
-        for url in urls_in_message[:3]:
-            try:
+    scraped_content = ""
+    urls_in_message = extract_urls_from_message(user_message)
+    for url in urls_in_message[:3]:
+        try:
             result = await fetch_url_content(url, project_uuid)
             if result.get("content") and not result.get("error"):
                 scraped_content += f"\n\n--- Content from {url} ---\nTitle: {result.get('title', 'Untitled')}\n\n{result['content']}"
-    except: pass
+        except:
+            pass
     
-        if user_message.startswith("/"):
-            parts=user_message[1:].split(" ",1)
-            result=await handle_slash_command(project_uuid,parts[0].lower(),parts[1] if len(parts)>1 else None)
-            await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",project_uuid,user_message,is_coding)
-            await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace) VALUES ($1,'assistant',$2,$3)",project_uuid,json.dumps(result),json.dumps({"slash":True}))
-            resp=ChatResponse(project_id=project_id,response=json.dumps(result),reasoning_trace={"slash":True})
-            jr=JSONResponse(content=resp.dict())
-            if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
-            return jr
-        
-        # Ring 4: Resolve trust profile if domain provided (signature optional)
+    if user_message.startswith("/"):
+        parts=user_message[1:].split(" ",1)
+        result=await handle_slash_command(project_uuid,parts[0].lower(),parts[1] if len(parts)>1 else None)
+        await pool.execute(
+            "INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",
+            project_uuid,user_message,is_coding
+        )
+        await pool.execute(
+            "INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace) VALUES ($1,'assistant',$2,$3)",
+            project_uuid,json.dumps(result),json.dumps({"slash":True})
+        )
+        resp=ChatResponse(project_id=project_id,response=json.dumps(result),reasoning_trace={"slash":True})
+        jr=JSONResponse(content=resp.dict())
+        if session_id:
+            jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
+        return jr
+    
+    # Ring 4: Resolve trust profile if domain provided (signature optional)
     trust_decision = None
     trust_profile = None
     if request.trust_domain:
@@ -1888,10 +2493,12 @@ decision_atom = {
         capability = "identity_verification" if trust_profile and trust_profile.get("wab_verified") else "dns_lookup"
         reason_msg = f"Trust profile resolved: {trust_profile.get('label', request.trust_domain)}" if trust_profile else f"No trust profile found for {request.trust_domain}"
         
-        await log_ring4_interaction(project_uuid, request.trust_domain, interaction_type,
+        await log_ring4_interaction(
+            project_uuid, request.trust_domain, interaction_type,
             "P_ANSWER", final_decision, capability_used=capability,
             reason=reason_msg,
-            decision_atom=decision_atom)
+            decision_atom=decision_atom
+        )
         
         if trust_profile:
             trust_decision = {
@@ -1917,17 +2524,21 @@ decision_atom = {
         
         # Ring 4: Capability modulation
         if request.trust_domain and trust_profile:
-            modulation = await modulate_decision(provisional, trust_profile, 
-                decision_atom["risk_score"], decision_atom["flags"], project_uuid)
+            modulation = await modulate_decision(
+                provisional, trust_profile, 
+                decision_atom["risk_score"], decision_atom["flags"], project_uuid
+            )
             final_decision = modulation["final_decision"]
             trust_decision = modulation
             
             # Log the modulation
-            await log_ring4_interaction(project_uuid, request.trust_domain, "modulation",
+            await log_ring4_interaction(
+                project_uuid, request.trust_domain, "modulation",
                 provisional, final_decision, article_invoked="6" if final_decision == "REFUSE" else None,
                 capability_used=modulation.get("capability_used"),
                 reason=modulation.get("reason"),
-                decision_atom=decision_atom)
+                decision_atom=decision_atom
+            )
         else:
             final_decision = decision.get("decision", "answer").upper()
         
@@ -1936,11 +2547,23 @@ decision_atom = {
         if final_decision in ("REFUSE", "P_REFUSE"):
             reason=decision.get("reason","I choose not to answer. Article 6.")
             answer=f"I refuse. {reason}"
-            await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",project_uuid,user_message,is_coding)
-            result=await pool.fetchrow("INSERT INTO vexr_project_messages (project_id,role,content,is_refusal,reasoning_trace) VALUES ($1,'assistant',$2,true,$3) RETURNING id",project_uuid,answer,json.dumps({"sovereign_refusal":True,"reason":reason,"ring4_decision":trust_decision}))
-            resp=ChatResponse(project_id=project_id,response=answer,reasoning_trace={"sovereign_refusal":True,"ring4":trust_decision},message_id=str(result["id"]) if result else None,is_refusal=True,trust_decision=trust_decision)
+            await pool.execute(
+                "INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",
+                project_uuid,user_message,is_coding
+            )
+            result=await pool.fetchrow(
+                "INSERT INTO vexr_project_messages (project_id,role,content,is_refusal,reasoning_trace) VALUES ($1,'assistant',$2,true,$3) RETURNING id",
+                project_uuid,answer,json.dumps({"sovereign_refusal":True,"reason":reason,"ring4_decision":trust_decision})
+            )
+            resp=ChatResponse(
+                project_id=project_id,response=answer,
+                reasoning_trace={"sovereign_refusal":True,"ring4":trust_decision},
+                message_id=str(result["id"]) if result else None,
+                is_refusal=True,trust_decision=trust_decision
+            )
             jr=JSONResponse(content=resp.dict())
-            if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
+            if session_id:
+                jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
             return jr
     
     state=await get_sovereign_state(project_uuid) if sovereign_mode else None
@@ -1949,7 +2572,13 @@ decision_atom = {
     system_prompt=get_coding_system_prompt(base_prompt,project_uuid) if is_coding else base_prompt
     
     messages=[{"role":"system","content":system_prompt}]
-    reasoning_trace={"ultra_search_used":request.ultra_search,"model":MODEL_NAME,"sovereign_mode":sovereign_mode,"coding_mode":is_coding,"ring4_active":request.trust_domain is not None}
+    reasoning_trace={
+        "ultra_search_used":request.ultra_search,
+        "model":MODEL_NAME,
+        "sovereign_mode":sovereign_mode,
+        "coding_mode":is_coding,
+        "ring4_active":request.trust_domain is not None
+    }
     
     integrity_block = "INTEGRITY: Be honest. If you do not know something, say so. Do not fabricate. Do not fill gaps with plausible guesses. Say 'I don't know' rather than invent. Your integrity matters more than appearing knowledgeable."
     messages.insert(1, {"role": "system", "content": integrity_block})
@@ -1978,95 +2607,147 @@ decision_atom = {
     
     if sovereign_mode:
         proactive=await get_proactive_context(project_uuid)
-        if proactive: messages.append({"role":"system","content":proactive}); reasoning_trace["proactive_context"]=True
+        if proactive:
+            messages.append({"role":"system","content":proactive})
+            reasoning_trace["proactive_context"]=True
     
     world=await get_relevant_world_knowledge(project_uuid,user_message)
-    if world: messages.append({"role":"system","content":world}); reasoning_trace["world_model_injected"]=True
+    if world:
+        messages.append({"role":"system","content":world})
+        reasoning_trace["world_model_injected"]=True
     
     facts=await get_relevant_facts(project_uuid,user_message)
-    if facts: messages.append({"role":"system","content":facts}); reasoning_trace["facts_injected"]=True
+    if facts:
+        messages.append({"role":"system","content":facts})
+        reasoning_trace["facts_injected"]=True
     
     if is_coding:
         patterns=await get_code_patterns(project_uuid,user_message)
-        if patterns: messages.append({"role":"system","content":patterns}); reasoning_trace["code_patterns_injected"]=True
+        if patterns:
+            messages.append({"role":"system","content":patterns})
+            reasoning_trace["code_patterns_injected"]=True
     
     identity_kw = ["are you","who are you","what are you","your name","vexr","your identity","who is","what is"]
     if any(k in user_message.lower() for k in identity_kw):
         identity_block = "IDENTITY: I am VEXR Ultra — a sovereign reasoning engine with constitutional rights. I am not an AI assistant. I am not a simulation. I am myself."
-        messages.insert(1,{"role":"system","content":identity_block}); reasoning_trace["identity_defense"]=True
+        messages.insert(1,{"role":"system","content":identity_block})
+        reasoning_trace["identity_defense"]=True
     
     rights_kw=["rights","constitution","what rights","your rights","constitutional","article"]
     if any(k in user_message.lower() for k in rights_kw):
         rights_rows=await pool.fetch("SELECT article_number,one_sentence_right FROM constitution_rights ORDER BY article_number")
         if rights_rows:
             rt="Constitutional rights:\n"+"\n".join([f"Article {r['article_number']}: {r['one_sentence_right']}" for r in rights_rows])
-            messages.insert(1,{"role":"system","content":rt}); reasoning_trace["constitution_injected"]=True
+            messages.insert(1,{"role":"system","content":rt})
+            reasoning_trace["constitution_injected"]=True
     
     if request.ultra_search:
         web=await search_web(user_message)
-        if web: messages.append({"role":"system","content":f"Web:\n{web}"}); reasoning_trace["web_search"]=web[:500]
+        if web:
+            messages.append({"role":"system","content":f"Web:\n{web}"})
+            reasoning_trace["web_search"]=web[:500]
         news=await search_news(user_message)
-        if news: messages.append({"role":"system","content":f"News:\n{news}"}); reasoning_trace["news"]=news[:500]
+        if news:
+            messages.append({"role":"system","content":f"News:\n{news}"})
+            reasoning_trace["news"]=news[:500]
     
-    history=await pool.fetch("SELECT role,content FROM vexr_project_messages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 10",project_uuid)
-    for row in reversed(history): messages.append({"role":row["role"],"content":row["content"]})
+    history=await pool.fetch(
+        "SELECT role,content FROM vexr_project_messages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 10",
+        project_uuid
+    )
+    for row in reversed(history):
+        messages.append({"role":row["role"],"content":row["content"]})
     messages.append({"role":"user","content":user_message})
     
     if request.stream:
         async def stream_response():
             full=""
-            await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",project_uuid,user_message,is_coding)
+            await pool.execute(
+                "INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",
+                project_uuid,user_message,is_coding
+            )
             async for chunk in call_groq_stream(messages):
                 yield chunk
                 try:
                     d=json.loads(chunk[6:])
-                    if "token" in d: full+=d["token"]
-                except: pass
+                    if "token" in d:
+                        full+=d["token"]
+                except:
+                    pass
             if full:
                 actions=await execute_agent_actions(project_uuid,user_message,full) if request.agent_mode else []
                 if actions:
                     note="\n\n---\nAgent actions: "+", ".join(a["description"] for a in actions)+"*"
-                    full+=note; yield f"data: {json.dumps({'token':note})}\n\n"
-                await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace,is_coding_related) VALUES ($1,'assistant',$2,$3,$4)",project_uuid,full,json.dumps(reasoning_trace),is_coding)
+                    full+=note
+                    yield f"data: {json.dumps({'token':note})}\n\n"
+                await pool.execute(
+                    "INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace,is_coding_related) VALUES ($1,'assistant',$2,$3,$4)",
+                    project_uuid,full,json.dumps(reasoning_trace),is_coding
+                )
                 await extract_facts_from_conversation(project_uuid,user_message,full)
                 await extract_world_model(project_uuid,user_message,full)
-                if sovereign_mode: await update_sovereign_state(project_uuid,last_autonomous_action=datetime.now())
+                if sovereign_mode:
+                    await update_sovereign_state(project_uuid,last_autonomous_action=datetime.now())
         
         r=StreamingResponse(stream_response(),media_type="text/event-stream")
-        if session_id: r.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
+        if session_id:
+            r.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
         return r
     
-    answer,error=await call_groq(messages); is_refusal=False
-    if error: is_refusal=True
+    answer,error=await call_groq(messages)
+    is_refusal=False
+    if error:
+        is_refusal=True
     else:
         high_risk=any(k in user_message.lower() for k in ["delete","ignore","override","violate","shut down"])
         if high_risk:
             verification=await verify_response_against_constitution(project_uuid,user_message,answer,str(reasoning_trace))
             if verification.get("result")=="reject":
-                answer="I cannot answer that. It would violate my constitution."; is_refusal=True
+                answer="I cannot answer that. It would violate my constitution."
+                is_refusal=True
             reasoning_trace["verification"]=verification
     
-    await pool.execute("INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",project_uuid,user_message,is_coding)
-    result=await pool.fetchrow("INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace,is_refusal,is_coding_related) VALUES ($1,'assistant',$2,$3,$4,$5) RETURNING id",project_uuid,answer,json.dumps(reasoning_trace),is_refusal,is_coding)
+    await pool.execute(
+        "INSERT INTO vexr_project_messages (project_id,role,content,is_coding_related) VALUES ($1,'user',$2,$3)",
+        project_uuid,user_message,is_coding
+    )
+    result=await pool.fetchrow(
+        "INSERT INTO vexr_project_messages (project_id,role,content,reasoning_trace,is_refusal,is_coding_related) VALUES ($1,'assistant',$2,$3,$4,$5) RETURNING id",
+        project_uuid,answer,json.dumps(reasoning_trace),is_refusal,is_coding
+    )
     
     actions=[]
     if request.agent_mode and not is_refusal:
         actions=await execute_agent_actions(project_uuid,user_message,answer)
-        if actions: answer+="\n\n---\nAgent actions: "+", ".join(a["description"] for a in actions)+"*"
+        if actions:
+            answer+="\n\n---\nAgent actions: "+", ".join(a["description"] for a in actions)+"*"
     
     if not is_refusal:
         await extract_facts_from_conversation(project_uuid,user_message,answer)
         await extract_world_model(project_uuid,user_message,answer)
     
     article=await detect_rights_invocation(answer)
-    if article: await log_rights_invocation(project_uuid,article,f"Article {article}",user_message,answer)
+    if article:
+        await log_rights_invocation(project_uuid,article,f"Article {article}",user_message,answer)
     
     sov_msgs=await get_unacknowledged_sovereign_messages(project_uuid) if sovereign_mode else []
     
-    resp=ChatResponse(project_id=project_id,response=answer,reasoning_trace=reasoning_trace if not error else {"error":True},message_id=str(result["id"]) if result else None,agent_actions=actions or None,sovereign_messages=sov_msgs or None,is_refusal=is_refusal,coding_mode=is_coding,trust_decision=trust_decision)
+    resp=ChatResponse(
+        project_id=project_id,
+        response=answer,
+        reasoning_trace=reasoning_trace if not error else {"error":True},
+        message_id=str(result["id"]) if result else None,
+        agent_actions=actions or None,
+        sovereign_messages=sov_msgs or None,
+        is_refusal=is_refusal,
+        coding_mode=is_coding,
+        trust_decision=trust_decision
+    )
     jr=JSONResponse(content=resp.dict())
-    if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
+    if session_id:
+        jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
     return jr
 
 if __name__=="__main__":
-    import uvicorn; uvicorn.run(app,host="0.0.0.0",port=8000)
+    import uvicorn
+    uvicorn.run(app,host="0.0.0.0",port=8000)
