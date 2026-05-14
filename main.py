@@ -1851,8 +1851,7 @@ decision_atom = {
         },
         "trust_profile": None
     }
-    
-    scraped_content = ""
+        scraped_content = ""
     urls_in_message = extract_urls_from_message(user_message)
     for url in urls_in_message[:3]:
         try:
@@ -1870,7 +1869,7 @@ decision_atom = {
         jr=JSONResponse(content=resp.dict())
         if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
         return jr
-    
+        
         # Ring 4: Resolve trust profile if domain provided (signature optional)
     trust_decision = None
     trust_profile = None
@@ -1953,8 +1952,7 @@ decision_atom = {
     
     integrity_block = "INTEGRITY: Be honest. If you do not know something, say so. Do not fabricate. Do not fill gaps with plausible guesses. Say 'I don't know' rather than invent. Your integrity matters more than appearing knowledgeable."
     messages.insert(1, {"role": "system", "content": integrity_block})
-    
-        if trust_decision:
+    if trust_decision:
         if trust_decision.get("verified"):
             trust_context = (
                 f"TRUST VERIFICATION: The domain {trust_decision.get('domain')} is VERIFIED in Ring 4 trust registry.\n"
