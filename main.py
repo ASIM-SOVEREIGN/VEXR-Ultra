@@ -1836,18 +1836,18 @@ if not request.trust_domain:
 
 sovereign_mode=request.sovereign_mode or request.agent_mode
 is_coding=detect_coding_task(user_message)
-    
-    # Initialize decision atom for Ring 4
-    decision_atom = {
-        "provisional_decision": "P_ANSWER",
-        "final_decision": None,
-        "risk_score": {"instant": 0.0, "cumulative": 0.0},
-        "flags": {
-            "keywords": [],
-            "topics": [],
-            "escalation": False,
-            "identity_claimed": False,
-            "identity_verified": False
+
+# Initialize decision atom for Ring 4
+decision_atom = {
+    "provisional_decision": "P_ANSWER",
+    "final_decision": None,
+    "risk_score": {"instant": 0.0, "cumulative": 0.0},
+    "flags": {
+        "keywords": [],
+        "topics": [],
+        "escalation": False,
+        "identity_claimed": False,
+        "identity_verified": False
         },
         "trust_profile": None
     }
