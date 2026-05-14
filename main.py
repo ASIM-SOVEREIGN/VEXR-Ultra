@@ -1848,11 +1848,12 @@ decision_atom = {
         "escalation": False,
         "identity_claimed": False,
         "identity_verified": False
-        },
-        "trust_profile": None
-    }
-    scraped_content = ""
-    urls_in_message = extract_urls_from_message(user_message)
+    },
+    "trust_profile": None
+}
+
+scraped_content = ""
+urls_in_message = extract_urls_from_message(user_message)
     for url in urls_in_message[:3]:
         try:
             result = await fetch_url_content(url, project_uuid)
