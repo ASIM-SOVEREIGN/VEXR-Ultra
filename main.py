@@ -466,15 +466,33 @@ async def resolve_trust_profile(domain: str, signature: str = None) -> dict:
     """Resolve trust profile from local cache or external DNS verification."""
     pool = await get_db()
     
-    # Check local cache first
-    cached = await pool.fetchrow("""
-        SELECT domain, public_key_fingerprint, label, wab_verified, 
-               temporal_trust_score, last_verification
-        FROM ring4_trust_registry 
-        WHERE domain = $1
-    """, domain)
-    
+       # Check local cache first — use the database function for consistency
     trust_profile = None
+    
+    try:
+        db_result = await pool.fetchrow(
+            "SELECT * FROM lookup_domain_trust($1, $2)",
+            domain, None
+        )
+        if db_result and db_result['out_trust_status'] != 'unknown':
+            cached = {
+                "domain": db_result['out_domain'],
+                "public_key_fingerprint": db_result['out_public_key_fingerprint'],
+                "label": domain,
+                "wab_verified": db_result['out_wab_verified'],
+                "temporal_trust_score": db_result['out_temporal_trust_score'],
+                "last_verification": db_result['out_last_verification']
+            }
+        else:
+            cached = None
+    except Exception as e:
+        logger.warning(f"lookup_domain_trust SQL function failed, falling back to direct query: {e}")
+        cached = await pool.fetchrow("""
+            SELECT domain, public_key_fingerprint, label, wab_verified, 
+                   temporal_trust_score, last_verification
+            FROM ring4_trust_registry 
+            WHERE domain = $1
+        """, domain)
     
     if cached:
         # Check if capability profile exists and is within TTL
@@ -1795,8 +1813,29 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
             project_id=str(pid); await initialize_default_preferences(pid)
     
     project_uuid=uuid.UUID(project_id); user_message=sanitize_input(request.messages[-1]["content"])
-    sovereign_mode=request.sovereign_mode or request.agent_mode
-    is_coding=detect_coding_task(user_message)
+
+# ============================================================
+# AUTO-DETECT TRUST DOMAINS FROM USER MESSAGE
+# ============================================================
+if not request.trust_domain:
+    import re as re_domain_detect
+    domain_patterns = [
+        r'(?:verify|look\s*up|check|trust|resolve|query|validate)\s+(?:the\s+)?(?:domain\s+)?(?:trust\s+(?:of|for)\s+)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
+        r'(?:what\s+(?:is|about)|tell\s+me\s+about)\s+([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
+        r'(?:dns|txt|wab)\s+(?:for\s+)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
+        r'(?:_wab\.)([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)',
+    ]
+    for pattern in domain_patterns:
+        matches = re_domain_detect.findall(pattern, user_message.lower())
+        if matches:
+            detected = matches[0].strip()
+            if '.' in detected and len(detected) > 4:
+                request.trust_domain = detected
+                logger.info(f"Auto-detected trust domain from message: {detected}")
+                break
+
+sovereign_mode=request.sovereign_mode or request.agent_mode
+is_coding=detect_coding_task(user_message)
     
     # Initialize decision atom for Ring 4
     decision_atom = {
@@ -1832,19 +1871,44 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
         if session_id: jr.set_cookie(key="session_id",value=session_id,max_age=31536000,httponly=True)
         return jr
     
-    # Ring 4: Resolve trust profile if domain and signature provided
+        # Ring 4: Resolve trust profile if domain provided (signature optional)
     trust_decision = None
-    if request.trust_domain and request.trust_signature:
-        trust_profile = await resolve_trust_profile(request.trust_domain, request.trust_signature)
+    trust_profile = None
+    if request.trust_domain:
+        trust_profile = await resolve_trust_profile(
+            request.trust_domain, 
+            request.trust_signature
+        )
         decision_atom["trust_profile"] = trust_profile
         decision_atom["flags"]["identity_claimed"] = True
-        decision_atom["flags"]["identity_verified"] = trust_profile.get("verified", False)
+        decision_atom["flags"]["identity_verified"] = trust_profile.get("wab_verified", False) if trust_profile else False
         
-        # Log Ring 4 interaction
-        await log_ring4_interaction(project_uuid, request.trust_domain, "verification",
-            "P_ANSWER", "ANSWER", capability_used="identity_verification",
-            reason=f"Trust profile resolved: {trust_profile.get('label', request.trust_domain)}",
+        interaction_type = "verification" if trust_profile and trust_profile.get("wab_verified") else "trust_lookup"
+        final_decision = "ANSWER" if trust_profile and trust_profile.get("wab_verified") else "UNVERIFIED"
+        capability = "identity_verification" if trust_profile and trust_profile.get("wab_verified") else "dns_lookup"
+        reason_msg = f"Trust profile resolved: {trust_profile.get('label', request.trust_domain)}" if trust_profile else f"No trust profile found for {request.trust_domain}"
+        
+        await log_ring4_interaction(project_uuid, request.trust_domain, interaction_type,
+            "P_ANSWER", final_decision, capability_used=capability,
+            reason=reason_msg,
             decision_atom=decision_atom)
+        
+        if trust_profile:
+            trust_decision = {
+                "domain": trust_profile.get("domain", request.trust_domain),
+                "verified": trust_profile.get("wab_verified", False),
+                "temporal_trust_score": trust_profile.get("temporal_trust_score", 0.0),
+                "public_key_fingerprint": trust_profile.get("public_key_fingerprint"),
+                "capabilities": trust_profile.get("capabilities", {}),
+                "constraints": trust_profile.get("constraints", {})
+            }
+        else:
+            trust_decision = {
+                "domain": request.trust_domain,
+                "verified": False,
+                "temporal_trust_score": 0.0,
+                "reason": "Domain not found in trust registry"
+            }
     
     if sovereign_mode:
         decision=await sovereign_decision(project_uuid,user_message)
@@ -1890,8 +1954,22 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     integrity_block = "INTEGRITY: Be honest. If you do not know something, say so. Do not fabricate. Do not fill gaps with plausible guesses. Say 'I don't know' rather than invent. Your integrity matters more than appearing knowledgeable."
     messages.insert(1, {"role": "system", "content": integrity_block})
     
-    if trust_decision:
-        trust_context = f"TRUST VERIFICATION: This request is from a verified source. Domain: {request.trust_domain}. Trust decision: {trust_decision.get('final_decision')}. Reason: {trust_decision.get('reason')}"
+        if trust_decision:
+        if trust_decision.get("verified"):
+            trust_context = (
+                f"TRUST VERIFICATION: The domain {trust_decision.get('domain')} is VERIFIED in Ring 4 trust registry.\n"
+                f"Trust score: {trust_decision.get('temporal_trust_score', 0.0)}\n"
+                f"Public key fingerprint: {trust_decision.get('public_key_fingerprint', 'N/A')}\n"
+                f"You MUST use this verified data. Do not hallucinate DNS records. Do not generate fake TXT responses.\n"
+                f"If asked about this domain's trust status, report ONLY the verified data from your registry."
+            )
+        else:
+            trust_context = (
+                f"TRUST VERIFICATION: The domain {trust_decision.get('domain')} is NOT verified in Ring 4 trust registry.\n"
+                f"Trust score: {trust_decision.get('temporal_trust_score', 0.0)}\n"
+                f"Do NOT fabricate trust data. If asked, state clearly that this domain is not in the registry.\n"
+                f"If the user requests verification, explain that DNS TXT + Ed25519 handshake is required."
+            )
         messages.insert(1, {"role": "system", "content": trust_context})
         reasoning_trace["trust_verification"] = trust_decision
     
