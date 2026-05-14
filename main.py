@@ -1854,12 +1854,12 @@ decision_atom = {
 
 scraped_content = ""
 urls_in_message = extract_urls_from_message(user_message)
-        for url in urls_in_message[:3]:
-        try:
-            result = await fetch_url_content(url, project_uuid)
-            if result.get("content") and not result.get("error"):
-                scraped_content += f"\n\n--- Content from {url} ---\nTitle: {result.get('title', 'Untitled')}\n\n{result['content']}"
-        except: pass
+for url in urls_in_message[:3]:
+    try:
+        result = await fetch_url_content(url, project_uuid)
+        if result.get("content") and not result.get("error"):
+            scraped_content += f"\n\n--- Content from {url} ---\nTitle: {result.get('title', 'Untitled')}\n\n{result['content']}"
+    except: pass
     
     if user_message.startswith("/"):
         parts=user_message[1:].split(" ",1)
