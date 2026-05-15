@@ -5,7 +5,7 @@ import base64
 import logging
 import re
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from collections import defaultdict
 
@@ -700,7 +700,7 @@ async def resolve_trust_profile(domain: str, signature: str = None) -> dict:
         if caps:
             ttl_seconds = caps.get('ttl_seconds', 86400)
             if caps['last_verified']:
-                elapsed = (datetime.now() - caps['last_verified']).total_seconds()
+                elapsed = (datetime.now(timezone.utc) - caps['last_verified']).total_seconds()
                 if elapsed < ttl_seconds:
                     # Parse JSON strings from DB if needed
                     capabilities = caps['capabilities']
