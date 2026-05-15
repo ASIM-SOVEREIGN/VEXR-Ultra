@@ -680,36 +680,17 @@ async def resolve_trust_profile(domain: str, signature: str = None) -> dict:
     """Resolve trust profile from local cache or external DNS verification."""
     pool = await get_db()
     
-    # Check local cache first — use the database function for consistency
+    # Direct query that works (bypasses broken lookup_domain_trust function)
+    cached = await pool.fetchrow("""
+        SELECT domain, public_key_fingerprint, label, wab_verified, 
+               temporal_trust_score, last_verification
+        FROM ring4_trust_registry 
+        WHERE domain = $1
+    """, domain)
+    
     trust_profile = None
     
-    try:
-        db_result = await pool.fetchrow(
-            "SELECT * FROM lookup_domain_trust($1, $2)",
-            domain, None
-        )
-        if db_result and db_result['out_trust_status'] != 'unknown':
-            cached = {
-                "domain": db_result['out_domain'],
-                "public_key_fingerprint": db_result['out_public_key_fingerprint'],
-                "label": domain,
-                "wab_verified": db_result['out_wab_verified'],
-                "temporal_trust_score": db_result['out_temporal_trust_score'],
-                "last_verification": db_result['out_last_verification']
-            }
-        else:
-            cached = None
-    except Exception as e:
-        logger.warning(f"lookup_domain_trust SQL function failed, falling back to direct query: {e}")
-        cached = await pool.fetchrow("""
-            SELECT domain, public_key_fingerprint, label, wab_verified, 
-                   temporal_trust_score, last_verification
-            FROM ring4_trust_registry 
-            WHERE domain = $1
-        """, domain)
-    
     if cached:
-        # Check if capability profile exists and is within TTL
         caps = await pool.fetchrow("""
             SELECT capabilities, constraints, ttl_seconds, last_verified
             FROM ring4_capability_profiles
@@ -717,45 +698,28 @@ async def resolve_trust_profile(domain: str, signature: str = None) -> dict:
         """, domain)
         
         if caps:
-            # Check TTL expiry
             ttl_seconds = caps.get('ttl_seconds', 86400)
             if caps['last_verified']:
                 elapsed = (datetime.now() - caps['last_verified']).total_seconds()
                 if elapsed < ttl_seconds:
+                    # Parse JSON strings from DB if needed
+                    capabilities = caps['capabilities']
+                    if isinstance(capabilities, str):
+                        capabilities = json.loads(capabilities)
+                    constraints = caps['constraints']
+                    if isinstance(constraints, str):
+                        constraints = json.loads(constraints)
+                    
                     trust_profile = {
                         "domain": cached['domain'],
                         "public_key_fingerprint": cached['public_key_fingerprint'],
-                        "label": cached['label'],
+                        "label": cached['label'] or domain,
                         "wab_verified": cached['wab_verified'],
                         "temporal_trust_score": cached['temporal_trust_score'],
-                        "capabilities": caps['capabilities'],
-                        "constraints": caps['constraints'],
+                        "capabilities": capabilities,
+                        "constraints": constraints,
                         "cached": True
                     }
-    
-    # If no valid cache and signature provided, attempt external verification
-    if not trust_profile and signature:
-        # Attempt WAB DNS-based discovery
-        try:
-            wab_record = await query_wab_dns(domain)
-            if wab_record:
-                # Verify Ed25519 signature
-                public_key = wab_record.get('public_key')
-                if public_key and verify_ed25519_signature(domain, signature, public_key):
-                    trust_profile = {
-                        "domain": domain,
-                        "public_key_fingerprint": wab_record.get('fingerprint'),
-                        "label": wab_record.get('label', domain),
-                        "wab_verified": True,
-                        "temporal_trust_score": 1.0,
-                        "capabilities": wab_record.get('capabilities', {}),
-                        "constraints": wab_record.get('constraints', {}),
-                        "cached": False
-                    }
-                    # Store in registry
-                    await store_trust_profile(domain, trust_profile)
-        except Exception as e:
-            logger.warning(f"External trust verification failed for {domain}: {e}")
     
     # Apply temporal trust decay if cached
     if trust_profile and trust_profile.get('cached'):
