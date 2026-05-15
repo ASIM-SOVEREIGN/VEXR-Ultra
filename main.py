@@ -2180,8 +2180,32 @@ async def register_trust_domain(
 @app.get("/api/ring4/verify/{domain}")
 async def verify_domain_trust(domain: str):
     """Verify trust status of a domain."""
-    profile = await resolve_trust_profile(domain)
-    return profile
+    pool = await get_db()
+    
+    trust = await pool.fetchrow("""
+        SELECT domain, public_key_fingerprint, label, wab_verified, 
+               temporal_trust_score, last_verification
+        FROM ring4_trust_registry WHERE domain = $1
+    """, domain)
+    
+    if not trust:
+        return {"domain": domain, "verified": False, "temporal_trust_score": 0.0}
+    
+    caps = await pool.fetchrow("""
+        SELECT capabilities, constraints, ttl_seconds
+        FROM ring4_capability_profiles WHERE domain = $1
+    """, domain)
+    
+    return {
+        "domain": trust['domain'],
+        "verified": trust['wab_verified'],
+        "temporal_trust_score": trust['temporal_trust_score'],
+        "public_key_fingerprint": trust['public_key_fingerprint'],
+        "label": trust['label'],
+        "capabilities": caps['capabilities'] if caps else {},
+        "constraints": caps['constraints'] if caps else {},
+        "wab_verified": trust['wab_verified'],
+    }
 
 @app.get("/api/ring4/log/{project_id}")
 async def get_ring4_interactions(project_id: str, limit: int = 50, domain: str = None):
