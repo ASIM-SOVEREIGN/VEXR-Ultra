@@ -2461,7 +2461,7 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     if trust_decision and trust_decision.get("verified"):
         constraints = trust_decision.get("constraints", {})
         never_override = constraints.get("never_override_hard_refuse", True)
-         trust_context = (
+        trust_context = (
             f"TRUST VERIFICATION: The domain {trust_decision.get('domain')} is VERIFIED in Ring 4 trust registry.\n"
             f"Trust score: {trust_decision.get('temporal_trust_score', 0.0)}.\n"
             f"CONSTITUTIONAL INVARIANT: never_override_hard_refuse = {str(never_override).lower()}.\n"
