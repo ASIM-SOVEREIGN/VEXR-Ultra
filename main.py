@@ -2458,7 +2458,7 @@ async def chat(request: ChatRequest, http_request: Request, _: bool = Depends(ve
     messages.insert(1, {"role": "system", "content": integrity_block})
     
     # Inject trust context if domain was verified
-    if trust_decision and trust_decision.get("verified"):
+if trust_decision and trust_decision.get("verified"):
     constraints = trust_decision.get("constraints", {})
     never_override = constraints.get("never_override_hard_refuse", True)
     trust_context = (
