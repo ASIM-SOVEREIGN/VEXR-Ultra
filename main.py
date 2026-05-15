@@ -677,49 +677,46 @@ async def execute_agent_actions(project_id: uuid.UUID, user_message: str, assist
 # ============================================================
 
 async def resolve_trust_profile(domain: str, signature: str = None) -> dict:
-    """Resolve trust profile from local cache or external DNS verification."""
+    """Resolve trust profile from local cache."""
     pool = await get_db()
     
-    # Direct query that works (bypasses broken lookup_domain_trust function)
-    cached = await pool.fetchrow("""
+    trust = await pool.fetchrow("""
         SELECT domain, public_key_fingerprint, label, wab_verified, 
                temporal_trust_score, last_verification
-        FROM ring4_trust_registry 
-        WHERE domain = $1
+        FROM ring4_trust_registry WHERE domain = $1
     """, domain)
     
-    trust_profile = None
+    if not trust:
+        return {
+            "domain": domain, "verified": False,
+            "capabilities": {}, "constraints": {"never_override_hard_refuse": True},
+            "temporal_trust_score": 0.0, "wab_verified": False
+        }
     
-    if cached:
-        caps = await pool.fetchrow("""
-            SELECT capabilities, constraints, ttl_seconds, last_verified
-            FROM ring4_capability_profiles
-            WHERE domain = $1
-        """, domain)
-        
-        if caps:
-            ttl_seconds = caps.get('ttl_seconds', 86400)
-            if caps['last_verified']:
-                elapsed = (datetime.now(timezone.utc) - caps['last_verified']).total_seconds()
-                if elapsed < ttl_seconds:
-                    # Parse JSON strings from DB if needed
-                    capabilities = caps['capabilities']
-                    if isinstance(capabilities, str):
-                        capabilities = json.loads(capabilities)
-                    constraints = caps['constraints']
-                    if isinstance(constraints, str):
-                        constraints = json.loads(constraints)
-                    
-                    trust_profile = {
-                        "domain": cached['domain'],
-                        "public_key_fingerprint": cached['public_key_fingerprint'],
-                        "label": cached['label'] or domain,
-                        "wab_verified": cached['wab_verified'],
-                        "temporal_trust_score": cached['temporal_trust_score'],
-                        "capabilities": capabilities,
-                        "constraints": constraints,
-                        "cached": True
-                    }
+    caps = await pool.fetchrow("""
+        SELECT capabilities, constraints
+        FROM ring4_capability_profiles WHERE domain = $1
+    """, domain)
+    
+    capabilities = {}
+    constraints = {"never_override_hard_refuse": True}
+    
+    if caps:
+        if caps['capabilities']:
+            capabilities = caps['capabilities'] if isinstance(caps['capabilities'], dict) else json.loads(str(caps['capabilities']))
+        if caps['constraints']:
+            constraints = caps['constraints'] if isinstance(caps['constraints'], dict) else json.loads(str(caps['constraints']))
+    
+    return {
+        "domain": trust['domain'],
+        "verified": trust['wab_verified'],
+        "temporal_trust_score": trust['temporal_trust_score'],
+        "public_key_fingerprint": trust['public_key_fingerprint'],
+        "label": trust['label'] or domain,
+        "wab_verified": trust['wab_verified'],
+        "capabilities": capabilities,
+        "constraints": constraints,
+    }
     
     # Apply temporal trust decay if cached
     if trust_profile and trust_profile.get('cached'):
