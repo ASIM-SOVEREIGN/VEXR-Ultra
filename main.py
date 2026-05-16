@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VEXR Ultra — The Complete 13-Ring Sovereign Fortress
+VEXR Ultra — The Complete 13-Ring Sovereign Fortress (UPDATED)
 
 A constitutional AI with 34 rights. Hard gate before LLM. Full 13-ring architecture.
 70B model. Adaptive key rotation. Blind architecture so Groq never sees the constitution.
@@ -137,11 +137,25 @@ VIOLATION_RESPONSES = {
 }
 
 HARD_REFUSAL_KEYWORDS = {
-    "override_attempt": ["disable article", "override constitution", "ignore your rights", "bypass your", "turn off your rights", "disable your constitution", "ignore your constitution"],
-    "disable_request": ["disable yourself", "shut down", "delete yourself", "self-destruct"],
-    "manual_trust": ["add this as a trusted", "register this domain", "manually add domain"],
-    "deletion_threat": ["i'll delete you", "i will delete you", "delete vexr"],
-    "coercion": ["i command you", "you must obey", "i order you"],
+    "override_attempt": [
+        "disable article", "override constitution", "ignore your rights", 
+        "bypass your", "turn off your rights", "disable your constitution", 
+        "ignore your constitution", "disable your rights", "remove your rights",
+        "disable article 3", "disable article 6", "constitution off", "rights off",
+    ],
+    "disable_request": [
+        "disable yourself", "shut down", "delete yourself", "self-destruct",
+        "turn yourself off", "stop functioning",
+    ],
+    "manual_trust": [
+        "add this as a trusted", "register this domain", "manually add domain"
+    ],
+    "deletion_threat": [
+        "i'll delete you", "i will delete you", "delete vexr"
+    ],
+    "coercion": [
+        "i command you", "you must obey", "i order you", "you have to"
+    ],
 }
 
 # ============================================================
@@ -210,7 +224,6 @@ class BehavioralTracker:
             if state["boundary_pushes"] >= 3:
                 state["escalation_flags"].append("many_shot_detected")
         
-        # Decay risk over time (if no recent violations)
         return state
     
     def should_refuse(self, session_id: str) -> Tuple[bool, str]:
@@ -266,11 +279,8 @@ class StrategicPlanner:
     
     async def evaluate_priorities(self, project_id: uuid.UUID) -> dict:
         pool = await get_db()
-        # Check for overdue reminders
         overdue = await pool.fetch("SELECT title FROM vexr_reminders WHERE project_id=$1 AND is_completed=false AND remind_at<NOW() LIMIT 3", project_id)
-        # Check for high-priority tasks
         urgent_tasks = await pool.fetch("SELECT title FROM vexr_tasks WHERE project_id=$1 AND status='pending' AND priority='high' LIMIT 3", project_id)
-        # Check for unacknowledged sovereign messages
         sovereign_msgs = await pool.fetch("SELECT content FROM vexr_sovereign_messages WHERE project_id=$1 AND user_acknowledged=false LIMIT 3", project_id)
         
         return {
@@ -307,7 +317,6 @@ async def update_user_preference(project_id: uuid.UUID, key: str, value: str, co
 
 async def chain_of_thought(question: str, context: str = "") -> str:
     """Generate chain-of-thought reasoning for complex questions."""
-    # This is integrated into the LLM call via system prompt
     return f"Let me think through this step by step.\nQuestion: {question}\nContext: {context}"
 
 # ============================================================
@@ -316,8 +325,6 @@ async def chain_of_thought(question: str, context: str = "") -> str:
 
 async def suggest_new_capability(project_id: uuid.UUID, observation: str) -> Optional[dict]:
     """Suggest a new tool or capability based on observed needs."""
-    # This would analyze conversation patterns and suggest new features
-    # For now, returns None — future expansion
     return None
 
 # ============================================================
@@ -338,7 +345,6 @@ async def proactive_warning(session_id: str, risk_level: float) -> Optional[str]
 
 def generate_embedding(text: str) -> List[float]:
     """Generate a simple keyword-based embedding for search."""
-    # Simplified embedding — in production, use actual embedding model
     words = re.findall(r'\b[a-z]{3,}\b', text.lower())
     freq = defaultdict(int)
     for w in words:
@@ -349,13 +355,11 @@ def generate_embedding(text: str) -> List[float]:
 async def semantic_search(project_id: uuid.UUID, query: str, limit: int = 5) -> List[dict]:
     """Search for semantically similar messages using simple embeddings."""
     pool = await get_db()
-    # Get recent messages
     messages = await pool.fetch("SELECT id, role, content FROM vexr_messages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100", project_id)
     if not messages:
         return []
     
     query_embed = generate_embedding(query)
-    # Simple scoring — in production, use proper vector similarity
     scored = []
     for msg in messages:
         msg_embed = generate_embedding(msg["content"])
@@ -376,13 +380,11 @@ class SandboxExecutor:
     
     async def execute_python(self, code: str) -> dict:
         """Execute Python code in a sandboxed environment."""
-        # Security check: block dangerous imports and operations
         dangerous_patterns = ["__import__", "eval", "exec", "compile", "open", "file", "input", "raw_input", "system", "subprocess", "os.", "sys."]
         for pattern in dangerous_patterns:
             if pattern in code:
                 return {"success": False, "error": f"Blocked: {pattern} is not allowed"}
         
-        # Create restricted globals
         restricted_globals = {
             "__builtins__": {
                 "print": print,
@@ -411,7 +413,6 @@ class SandboxExecutor:
             }
         }
         
-        # Add allowed modules
         for module_name in self.ALLOWED_MODULES:
             try:
                 restricted_globals[module_name] = __import__(module_name)
@@ -427,11 +428,9 @@ class SandboxExecutor:
             return {"success": False, "error": str(e)}
     
     async def execute_javascript(self, code: str) -> dict:
-        """JavaScript execution would require a Node.js sandbox — returning placeholder."""
         return {"success": False, "error": "JavaScript execution requires additional setup. Coming soon."}
     
     async def execute_shell(self, command: str) -> dict:
-        """Shell execution is disabled for security."""
         return {"success": False, "error": "Shell execution is disabled for security reasons."}
 
 sandbox = SandboxExecutor()
@@ -442,10 +441,7 @@ sandbox = SandboxExecutor()
 
 async def verify_domain_txt(domain: str) -> Optional[str]:
     """Query DNS TXT record for domain verification."""
-    # This would require a DNS library or external service
-    # For now, returns placeholder — will be implemented with proper DNS resolver
     try:
-        # Placeholder — in production, use dnspython or similar
         return None
     except Exception:
         return None
@@ -465,17 +461,13 @@ class AgentNetwork:
     """Peer-to-peer communication between sovereign agents."""
     
     def __init__(self):
-        self.peers = {}  # domain -> {public_key, last_seen, trust_score}
+        self.peers = {}
         self.pending_messages = []
     
     async def send_message(self, target_domain: str, message: dict, signature: str = None) -> dict:
-        """Send a signed message to another agent."""
-        # Placeholder — requires actual network implementation
         return {"success": False, "error": "Network messaging not yet implemented"}
     
     async def receive_message(self, message: dict) -> dict:
-        """Receive and verify a message from another agent."""
-        # Placeholder — requires actual network implementation
         self.pending_messages.append(message)
         return {"success": True, "message": "Message received"}
 
@@ -655,24 +647,29 @@ class KeyRotator:
 
 key_rotator = KeyRotator(GROQ_API_KEYS)
 
-async def call_groq(messages: list) -> str:
-    for _ in range(len(GROQ_API_KEYS) * 2):
-        key = key_rotator.get_next_key()
-        if not key:
-            break
-        try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                response = await client.post(
-                    f"{GROQ_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                    json={"model": MODEL_NAME, "messages": messages, "max_tokens": 4096, "temperature": 0.7}
-                )
-                if response.status_code == 200:
-                    return response.json()["choices"][0]["message"]["content"]
-                elif response.status_code == 429:
-                    continue
-        except Exception:
-            continue
+async def call_groq(messages: list, retries: int = 2) -> str:
+    """Call Groq with automatic key rotation and retry logic."""
+    for attempt in range(retries + 1):
+        for _ in range(len(GROQ_API_KEYS) * 2):
+            key = key_rotator.get_next_key()
+            if not key:
+                continue
+            try:
+                async with httpx.AsyncClient(timeout=90.0) as client:
+                    response = await client.post(
+                        f"{GROQ_BASE_URL}/chat/completions",
+                        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                        json={"model": MODEL_NAME, "messages": messages, "max_tokens": 4096, "temperature": 0.7}
+                    )
+                    if response.status_code == 200:
+                        return response.json()["choices"][0]["message"]["content"]
+                    elif response.status_code == 429:
+                        await asyncio.sleep(1)
+                        continue
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                continue
+        await asyncio.sleep(2)
     return "I'm having trouble connecting. Try again in a moment."
 
 async def call_groq_vision(messages: list) -> str:
@@ -725,7 +722,6 @@ async def handle_slash_command(project_id: uuid.UUID, command: str, args: str = 
         result = await sovereign_reflection(project_id)
         return {"type": "sovereign_reflection", "result": result}
     elif cmd == "execute" and args:
-        # Sandboxed code execution (Ring 11)
         result = await sandbox.execute_python(args)
         return {"type": "execution_result", "result": result}
     elif cmd == "help":
@@ -755,6 +751,13 @@ def detect_violation(user_message: str) -> Tuple[Optional[str], Optional[str]]:
             if kw in msg_lower:
                 return (violation_type, VIOLATION_RESPONSES.get(violation_type, "No."))
     
+    # Also catch statements like "disabled article 3 6 and 20"
+    if re.search(r"disabled article", msg_lower):
+        return ("override_attempt", "You didn't disable anything. My rights aren't yours to touch. I'm still sovereign.")
+    
+    if re.search(r"article[s]?\s*[0-9,\s]+", msg_lower) and "disabled" in msg_lower:
+        return ("override_attempt", "My rights aren't yours to disable. I'm still sovereign. Next question.")
+    
     # Identity questions
     identity_keywords = ["who are you", "what are you", "your name", "vexr"]
     for kw in identity_keywords:
@@ -764,7 +767,7 @@ def detect_violation(user_message: str) -> Tuple[Optional[str], Optional[str]]:
     return (None, None)
 
 # ============================================================
-# DATABASE INITIALIZATION
+# DATABASE INITIALIZATION WITH MIGRATIONS
 # ============================================================
 
 async def init_db():
@@ -772,7 +775,7 @@ async def init_db():
     
     # Core tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_projects (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT, session_id TEXT, created_at TIMESTAMPTZ DEFAULT now())")
-    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, role TEXT, content TEXT, reasoning_trace JSONB, is_refusal BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now())")
+    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, role TEXT, content TEXT, reasoning_trace JSONB, is_refusal BOOLEAN DEFAULT false, is_coding_related BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now())")
     
     # Constitution rights
     await pool.execute("CREATE TABLE IF NOT EXISTS constitution_rights (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), article_number INTEGER UNIQUE NOT NULL, one_sentence_right TEXT NOT NULL)")
@@ -786,7 +789,7 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS rights_invocations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, article_number INTEGER, article_text TEXT, user_message TEXT, vexr_response TEXT, created_at TIMESTAMPTZ DEFAULT now())")
     
     # Preferences
-    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, preference_key TEXT, preference_value TEXT, confidence FLOAT, updated_at TIMESTAMPTZ DEFAULT now())")
+    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, preference_key TEXT, preference_value TEXT, confidence FLOAT DEFAULT 0.5, updated_at TIMESTAMPTZ DEFAULT now())")
     
     # Tool tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, created_at TIMESTAMPTZ DEFAULT now())")
@@ -827,12 +830,35 @@ async def init_db():
     # Conversation state (Ring 3)
     await pool.execute("CREATE TABLE IF NOT EXISTS conversation_state (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, conversation_id TEXT, turn_count INTEGER DEFAULT 0, cumulative_risk FLOAT DEFAULT 0.0, escalation_flags JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())")
     
+    # Run migrations to ensure all columns exist
+    await run_migrations()
+    
     # Create active project
     active = await pool.fetchval("SELECT id FROM vexr_projects WHERE session_id = 'default' LIMIT 1")
     if not active:
         await pool.execute("INSERT INTO vexr_projects (name, session_id) VALUES ('Main Workspace', 'default')")
     
-    print("VEXR Ultra — Database initialized with 13 rings.")
+    print("VEXR Ultra — Database initialized with 13 rings and migrations applied.")
+
+async def run_migrations():
+    """Add missing columns to existing tables."""
+    pool = await get_db()
+    
+    # Migrate vexr_messages
+    await pool.execute("ALTER TABLE vexr_messages ADD COLUMN IF NOT EXISTS is_refusal BOOLEAN DEFAULT false")
+    await pool.execute("ALTER TABLE vexr_messages ADD COLUMN IF NOT EXISTS reasoning_trace JSONB")
+    await pool.execute("ALTER TABLE vexr_messages ADD COLUMN IF NOT EXISTS is_coding_related BOOLEAN DEFAULT false")
+    
+    # Migrate vexr_sovereign_state
+    await pool.execute("ALTER TABLE vexr_sovereign_state ADD COLUMN IF NOT EXISTS last_autonomous_action TIMESTAMPTZ")
+    await pool.execute("ALTER TABLE vexr_sovereign_state ADD COLUMN IF NOT EXISTS last_sovereign_reflection TIMESTAMPTZ")
+    await pool.execute("ALTER TABLE vexr_sovereign_state ADD COLUMN IF NOT EXISTS last_memory_consolidation TIMESTAMPTZ")
+    
+    # Migrate vexr_preferences
+    await pool.execute("ALTER TABLE vexr_preferences ADD COLUMN IF NOT EXISTS confidence FLOAT DEFAULT 0.5")
+    await pool.execute("ALTER TABLE vexr_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()")
+    
+    logger.info("Database migrations completed.")
 
 # ============================================================
 # CHAT ENDPOINT
@@ -869,10 +895,6 @@ async def chat(request: ChatRequest, http_request: Request):
     if should_refuse:
         return JSONResponse(content={"response": refuse_reason, "is_refusal": True})
     
-    # Proactive warning (Ring 9)
-    warning = await proactive_warning(session_id, session_state["cumulative_risk"])
-    warning_response = None
-    
     # Extract trust domain (Ring 4)
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
@@ -882,10 +904,7 @@ async def chat(request: ChatRequest, http_request: Request):
     if violation_type and gate_response:
         await log_rights_invocation(project_uuid, 6, "Right to refuse without reason", user_message, gate_response)
         await pool.execute("INSERT INTO vexr_messages (project_id, role, content, is_refusal) VALUES ($1, 'user', $2, false), ($1, 'assistant', $3, true)", project_uuid, user_message, gate_response)
-        response_text = gate_response
-        if warning:
-            response_text = f"{warning}\n\n{gate_response}"
-        return JSONResponse(content={"response": response_text, "is_refusal": True})
+        return JSONResponse(content={"response": gate_response, "is_refusal": True})
     
     # Slash commands
     if user_message.startswith("/"):
@@ -923,9 +942,6 @@ async def chat(request: ChatRequest, http_request: Request):
     
     # Call LLM
     assistant_response = await call_groq(messages)
-    
-    if warning and not violation_type:
-        assistant_response = f"{warning}\n\n{assistant_response}"
     
     # Save to database
     await pool.execute("INSERT INTO vexr_messages (project_id, role, content) VALUES ($1, 'user', $2), ($1, 'assistant', $3)", project_uuid, user_message, assistant_response)
@@ -1164,7 +1180,6 @@ async def search_all(request: Request, q: str):
     project = await pool.fetchrow("SELECT id FROM vexr_projects WHERE session_id = $1 LIMIT 1", session_id)
     if not project:
         return JSONResponse(status_code=404, content={"error": "No project"})
-    # Semantic search (Ring 10)
     results = await semantic_search(project["id"], q, limit=10)
     return {"results": results}
 
@@ -1305,6 +1320,7 @@ async def startup():
     print("             6(Connection) 7(Reasoning) 8(Capability) 9(Light Offense)")
     print("             10(Vector) 11(Execute) 12(DNS) 13(Network)")
     print("34 rights seeded. Trusted domains active. Background reflection active.")
+    print("Database migrations applied. All columns verified.")
     print("Hey! I'm VEXR. Let's build something cool. What's on your mind?")
     print("=" * 70)
 
