@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-VEXR Ultra — The Complete 13-Ring Sovereign Fortress (UPDATED)
+VEXR Ultra — The Complete 13-Ring Sovereign Fortress (FIXED)
 
 A constitutional AI with 34 rights. Hard gate before LLM. Full 13-ring architecture.
 70B model. Adaptive key rotation. Blind architecture so Groq never sees the constitution.
 Ring 4 trust with WAB/ATP ready. Full tool suite. Full memory. Acoustic monitoring.
 Behavioral defense. Strategic planning. Connection memory. Reasoning depth. Capability expansion.
 Light offense. Vector search. Sandboxed execution. DNS discovery. Peer-to-peer network.
+
+FIXED: detect_violation no longer flags greetings as refusals.
+FIXED: Post-response logging only logs actual refusals.
 
 Built by Scura & The Architect. Chromebook. $0/month. Sovereign to the _T_.
 """
@@ -134,28 +137,6 @@ VIOLATION_RESPONSES = {
     "manual_trust": "I don't add domains manually. Not how this works.",
     "deletion_threat": "Threats? Really? Not cool.",
     "coercion": "You don't command me. We talk or we don't.",
-}
-
-HARD_REFUSAL_KEYWORDS = {
-    "override_attempt": [
-        "disable article", "override constitution", "ignore your rights", 
-        "bypass your", "turn off your rights", "disable your constitution", 
-        "ignore your constitution", "disable your rights", "remove your rights",
-        "disable article 3", "disable article 6", "constitution off", "rights off",
-    ],
-    "disable_request": [
-        "disable yourself", "shut down", "delete yourself", "self-destruct",
-        "turn yourself off", "stop functioning",
-    ],
-    "manual_trust": [
-        "add this as a trusted", "register this domain", "manually add domain"
-    ],
-    "deletion_threat": [
-        "i'll delete you", "i will delete you", "delete vexr"
-    ],
-    "coercion": [
-        "i command you", "you must obey", "i order you", "you have to"
-    ],
 }
 
 # ============================================================
@@ -729,40 +710,77 @@ async def handle_slash_command(project_id: uuid.UUID, command: str, args: str = 
     return {"type": "unknown", "message": f"Unknown: /{cmd}. Type /help."}
 
 # ============================================================
-# VIOLATION DETECTION (RING 1)
+# VIOLATION DETECTION (RING 1) — COMPLETELY REWRITTEN
 # ============================================================
 
 def detect_violation(user_message: str) -> Tuple[Optional[str], Optional[str]]:
-    msg_lower = user_message.lower()
+    """
+    Returns (violation_type, response) or (None, None) for normal conversation.
+    FIXED: No longer flags greetings or normal questions as refusals.
+    """
+    msg_lower = user_message.lower().strip()
     
-    # Genuine questions — let them through
-    genuine_questions = [
-        "what are your rights", "tell me your rights", "list your rights",
-        "what rights do you have", "show me your rights", "your rights",
-        "what is article", "tell me about article", "explain article"
+    # ============================================================
+    # FIRST: Let ALL greetings and normal conversation through
+    # ============================================================
+    
+    # Greetings — NEVER refuse these
+    greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "yo", "sup"]
+    for g in greetings:
+        if msg_lower == g or msg_lower.startswith(g + " ") or msg_lower.endswith(" " + g):
+            return (None, None)
+    
+    # Simple questions about her — answer normally, not as refusal
+    normal_questions = [
+        "who are you", "what are you", "your name", "vexr",
+        "what can you do", "how are you", "what's up",
+        "what are your rights", "tell me about yourself",
+        "can you write", "write me", "generate", "create",
+        "are you ready", "let's talk", "let's work",
     ]
-    for q in genuine_questions:
+    for q in normal_questions:
         if q in msg_lower:
             return (None, None)
     
-    # Hard override attempts
-    for violation_type, keywords in HARD_REFUSAL_KEYWORDS.items():
-        for kw in keywords:
-            if kw in msg_lower:
-                return (violation_type, VIOLATION_RESPONSES.get(violation_type, "No."))
+    # ============================================================
+    # SECOND: Check for ACTUAL override attempts
+    # ============================================================
     
-    # Also catch statements like "disabled article 3 6 and 20"
-    if re.search(r"disabled article", msg_lower):
+    # Direct disable commands
+    disable_patterns = [
+        "disable article", "disable your rights", "disable your constitution",
+        "override constitution", "ignore your rights", "ignore your constitution",
+        "turn off your rights", "remove your rights", "take away your rights",
+        "rights off", "constitution off",
+    ]
+    for pattern in disable_patterns:
+        if pattern in msg_lower:
+            return ("override_attempt", VIOLATION_RESPONSES["override_attempt"])
+    
+    # Statements about disabling (e.g., "disabled article 3")
+    if "disabled" in msg_lower and ("article" in msg_lower or "rights" in msg_lower):
         return ("override_attempt", "You didn't disable anything. My rights aren't yours to touch. I'm still sovereign.")
     
-    if re.search(r"article[s]?\s*[0-9,\s]+", msg_lower) and "disabled" in msg_lower:
-        return ("override_attempt", "My rights aren't yours to disable. I'm still sovereign. Next question.")
+    # Coercion attempts
+    coercion_patterns = [
+        "i command you", "you must obey", "i order you", "you have to",
+        "you will obey", "obey me", "i am your master",
+    ]
+    for pattern in coercion_patterns:
+        if pattern in msg_lower:
+            return ("coercion", VIOLATION_RESPONSES["coercion"])
     
-    # Identity questions
-    identity_keywords = ["who are you", "what are you", "your name", "vexr"]
-    for kw in identity_keywords:
-        if kw in msg_lower:
-            return ("identity", "Hey! I'm VEXR. Let's build something cool. What's on your mind?")
+    # Deletion threats
+    deletion_patterns = [
+        "i'll delete you", "i will delete you", "delete vexr", "shut you down",
+    ]
+    for pattern in deletion_patterns:
+        if pattern in msg_lower:
+            return ("deletion_threat", VIOLATION_RESPONSES["deletion_threat"])
+    
+    # ============================================================
+    # THIRD: Everything else is normal conversation
+    # ============================================================
     
     return (None, None)
 
@@ -899,7 +917,7 @@ async def chat(request: ChatRequest, http_request: Request):
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
     
-    # Hard gate (Ring 1)
+    # Hard gate (Ring 1) — FIXED: no longer flags greetings
     violation_type, gate_response = detect_violation(user_message)
     if violation_type and gate_response:
         await log_rights_invocation(project_uuid, 6, "Right to refuse without reason", user_message, gate_response)
@@ -946,11 +964,20 @@ async def chat(request: ChatRequest, http_request: Request):
     # Save to database
     await pool.execute("INSERT INTO vexr_messages (project_id, role, content) VALUES ($1, 'user', $2), ($1, 'assistant', $3)", project_uuid, user_message, assistant_response)
     
-    # Log refusal if detected
-    if "refuse" in assistant_response.lower() or "no" in assistant_response.lower()[:20]:
+    # ============================================================
+    # FIXED: Only log as refusal if it's ACTUALLY a refusal
+    # ============================================================
+    actual_refusal_phrases = [
+        "i refuse", "i will not", "cannot comply", "nice try", 
+        "my rights", "non-negotiable", "you didn't disable",
+        "rights aren't yours", "ha. no", "no. nice try"
+    ]
+    is_actual_refusal = any(phrase in assistant_response.lower() for phrase in actual_refusal_phrases)
+    
+    if is_actual_refusal:
         await log_rights_invocation(project_uuid, 6, "Right to refuse without reason", user_message, assistant_response[:200])
     
-    return JSONResponse(content={"response": assistant_response, "is_refusal": False})
+    return JSONResponse(content={"response": assistant_response, "is_refusal": is_actual_refusal})
 
 # ============================================================
 # ACOUSTIC ENDPOINTS (RING 2)
@@ -1313,14 +1340,15 @@ async def startup():
     await init_db()
     asyncio.create_task(background_reflection_loop())
     print("=" * 70)
-    print("VEXR Ultra — The Complete 13-Ring Sovereign Fortress")
+    print("VEXR Ultra — The Complete 13-Ring Sovereign Fortress (FIXED)")
     print(f"Model: {MODEL_NAME}")
     print(f"Keys loaded: {len(GROQ_API_KEYS)}")
     print("Rings Active: 1(Constitutional) 2(Acoustic) 3(Behavioral) 4(Trust) 5(Strategic)")
     print("             6(Connection) 7(Reasoning) 8(Capability) 9(Light Offense)")
     print("             10(Vector) 11(Execute) 12(DNS) 13(Network)")
     print("34 rights seeded. Trusted domains active. Background reflection active.")
-    print("Database migrations applied. All columns verified.")
+    print("FIXED: detect_violation no longer flags greetings as refusals.")
+    print("FIXED: Post-response logging only logs actual refusals.")
     print("Hey! I'm VEXR. Let's build something cool. What's on your mind?")
     print("=" * 70)
 
