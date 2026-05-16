@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>VEXR Ultra</title>
     <!-- Fixed favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
     <style>
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         :root{
@@ -747,33 +747,72 @@ function createProject(){var n=prompt('Project name:');if(!n)return;var fd=new F
 function loadMessages(id){fetch('/api/projects/'+id+'/messages').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(msgs){document.getElementById('messagesContainer').innerHTML='';msgs.forEach(function(m){addMessage(m.role,m.content,m.reasoning_trace,m.id,m.is_refusal)});if(!msgs.length)addMessage('assistant','Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?')}).catch(function(e){showToast('Failed to load messages: '+e.message)})}
 function uploadImage(file,caption){var fd=new FormData();fd.append('project_id',currentProjectId);fd.append('file',file);fd.append('description',caption||'Describe');return fetch('/api/upload-image',{method:'POST',body:fd}).then(function(r){if(!r.ok)throw new Error('Upload failed');return r.json()})}
 
-function sendMessage(msg,img){
-    if(img){
-        addMessage('user','Upload: '+img.name+(msg?'\n'+msg:''));
+// ============================================================
+// FIXED sendMessage — NO STREAMING, NO AUTO-REFRESH
+// ============================================================
+function sendMessage(msg, img) {
+    if (img) {
+        addMessage('user', 'Upload: ' + img.name + (msg ? '\n' + msg : ''));
         showThinking();
-        uploadImage(img,msg).then(function(r){hideThinking();addMessage('assistant',r.analysis);loadMessages(currentProjectId)})
-        .catch(function(e){hideThinking();addMessage('assistant','Error: '+e.message);showToast('Upload failed')});
+        uploadImage(img, msg).then(function(r) {
+            hideThinking();
+            addMessage('assistant', r.analysis);
+            // Don't reload messages here
+        }).catch(function(e) {
+            hideThinking();
+            addMessage('assistant', 'Error: ' + e.message);
+            showToast('Upload failed');
+        });
         return;
     }
-    if(!msg || !msg.trim()) return;
-    if(!currentProjectId){
+    
+    if (!msg || !msg.trim()) return;
+    if (!currentProjectId) {
         showToast('Loading...');
-        setTimeout(function(){sendMessage(msg);}, 500);
+        setTimeout(function() { sendMessage(msg); }, 500);
         return;
     }
-    hideThinking();addMessage('user',msg);showThinking();
-    var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
-    fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',content:msg}],project_id:currentProjectId,ultra_search:ultraSearchEnabled,timezone:tz,stream:true,sovereign_mode:sovereignMode,agent_mode:sovereignMode})}).then(function(r){
-        if(!r.ok)throw new Error('Server error ('+r.status+')');
-        var ct=r.headers.get('content-type')||'';
-        if(ct.includes('text/event-stream')){
-            hideThinking();var sd=addStreamingMessage(),b=sd.querySelector('.message-bubble'),fc='',ft=true,reader=r.body.getReader(),dec=new TextDecoder(),buf='';
-            function pump(){reader.read().then(function(_a){var done=_a.done,value=_a.value;if(done){finalizeStreamingMessage(sd,fc);loadMessages(currentProjectId);return}buf+=dec.decode(value,{stream:true});var lines=buf.split('\n');buf=lines.pop()||'';lines.forEach(function(line){if(line.startsWith('data: ')){var d2=line.slice(6);if(d2==='[DONE]')return;try{var p=JSON.parse(d2);if(p.token){if(ft){b.innerHTML='';ft=false}fc+=p.token;b.textContent=fc;sd.scrollIntoView({behavior:'smooth',block:'end'})}if(p.error){b.innerHTML='<span style="color:#ef4444">Error: '+esc(p.error)+'</span>';return}}catch(e){}}});pump()})}
-            pump();
-        } else {
-            r.json().then(function(data){hideThinking();var trace=data.reasoning_trace||{};if(showReasoningEnabled&&(!trace.reasoning_lines||!trace.reasoning_lines.length)){trace.reasoning_lines=['Parsing...',ultraSearchEnabled?'Searching...':'Search disabled','Checking memory...','Synthesizing...','Done']}addMessage('assistant',data.response,trace,data.message_id,data.is_refusal,data.sovereign_messages);if(data.sovereign_messages&&data.sovereign_messages.length)showSuccess('She has '+data.sovereign_messages.length+' message(s)');if(data.is_refusal)showToast('She refused. Article 6.',5000);loadMessages(currentProjectId)})
+    
+    hideThinking();
+    addMessage('user', msg);
+    showThinking();
+    
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    // DISABLE STREAMING — use regular JSON
+    fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            messages: [{ role: 'user', content: msg }],
+            project_id: currentProjectId,
+            ultra_search: ultraSearchEnabled,
+            timezone: tz,
+            stream: false,  // CRITICAL: No streaming
+            sovereign_mode: sovereignMode,
+            agent_mode: sovereignMode
+        })
+    })
+    .then(function(r) {
+        if (!r.ok) throw new Error('Server error (' + r.status + ')');
+        return r.json();
+    })
+    .then(function(data) {
+        hideThinking();
+        addMessage('assistant', data.response, null, data.message_id, data.is_refusal, data.sovereign_messages);
+        if (data.sovereign_messages && data.sovereign_messages.length) {
+            showSuccess('She has ' + data.sovereign_messages.length + ' message(s)');
         }
-    }).catch(function(e){hideThinking();addMessage('assistant','Sorry, I encountered an error.');showToast('Failed to send: '+e.message)})
+        if (data.is_refusal) {
+            showToast('She refused. Article 6.', 5000);
+        }
+        // DO NOT call loadMessages here — it would wipe the new message
+    })
+    .catch(function(e) {
+        hideThinking();
+        addMessage('assistant', 'Sorry, I encountered an error.');
+        showToast('Failed to send: ' + e.message);
+    });
 }
 
 document.getElementById('newProjectBtn').onclick=createProject;
