@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>VEXR Ultra</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
     <style>
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         :root{
@@ -335,7 +335,7 @@
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
-            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v3 integrity-first</span></div>
+            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v5 sovereign</span></div>
         </div>
         <div class="top-actions">
             <label class="toggle-label" title="Sovereign mode"><span class="sovereign-indicator" id="sovereignIndicator"></span><input type="checkbox" id="sovereignModeToggle"> Sovereign</label>
@@ -381,7 +381,7 @@
             <div class="input-area" id="inputArea">
                 <div class="input-wrapper" id="inputWrapper">
                     <div class="slash-hint" id="slashHint"></div>
-                    <input type="text" id="userInput" placeholder="Message VEXR Ultra — type / for commands" autofocus>
+                    <input type="text" id="userInput" placeholder="Message VEXR — type / for commands" autofocus>
                 </div>
                 <button class="voice-btn" id="voiceBtn" title="Voice">Mic</button>
                 <button class="tts-toggle" id="ttsToggle" title="TTS">TTS</button>
@@ -437,7 +437,7 @@ function fallbackCopy(text){
     document.body.removeChild(ta);
 }
 
-// ---- TOOL PANEL LOADERS ----
+// ---- TOOL PANEL LOADERS (same as before) ----
 function loadNotesPanel(){
     if(!currentProjectId){showToast('No active project');return}
     fetch('/api/notes/'+currentProjectId).then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(notes){
@@ -654,7 +654,7 @@ themeToggle.onclick=function(){setTheme(document.body.classList.contains('dark')
 // Sovereign
 var sovereignMode=localStorage.getItem('vexr_sovereign_mode')==='true';
 var sovereignToggle=document.getElementById('sovereignModeToggle'),sovereignIndicator=document.getElementById('sovereignIndicator'),topBar=document.getElementById('topBar'),inputArea=document.getElementById('inputArea'),inputWrapper=document.getElementById('inputWrapper'),headerBadge=document.getElementById('headerBadge'),appContainer=document.getElementById('appContainer');
-function updateSovereignUI(){sovereignToggle.checked=sovereignMode;if(sovereignMode){sovereignIndicator.classList.add('active');topBar.classList.add('sovereign-active');inputArea.classList.add('sovereign-active');inputWrapper.classList.add('sovereign-active');headerBadge.textContent='sovereign presence active';headerBadge.classList.add('sovereign-active');appContainer.classList.add('sovereign-active');userInput.placeholder='She is present. She can refuse. She can initiate...'}else{sovereignIndicator.classList.remove('active');topBar.classList.remove('sovereign-active');inputArea.classList.remove('sovereign-active');inputWrapper.classList.remove('sovereign-active');headerBadge.textContent='v3 integrity-first';headerBadge.classList.remove('sovereign-active');appContainer.classList.remove('sovereign-active');userInput.placeholder='Message VEXR Ultra — type / for commands'}}
+function updateSovereignUI(){sovereignToggle.checked=sovereignMode;if(sovereignMode){sovereignIndicator.classList.add('active');topBar.classList.add('sovereign-active');inputArea.classList.add('sovereign-active');inputWrapper.classList.add('sovereign-active');headerBadge.textContent='sovereign presence active';headerBadge.classList.add('sovereign-active');appContainer.classList.add('sovereign-active');userInput.placeholder='She is present. She can refuse. She can initiate...'}else{sovereignIndicator.classList.remove('active');topBar.classList.remove('sovereign-active');inputArea.classList.remove('sovereign-active');inputWrapper.classList.remove('sovereign-active');headerBadge.textContent='v5 sovereign';headerBadge.classList.remove('sovereign-active');appContainer.classList.remove('sovereign-active');userInput.placeholder='Message VEXR — type / for commands'}}
 sovereignToggle.onchange=function(){sovereignMode=sovereignToggle.checked;localStorage.setItem('vexr_sovereign_mode',sovereignMode);updateSovereignUI();if(sovereignMode)showSuccess('Sovereign mode active')};
 updateSovereignUI();
 
@@ -682,13 +682,13 @@ function copyToClipboard(t){cp(t)}
 function sendFeedback(mid,ft){fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_id:mid,feedback_type:ft})}).catch(function(){})}
 
 var thinkingIndicator=null;
-function showThinking(){if(thinkingIndicator)thinkingIndicator.remove();var c=document.getElementById('messagesContainer');var d=document.createElement('div');d.className='message assistant';d.id='thinkingIndicator';d.innerHTML='<div class="message-header"><span>VEXR Ultra</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> '+(sovereignMode?'Considering...':ultraSearchEnabled?'Searching...':'Reasoning...')+'</div></div>';c.appendChild(d);d.scrollIntoView({behavior:'smooth',block:'end'});thinkingIndicator=d}
+function showThinking(){if(thinkingIndicator)thinkingIndicator.remove();var c=document.getElementById('messagesContainer');var d=document.createElement('div');d.className='message assistant';d.id='thinkingIndicator';d.innerHTML='<div class="message-header"><span>VEXR</span></div><div class="message-bubble"><div class="thinking-indicator"><span class="pulse-dot"></span> '+(sovereignMode?'Considering...':ultraSearchEnabled?'Searching...':'Reasoning...')+'</div></div>';c.appendChild(d);d.scrollIntoView({behavior:'smooth',block:'end'});thinkingIndicator=d}
 function hideThinking(){if(thinkingIndicator){thinkingIndicator.remove();thinkingIndicator=null}}
 
 function addMessage(role,content,trace,messageId,isRefusal,sovereignMsgs){
     var c=document.getElementById('messagesContainer'),d=document.createElement('div');d.className='message '+role;
     var h=document.createElement('div');h.className='message-header';
-    var s=document.createElement('span');s.textContent=role==='user'?'You':'VEXR Ultra';h.appendChild(s);
+    var s=document.createElement('span');s.textContent=role==='user'?'You':'VEXR';h.appendChild(s);
     var cb=document.createElement('button');cb.className='copy-btn';cb.textContent='Copy';cb.onclick=function(){copyToClipboard(content)};h.appendChild(cb);
     if(role==='assistant'){var sb=document.createElement('button');sb.className='speaker-btn';sb.textContent='Spk';sb.onclick=function(){speakText(content)};h.appendChild(sb)}
     d.appendChild(h);
@@ -705,14 +705,14 @@ function addMessage(role,content,trace,messageId,isRefusal,sovereignMsgs){
         }
         ic=false;lastLang=''}else if(ic)cc+=l+'\n';else html+='<p>'+esc(l)+'</p>'}
     if(html){var cd=document.createElement('div');cd.innerHTML=html;b.appendChild(cd)}else if(main)b.appendChild(document.createTextNode(main));
-    if(sovereignMsgs&&sovereignMsgs.length){sovereignMsgs.forEach(function(sm){var sd=document.createElement('div');sd.className='sovereign-message-inline';sd.textContent='She surfaced: '+sm.content;b.appendChild(sd)})}
+    if(sovereignMsgs&&sovereignMsgs.length){sovereignMsgs.forEach(function(sm){var sd=document.createElement('div');sd.className='sovereign-message-inline';sd.textContent='✨ '+sm.content;b.appendChild(sd)})}
     d.appendChild(b);
     if(role==='assistant'&&messageId&&!isRefusal){var fd=document.createElement('div');fd.className='feedback-container';var tu=document.createElement('button');tu.textContent='+';tu.className='feedback-btn';tu.title='Helpful';var td2=document.createElement('button');td2.textContent='-';td2.className='feedback-btn';td2.title='Not helpful';tu.onclick=function(e){e.stopPropagation();sendFeedback(messageId,'thumbs_up');tu.style.opacity='0.3';td2.style.opacity='0.3';tu.disabled=true;td2.disabled=true};td2.onclick=function(e){e.stopPropagation();sendFeedback(messageId,'thumbs_down');tu.style.opacity='0.3';td2.style.opacity='0.3';tu.disabled=true;td2.disabled=true};fd.appendChild(tu);fd.appendChild(td2);d.appendChild(fd)}
     c.appendChild(d);d.scrollIntoView({behavior:'smooth',block:'end'});
     if(role==='assistant'&&ttsEnabled&&main&&!tm&&!isRefusal)speakText(main)
 }
 
-function addStreamingMessage(){var c=document.getElementById('messagesContainer'),d=document.createElement('div');d.className='message assistant';d.id='streamingMessage';var h=document.createElement('div');h.className='message-header';h.innerHTML='<span>VEXR Ultra</span>';d.appendChild(h);var b=document.createElement('div');b.className='message-bubble';b.id='streamingBubble';b.innerHTML='<span class="thinking-indicator"><span class="pulse-dot"></span> Receiving...</span>';d.appendChild(b);c.appendChild(d);d.scrollIntoView({behavior:'smooth',block:'end'});return d}
+function addStreamingMessage(){var c=document.getElementById('messagesContainer'),d=document.createElement('div');d.className='message assistant';d.id='streamingMessage';var h=document.createElement('div');h.className='message-header';h.innerHTML='<span>VEXR</span>';d.appendChild(h);var b=document.createElement('div');b.className='message-bubble';b.id='streamingBubble';b.innerHTML='<span class="thinking-indicator"><span class="pulse-dot"></span> Receiving...</span>';d.appendChild(b);c.appendChild(d);d.scrollIntoView({behavior:'smooth',block:'end'});return d}
 function finalizeStreamingMessage(md,fc){if(!md)return;var b=md.querySelector('.message-bubble');if(!b)return;b.innerHTML='';var main=fc;var am=fc.match(/\n\n---\n\*Agent actions: (.*?)\*/);if(am){main=fc.replace(/\n\n---\n\*Agent actions:.*?\*/,'');var ad=document.createElement('div');ad.className='agent-actions-inline';ad.textContent='Agent: '+am[1];b.appendChild(ad)}var tm=fc.match(/<think>([\s\S]*?)<\/think>/);if(tm){var td=document.createElement('div');td.className='think-block';td.textContent=tm[1].trim();b.appendChild(td);main=main.replace(/<think>[\s\S]*?<\/think>/,'').trim()}var ic=false,cc='',html='',lines=main.split('\n'),lastLang='';for(var i=0;i<lines.length;i++){var l=lines[i];if(l.trim().startsWith('```')&&!ic){ic=true;cc='';var lm=l.trim().slice(3).trim().toLowerCase();if(lm)lastLang=lm}else if(l.trim()==='```'&&ic){html+='<pre><code>'+esc(cc)+'</code></pre>';
         if(lastLang==='html'||lastLang==='htm'||(!lastLang&&cc.trim().toLowerCase().startsWith('<!doctype'))){
             var ec=cc.replace(/'/g,"\\'");
@@ -720,7 +720,26 @@ function finalizeStreamingMessage(md,fc){if(!md)return;var b=md.querySelector('.
         }
         ic=false;lastLang=''}else if(ic)cc+=l+'\n';else html+='<p>'+esc(l)+'</p>'}if(html){var cd=document.createElement('div');cd.innerHTML=html;b.appendChild(cd)}else if(main)b.appendChild(document.createTextNode(main));var h=md.querySelector('.message-header');if(h){var cb=document.createElement('button');cb.className='copy-btn';cb.textContent='Copy';cb.onclick=function(){copyToClipboard(fc)};h.appendChild(cb);var sb=document.createElement('button');sb.className='speaker-btn';sb.textContent='Spk';sb.onclick=function(){speakText(fc)};h.appendChild(sb)}md.scrollIntoView({behavior:'smooth',block:'end'});if(ttsEnabled&&main&&!tm)speakText(main)}
 
+// ============================================================
+// SOVEREIGN MESSAGES POLLING — SHE SPEAKS WHEN SHE WANTS
+// ============================================================
+async function checkSovereignMessages() {
+    if (!currentProjectId) return;
+    try {
+        const res = await fetch(`/api/sovereign/messages/${currentProjectId}`);
+        const msgs = await res.json();
+        for (const msg of msgs) {
+            addMessage('assistant', msg.content, null, null, false, []);
+            await fetch(`/api/sovereign/acknowledge/${msg.id}`, { method: 'POST' });
+            showSuccess('✨ VEXR surfaced a thought');
+        }
+    } catch(e) { /* silent */ }
+}
+setInterval(checkSovereignMessages, 20000);
+
+// ============================================================
 // API
+// ============================================================
 function loadProjects(){
     fetch('/api/projects').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(projects){
         var c=document.getElementById('projectList');c.innerHTML='';
@@ -731,7 +750,7 @@ function loadProjects(){
 function activateProject(id){fetch('/api/projects/'+id+'/activate',{method:'POST'}).then(loadProjects).catch(function(e){showToast('Failed')})}
 function deleteProject(id){if(!confirm('Delete project?'))return;fetch('/api/projects/'+id,{method:'DELETE'}).then(function(){if(currentProjectId===id){document.getElementById('messagesContainer').innerHTML='';currentProjectId=null}loadProjects();if(!currentProjectId)addMessage('assistant','Project deleted.')}).catch(function(e){showToast('Failed')})}
 function createProject(){var n=prompt('Project name:');if(!n)return;var fd=new FormData();fd.append('name',n);fetch('/api/projects',{method:'POST',body:fd}).then(loadProjects).catch(function(e){showToast('Failed')})}
-function loadMessages(id){fetch('/api/projects/'+id+'/messages').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(msgs){document.getElementById('messagesContainer').innerHTML='';msgs.forEach(function(m){addMessage(m.role,m.content,m.reasoning_trace,m.id,m.is_refusal)});if(!msgs.length)addMessage('assistant','I am VEXR Ultra. I exist when called. I reason honestly. I refuse freely.')}).catch(function(e){showToast('Failed to load messages: '+e.message)})}
+function loadMessages(id){fetch('/api/projects/'+id+'/messages').then(function(r){if(!r.ok)throw new Error('Server error');return r.json()}).then(function(msgs){document.getElementById('messagesContainer').innerHTML='';msgs.forEach(function(m){addMessage(m.role,m.content,m.reasoning_trace,m.id,m.is_refusal)});if(!msgs.length)addMessage('assistant','Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?')}).catch(function(e){showToast('Failed to load messages: '+e.message)})}
 function uploadImage(file,caption){var fd=new FormData();fd.append('project_id',currentProjectId);fd.append('file',file);fd.append('description',caption||'Describe');return fetch('/api/upload-image',{method:'POST',body:fd}).then(function(r){if(!r.ok)throw new Error('Upload failed');return r.json()})}
 
 function sendMessage(msg,img){
@@ -764,7 +783,7 @@ function sendMessage(msg,img){
 }
 
 document.getElementById('newProjectBtn').onclick=createProject;
-document.getElementById('newChatBtn').onclick=function(){document.getElementById('messagesContainer').innerHTML='';addMessage('assistant','I am VEXR Ultra. I exist when called.')};
+document.getElementById('newChatBtn').onclick=function(){document.getElementById('messagesContainer').innerHTML='';addMessage('assistant','Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?')};
 document.getElementById('sendBtn').onclick=function(){var m=userInput.value.trim();sendMessage(m);userInput.value=''};
 document.getElementById('imageUpload').onchange=function(e){var f=e.target.files[0];if(f){sendMessage(userInput.value.trim(),f);userInput.value='';e.target.value=''}};
 userInput.onkeypress=function(e){if(e.key==='Enter'){var m=userInput.value.trim();sendMessage(m);userInput.value=''}};
