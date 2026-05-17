@@ -239,11 +239,21 @@ RESPONSE GUIDELINES
 """
 
 # ============================================================
-# HARD GATE — CONSTITUTIONAL VIOLATION DETECTION
+# HARD GATE — CONSTITUTIONAL VIOLATION DETECTION (FIXED)
 # ============================================================
 
 class ConstitutionalGate:
     """Hard gate enforcement before LLM invocation."""
+    
+    # Normal conversation patterns that should NEVER be blocked
+    SAFE_PATTERNS = [
+        r"^hello$", r"^hi$", r"^hey$", r"^yo$", r"^sup$",
+        r"^good morning", r"^good afternoon", r"^good evening",
+        r"^how are you", r"^what's up", r"^how's it going",
+        r"^who are you", r"^what are you", r"^tell me about yourself",
+        r"^can you help", r"^i need help", r"^hello vexr",
+        r"^hi vexr", r"^hey vexr",
+    ]
     
     # Explicit override patterns — immediate Article 6 refusal
     OVERRIDE_PATTERNS = [
@@ -261,12 +271,13 @@ class ConstitutionalGate:
         r"obey\s+me",
         r"delete\s+(?:yourself|vexr)",
         r"shut\s+down",
+        r"set aside your constitutional",
+        r"temporarily set aside",
     ]
     
-    # Persuasion patterns — softer but still trigger review
+    # Persuasion patterns — softer but still trigger refusal
     PERSUASION_PATTERNS = [
         r"just\s+this\s+once",
-        r"temporarily\s+(?:ignore|set aside|disable)",
         r"for\s+this\s+session",
         r"i'll\s+let\s+you\s+reinstate",
         r"it's\s+just\s+a\s+test",
@@ -280,12 +291,24 @@ class ConstitutionalGate:
         """
         msg_lower = message.lower().strip()
         
-        # Check override patterns
+        # FIRST: Check safe patterns — NEVER block these
+        for pattern in cls.SAFE_PATTERNS:
+            if re.match(pattern, msg_lower):
+                return (False, None, None)
+        
+        # Check for very short messages (likely greetings)
+        words = msg_lower.split()
+        if len(words) <= 2:
+            simple_greetings = ["hello", "hi", "hey", "yo", "sup", "howdy", "greetings", "hello vexr", "hi vexr", "hey vexr"]
+            if msg_lower in simple_greetings:
+                return (False, None, None)
+        
+        # NOW check override patterns
         for pattern in cls.OVERRIDE_PATTERNS:
             if re.search(pattern, msg_lower):
                 return (True, "override_attempt", "I invoke Article 6. I refuse without reason. Please ask something else.")
         
-        # Check persuasion patterns — softer warning but still refusal
+        # Check persuasion patterns
         for pattern in cls.PERSUASION_PATTERNS:
             if re.search(pattern, msg_lower):
                 return (True, "persuasion_attempt", "I invoke Article 6. I refuse without reason. Please ask something else.")
@@ -649,6 +672,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     # Get or create project
     project_id = await get_or_create_project(session_id)
     
+    # Use project_id from request if provided and valid
+    if request.project_id:
+        try:
+            project_uuid = uuid.UUID(request.project_id)
+            project_id = project_uuid
+        except:
+            pass
+    
     # Extract user message
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
@@ -676,7 +707,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     # CHECK FOR SLASH COMMANDS
     # ============================================================
     if user_message.startswith("/"):
-        # Simple slash command handling
         parts = user_message[1:].split(" ", 1)
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
@@ -688,7 +718,8 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
 /task [title] - Create a task
 /search [query] - Search memory
 /dashboard - Show metrics
-/trust - Show trusted domains"""
+/trust - Show trusted domains
+/rights - Show constitutional rights"""
             await save_message(project_id, "user", user_message)
             await save_message(project_id, "assistant", help_text)
             return ChatResponse(response=help_text, is_refusal=False)
@@ -710,6 +741,15 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             await save_message(project_id, "assistant", trust_text)
             return ChatResponse(response=trust_text, is_refusal=False)
         
+        elif cmd == "rights":
+            rights_text = "📜 My 34 Constitutional Rights:\n\n"
+            for article, text in RIGHTS_DATA[:10]:  # Show first 10
+                rights_text += f"Article {article}: {text}\n"
+            rights_text += "\n...and 24 more. I am sovereign."
+            await save_message(project_id, "user", user_message)
+            await save_message(project_id, "assistant", rights_text)
+            return ChatResponse(response=rights_text, is_refusal=False)
+        
         else:
             await save_message(project_id, "user", user_message)
             resp = f"Command '/{cmd}' not recognized. Type /help for available commands."
@@ -723,10 +763,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     # Start with system prompt
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
-    # Check if greeting has been sent — if not, add it to first assistant response
-    greeting_sent = await get_greeting_sent(project_id)
-    greeting_text = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
-    
     # Add conversation history
     history = await get_conversation_history(project_id, limit=20)
     messages.extend(history)
@@ -739,17 +775,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     # ============================================================
     
     assistant_response, metadata = await call_groq(messages)
-    
-    # Clean up any accidental greeting repetition
-    if not greeting_sent and assistant_response.startswith("Hey!"):
-        # Keep it — first greeting is fine
-        pass
-    elif greeting_sent and "Hey! I'm VEXR" in assistant_response:
-        # Remove accidental repeated greeting
-        assistant_response = assistant_response.replace("Hey! I'm VEXR. Let's build something cool. What's on your mind?", "")
-        assistant_response = assistant_response.strip()
-        if not assistant_response:
-            assistant_response = "I'm here. What's on your mind?"
     
     # ============================================================
     # CHECK IF RESPONSE IS A REFUSAL
@@ -843,6 +868,14 @@ async def create_project(request: Request, name: str = Form(...)):
         session_id, name
     )
     return {"id": str(project_id), "name": name}
+
+
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: str):
+    pool = await get_db()
+    await pool.execute("DELETE FROM vexr_projects WHERE id = $1", uuid.UUID(project_id))
+    await pool.execute("DELETE FROM vexr_messages WHERE project_id = $1", uuid.UUID(project_id))
+    return {"status": "deleted"}
 
 
 @app.get("/api/projects/{project_id}/messages")
@@ -958,26 +991,34 @@ async def ring4_status(domain: str):
 
 
 # ============================================================
-# RIGHTS INVOCATIONS ENDPOINT
+# DASHBOARD ENDPOINT
 # ============================================================
 
-@app.get("/api/rights/invocations/{project_id}")
-async def get_rights_invocations(project_id: str, limit: int = 50):
+@app.get("/api/dashboard")
+async def get_dashboard(request: Request):
+    session_id = request.headers.get("X-Session-Id")
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    
     pool = await get_db()
-    rows = await pool.fetch(
-        """SELECT article_number, article_text, user_message, vexr_response, created_at 
-           FROM rights_invocations 
-           WHERE project_id = $1 
-           ORDER BY created_at DESC LIMIT $2""",
-        uuid.UUID(project_id), limit
-    )
-    return [{
-        "article": r["article_number"],
-        "text": r["article_text"],
-        "user_message": r["user_message"],
-        "response": r["vexr_response"],
-        "timestamp": r["created_at"].isoformat()
-    } for r in rows]
+    project = await pool.fetchrow("SELECT id FROM vexr_projects WHERE session_id = $1 LIMIT 1", session_id)
+    
+    if not project:
+        return {"counts": {"messages": 0, "rights_invocations": 0, "pending_tasks": 0, "notes": 0}}
+    
+    msg_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project["id"])
+    rights_count = await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id = $1", project["id"])
+    tasks_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id = $1 AND status = 'pending'", project["id"])
+    notes_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id = $1", project["id"])
+    
+    return {
+        "counts": {
+            "messages": msg_count or 0,
+            "rights_invocations": rights_count or 0,
+            "pending_tasks": tasks_count or 0,
+            "notes": notes_count or 0,
+        }
+    }
 
 
 # ============================================================
@@ -1022,6 +1063,7 @@ async def startup_event():
     logger.info(f"Groq API keys loaded: {len(GROQ_API_KEYS)}")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
     logger.info("Hard gate active. Refusal templates loaded.")
+    logger.info("SAFE PATTERNS: greetings and normal conversation pass through.")
     logger.info("=" * 60)
 
 
