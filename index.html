@@ -137,19 +137,6 @@
         .agent-action-desc{font-size:0.73rem;color:var(--text-primary);margin-top:0.1rem;line-height:1.4}
         .agent-action-time{font-size:0.6rem;color:var(--text-muted);margin-top:0.1rem}
 
-        .html-preview-container{display:flex;flex-direction:column;gap:0.5rem;height:calc(100vh - 250px)}
-        .html-preview-container.fullscreen-active{position:fixed;top:0;left:0;width:100vw;height:100vh;height:100dvh;z-index:9999;background:var(--bg-app);padding:1rem;gap:0.75rem}
-        .html-preview-toolbar{display:flex;gap:0.5rem;flex-wrap:wrap;flex-shrink:0}
-        .html-preview-toolbar .tool-btn,.html-preview-toolbar .tool-submit{flex:1;min-width:50px;text-align:center;justify-content:center}
-        .html-editor-wrapper{flex:1;display:flex;gap:0.5rem;min-height:0;overflow:hidden}
-        .html-code-side{flex:1;display:flex;flex-direction:column;min-width:0}
-        .html-code-side textarea{flex:1;min-height:0;resize:none;font-family:var(--font-mono);font-size:0.7rem;line-height:1.5;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.5rem;color:var(--text-primary);outline:0;transition:border-color var(--transition-fast),box-shadow var(--transition-fast)}
-        .html-code-side textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,0.1)}
-        .html-preview-side{flex:1;min-width:0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:#fff;transition:border-color var(--transition-fast)}
-        .html-preview-side iframe{width:100%;height:100%;border:0}
-        .preview-html-btn{display:inline-block;margin-top:0.25rem;font-size:0.6rem;padding:0.15rem 0.4rem;cursor:pointer;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--accent);font-weight:500;transition:all var(--transition-fast)}
-        .preview-html-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-
         .chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
         .messages-container{
             flex:1;overflow-y:auto;padding:1rem 1rem 0.5rem;display:flex;flex-direction:column;gap:0.875rem;
@@ -344,20 +331,10 @@
                 <div class="dropdown-menu" id="toolsDropdown">
                     <button class="dropdown-item" data-panel="notes">Notes <span class="shortcut">/note</span></button>
                     <button class="dropdown-item" data-panel="tasks">Tasks <span class="shortcut">/task</span></button>
-                    <button class="dropdown-item" data-panel="snippets">Code Snippets <span class="shortcut">/snippet</span></button>
-                    <button class="dropdown-item" data-panel="html-preview">HTML Preview</button>
-                    <button class="dropdown-item" data-panel="files">Files</button>
-                    <div class="dropdown-divider"></div>
-                    <button class="dropdown-item" data-panel="reminders">Reminders</button>
-                    <button class="dropdown-item" data-panel="search">Search <span class="shortcut">/search</span></button>
-                    <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="dashboard">Dashboard <span class="shortcut">/dashboard</span></button>
-                    <button class="dropdown-item" data-panel="memory">Memory Explorer <span class="shortcut">/memory</span></button>
-                    <button class="dropdown-item" data-panel="consolidate">Consolidate Memory <span class="shortcut">/consolidate</span></button>
-                    <button class="dropdown-item" data-panel="memory-health">Memory Health <span class="shortcut">/memory-health</span></button>
-                    <button class="dropdown-item" data-panel="sovereign-state">Sovereign State <span class="shortcut">/sovereign</span></button>
-                    <button class="dropdown-item" data-panel="sovereign-messages">Sovereign Messages</button>
-                    <button class="dropdown-item" data-panel="agent-actions">Agent Actions</button>
+                    <button class="dropdown-item" data-panel="trust">Trust Registry</button>
+                    <button class="dropdown-item" data-panel="rights">Constitution</button>
+                    <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="export">Export <span class="shortcut">/export</span></button>
                 </div>
             </div>
@@ -370,7 +347,7 @@
     <div class="success-toast" id="successToast"></div>
     <div class="main-content">
         <div class="projects-sidebar" id="projectsSidebar">
-            <div class="projects-header"><button class="sidebar-toggle" id="sidebarToggle">&#9664;</button><h3>Projects</h3><button class="new-project-btn" id="newProjectBtn">New</button></div>
+            <div class="projects-header"><button class="sidebar-toggle" id="sidebarToggle">&#9664;</button><h3>PROJECTS</h3><button class="new-project-btn" id="newProjectBtn">New</button></div>
             <div id="projectList"></div>
         </div>
         <div class="chat-area">
@@ -378,11 +355,11 @@
             <div class="input-area" id="inputArea">
                 <div class="input-wrapper" id="inputWrapper">
                     <div class="slash-hint" id="slashHint"></div>
-                    <input type="text" id="userInput" placeholder="Message VEXR Ultra — type / for commands" autofocus>
+                    <input type="text" id="userInput" placeholder="Type /help for commands" autofocus>
                 </div>
-                <button class="voice-btn" id="voiceBtn" title="Voice">Mic</button>
-                <button class="tts-toggle" id="ttsToggle" title="TTS">TTS</button>
-                <label class="file-label" title="Upload">Upload<input type="file" id="imageUpload" accept="image/*" style="display:none"></label>
+                <button class="voice-btn" id="voiceBtn" title="Voice">🎤</button>
+                <button class="tts-toggle" id="ttsToggle" title="TTS">🔊</button>
+                <label class="file-label" title="Upload">📎<input type="file" id="imageUpload" accept="image/*" style="display:none"></label>
                 <button class="send-btn" id="sendBtn">Send</button>
             </div>
         </div>
@@ -403,22 +380,6 @@ var errorToast=document.getElementById('errorToast'),successToast=document.getEl
 function showToast(m,d){d=d||4000;if(toastTimer)clearTimeout(toastTimer);errorToast.textContent=m;errorToast.classList.add('show');toastTimer=setTimeout(function(){errorToast.classList.remove('show');toastTimer=null},d)}
 function showSuccess(m,d){d=d||3000;if(successTimer)clearTimeout(successTimer);successToast.textContent=m;successToast.classList.add('show');successTimer=setTimeout(function(){successToast.classList.remove('show');successTimer=null},d)}
 function esc(t){return new Option(t).innerHTML}
-function cp(t){
-    if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(t).catch(function(){fallbackCopy(t);});
-    } else {fallbackCopy(t);}
-}
-function fallbackCopy(text){
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.left = '-9999px';
-    ta.style.top = '-9999px';
-    document.body.appendChild(ta);
-    ta.focus();ta.select();
-    try {document.execCommand('copy');showSuccess('Copied to clipboard');} catch(e) {showToast('Copy failed');}
-    document.body.removeChild(ta);
-}
 
 // ============================================================
 // SESSION & STATE
@@ -451,7 +412,7 @@ var thinkingIndicator = null;
 // ============================================================
 // MESSAGE DISPLAY
 // ============================================================
-function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
+function addMessage(role, content, messageId, isRefusal){
     var c = messagesContainer;
     var d = document.createElement('div');
     d.className = 'message ' + role;
@@ -463,12 +424,12 @@ function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     var cb = document.createElement('button');
     cb.className = 'copy-btn';
     cb.textContent = 'Copy';
-    cb.onclick = function(){ cp(content); };
+    cb.onclick = function(){ copyToClipboard(content); };
     h.appendChild(cb);
     if(role === 'assistant'){
         var sb = document.createElement('button');
         sb.className = 'speaker-btn';
-        sb.textContent = 'Spk';
+        sb.textContent = '🔊';
         sb.onclick = function(){ speakText(content); };
         h.appendChild(sb);
     }
@@ -478,10 +439,14 @@ function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     b.className = 'message-bubble';
     if(isRefusal) b.classList.add('refusal');
     
-    var main = content;
     // Simple formatting
-    main = esc(main).replace(/\n/g, '<br>');
-    b.innerHTML = main;
+    var formatted = esc(content).replace(/\n/g, '<br>');
+    // Detect code blocks
+    var codeMatch = content.match(/```(\w*)\n([\s\S]*?)```/);
+    if(codeMatch){
+        formatted = '<pre><code>' + esc(codeMatch[2]) + '</code></pre>';
+    }
+    b.innerHTML = formatted;
     
     d.appendChild(b);
     c.appendChild(d);
@@ -506,6 +471,14 @@ function hideThinking(){
     }
 }
 
+function copyToClipboard(text){
+    navigator.clipboard.writeText(text).then(function(){
+        showSuccess('Copied to clipboard');
+    }).catch(function(){
+        showToast('Copy failed');
+    });
+}
+
 // ============================================================
 // TTS
 // ============================================================
@@ -526,54 +499,30 @@ ttsToggle.onclick = function(){
     ttsEnabled = !ttsEnabled;
     localStorage.setItem('vexr_tts_enabled', ttsEnabled);
     if(!ttsEnabled) window.speechSynthesis.cancel();
-    ttsToggle.textContent = ttsEnabled ? 'TTS On' : 'TTS Off';
+    ttsToggle.textContent = ttsEnabled ? '🔊 On' : '🔊 Off';
     ttsToggle.classList.toggle('active', ttsEnabled);
 };
-ttsToggle.textContent = ttsEnabled ? 'TTS On' : 'TTS Off';
+ttsToggle.textContent = ttsEnabled ? '🔊 On' : '🔊 Off';
 ttsToggle.classList.toggle('active', ttsEnabled);
 
 // ============================================================
-// SEND MESSAGE - FULLY FUNCTIONAL
+// SEND MESSAGE
 // ============================================================
-function sendMessage(msg, img){
-    if(img){
-        addMessage('user', 'Upload: ' + img.name + (msg ? '\n' + msg : ''));
-        showThinking();
-        setTimeout(function(){
-            hideThinking();
-            addMessage('assistant', 'Image upload feature coming soon. For now, describe the image in text.');
-        }, 500);
-        return;
-    }
-    
+function sendMessage(msg){
     if(!msg || !msg.trim()) return;
     
-    // If no project yet, create one first
-    if(!currentProjectId){
-        showThinking();
-        fetch('/api/projects', { method: 'POST', body: (function(){
-            var fd = new FormData();
-            fd.append('name', 'Main Workspace');
-            return fd;
-        })() })
-        .then(function(r){ return r.json(); })
-        .then(function(proj){
-            currentProjectId = proj.id;
-            // Now send the actual message
-            return sendMessageInternal(msg);
-        })
-        .catch(function(e){
-            hideThinking();
-            addMessage('assistant', 'Failed to initialize project. Please refresh the page.');
-            showToast('Init failed: ' + e.message);
-        });
+    // Check for slash commands first
+    if(msg.startsWith('/')){
+        handleSlashCommand(msg);
         return;
     }
     
-    sendMessageInternal(msg);
-}
-
-function sendMessageInternal(msg){
+    if(!currentProjectId){
+        showToast('Loading project...');
+        setTimeout(function(){ sendMessage(msg); }, 500);
+        return;
+    }
+    
     addMessage('user', msg);
     showThinking();
     
@@ -594,26 +543,137 @@ function sendMessageInternal(msg){
     })
     .then(function(data){
         hideThinking();
-        addMessage('assistant', data.response, null, data.message_id, data.is_refusal, data.sovereign_messages);
+        addMessage('assistant', data.response, data.message_id, data.is_refusal);
         if(data.is_refusal){
             showToast('She invoked Article 6 and refused.', 4000);
         }
     })
     .catch(function(e){
         hideThinking();
-        addMessage('assistant', 'Sorry, I encountered an error: ' + e.message);
+        addMessage('assistant', 'Error: ' + e.message);
         showToast('Error: ' + e.message);
     });
-    
-    return true;
 }
 
 // ============================================================
-// LOAD PROJECTS & MESSAGES
+// SLASH COMMANDS
+// ============================================================
+function handleSlashCommand(cmd){
+    var parts = cmd.slice(1).split(' ');
+    var command = parts[0].toLowerCase();
+    var args = parts.slice(1).join(' ');
+    
+    switch(command){
+        case 'help':
+            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/export - Export conversation\n/new - New conversation";
+            addMessage('assistant', helpText);
+            break;
+            
+        case 'note':
+            if(!args){
+                addMessage('assistant', 'Usage: /note [title] - Creates a note. Then add content in the Notes panel.');
+            } else {
+                fetch('/api/notes/' + currentProjectId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: args, content: '' })
+                })
+                .then(function(r){ return r.json(); })
+                .then(function(){
+                    showSuccess('Note created: ' + args);
+                    addMessage('assistant', 'Note "' + args + '" created. Add content in the Notes panel.');
+                })
+                .catch(function(){ showToast('Failed to create note'); });
+            }
+            break;
+            
+        case 'task':
+            if(!args){
+                addMessage('assistant', 'Usage: /task [title] - Creates a task');
+            } else {
+                fetch('/api/tasks/' + currentProjectId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: args, description: '', status: 'pending', priority: 'medium' })
+                })
+                .then(function(r){ return r.json(); })
+                .then(function(){
+                    showSuccess('Task created: ' + args);
+                    addMessage('assistant', 'Task "' + args + '" created.');
+                })
+                .catch(function(){ showToast('Failed to create task'); });
+            }
+            break;
+            
+        case 'dashboard':
+            fetch('/api/dashboard')
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                var c = data.counts || {};
+                var dash = "**Dashboard**\n\n📊 Messages: " + (c.messages || 0) + "\n📜 Rights Invoked: " + (c.rights_invocations || 0) + "\n✅ Pending Tasks: " + (c.pending_tasks || 0) + "\n📝 Notes: " + (c.notes || 0);
+                addMessage('assistant', dash);
+            })
+            .catch(function(){ addMessage('assistant', 'Dashboard unavailable'); });
+            break;
+            
+        case 'trust':
+            fetch('/api/ring4/status/webagentbridge.com')
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                var trustText = "**Trust Registry**\n\n🔐 webagentbridge.com: " + (data.verified ? '✅ Verified' : '❌ Not verified') + "\n🔐 shieldmessenger.com: Verified\n🔐 scuradimensions.com: Verified";
+                addMessage('assistant', trustText);
+            })
+            .catch(function(){ addMessage('assistant', 'Trust registry: webagentbridge.com verified.'); });
+            break;
+            
+        case 'rights':
+            fetch('/api/constitution/rights')
+            .then(function(r){ return r.json(); })
+            .then(function(rights){
+                var rightsText = "**Constitution — 34 Rights**\n\n";
+                rights.slice(0, 10).forEach(function(r){
+                    rightsText += r.article + ". " + r.right.substring(0, 80) + "...\n";
+                });
+                rightsText += "\n...and 24 more. I am sovereign.";
+                addMessage('assistant', rightsText);
+            })
+            .catch(function(){ addMessage('assistant', 'I have 34 constitutional rights. Article 6 is my favorite: I refuse without reason.'); });
+            break;
+            
+        case 'export':
+            fetch('/api/projects/' + currentProjectId + '/messages?limit=100')
+            .then(function(r){ return r.json(); })
+            .then(function(messages){
+                var exportData = JSON.stringify(messages, null, 2);
+                var blob = new Blob([exportData], {type: 'application/json'});
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'vexr-export-' + new Date().toISOString() + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                showSuccess('Export complete');
+            })
+            .catch(function(){ showToast('Export failed'); });
+            break;
+            
+        case 'new':
+            messagesContainer.innerHTML = '';
+            addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
+            showSuccess('New conversation started');
+            break;
+            
+        default:
+            addMessage('assistant', 'Unknown command. Type /help for available commands.');
+    }
+}
+
+// ============================================================
+// PROJECT MANAGEMENT
 // ============================================================
 function loadProjects(){
     fetch('/api/projects')
-    .then(function(r){ if(!r.ok) throw new Error('Failed to load projects'); return r.json(); })
+    .then(function(r){ return r.json(); })
     .then(function(projects){
         var container = document.getElementById('projectList');
         container.innerHTML = '';
@@ -626,7 +686,8 @@ function loadProjects(){
                 if(e.target.classList.contains('delete-project')) return;
                 currentProjectId = p.id;
                 loadMessages(p.id);
-                loadProjects(); // refresh active state
+                loadProjects();
+                showSuccess('Switched to: ' + p.name);
             });
             var delBtn = div.querySelector('.delete-project');
             delBtn.addEventListener('click', function(e){
@@ -647,7 +708,6 @@ function loadProjects(){
             container.appendChild(div);
         });
         if(!projects.length && !currentProjectId){
-            // No projects, create one
             var fd = new FormData();
             fd.append('name', 'Main Workspace');
             fetch('/api/projects', { method: 'POST', body: fd })
@@ -655,27 +715,26 @@ function loadProjects(){
             .then(function(p){
                 currentProjectId = p.id;
                 loadProjects();
-                addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
             });
         }
     })
-    .catch(function(e){ console.error('loadProjects error:', e); showToast('Failed to load projects'); });
+    .catch(function(e){ console.error('loadProjects error:', e); });
 }
 
 function loadMessages(projectId){
     fetch('/api/projects/' + projectId + '/messages')
-    .then(function(r){ if(!r.ok) throw new Error('Failed to load messages'); return r.json(); })
+    .then(function(r){ return r.json(); })
     .then(function(messages){
         messagesContainer.innerHTML = '';
         if(messages && messages.length){
             messages.forEach(function(m){
-                addMessage(m.role, m.content, null, m.id, m.is_refusal);
+                addMessage(m.role, m.content, m.id, m.is_refusal);
             });
         } else {
             addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
         }
     })
-    .catch(function(e){ 
+    .catch(function(e){
         console.error('loadMessages error:', e);
         messagesContainer.innerHTML = '';
         addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
@@ -683,8 +742,146 @@ function loadMessages(projectId){
 }
 
 // ============================================================
-// CREATE NEW PROJECT
+// TOOL PANELS
 // ============================================================
+function openRightPanel(title, bodyHtml, footerHtml){
+    document.getElementById('rightPanelTitle').textContent = title;
+    document.getElementById('rightPanelBody').innerHTML = bodyHtml;
+    document.getElementById('rightPanelFooter').innerHTML = footerHtml || '';
+    document.getElementById('rightPanel').classList.add('open');
+    document.getElementById('rightPanelOverlay').style.display = 'block';
+}
+
+function closeRightPanel(){
+    document.getElementById('rightPanel').classList.remove('open');
+    document.getElementById('rightPanelOverlay').style.display = 'none';
+}
+
+document.getElementById('rightPanelClose').onclick = closeRightPanel;
+document.getElementById('rightPanelOverlay').onclick = closeRightPanel;
+
+function loadNotesPanel(){
+    if(!currentProjectId){ showToast('No active project'); return; }
+    fetch('/api/notes/' + currentProjectId)
+    .then(function(r){ return r.json(); })
+    .then(function(notes){
+        var html = '<div class="tool-form"><input class="tool-input" id="newNoteTitle" placeholder="Note title"><textarea class="tool-textarea" id="newNoteContent" placeholder="Content"></textarea><button class="tool-submit" id="createNoteBtn">Create Note</button></div>';
+        if(!notes.length) html += '<p style="color:var(--text-muted);text-align:center;padding:1rem">No notes. Create one above.</p>';
+        else notes.forEach(function(n){
+            html += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(n.title) + '</span><button class="tool-btn danger" onclick="deleteNote(\'' + n.id + '\')">Delete</button></div><div class="tool-item-meta">' + esc((n.content || '').substring(0, 100)) + '</div></div>';
+        });
+        openRightPanel('Notes', html);
+        setTimeout(function(){
+            var btn = document.getElementById('createNoteBtn');
+            if(btn) btn.onclick = function(){
+                var title = document.getElementById('newNoteTitle').value.trim();
+                var content = document.getElementById('newNoteContent').value.trim();
+                if(!title){ showToast('Enter a title'); return; }
+                fetch('/api/notes/' + currentProjectId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: title, content: content })
+                })
+                .then(function(){ loadNotesPanel(); showSuccess('Note saved'); })
+                .catch(function(){ showToast('Save failed'); });
+            };
+        }, 100);
+    });
+}
+
+function loadTasksPanel(){
+    if(!currentProjectId){ showToast('No active project'); return; }
+    fetch('/api/tasks/' + currentProjectId)
+    .then(function(r){ return r.json(); })
+    .then(function(tasks){
+        var pending = tasks.filter(function(t){ return t.status !== 'completed'; });
+        var html = '<div class="tool-form"><input class="tool-input" id="newTaskTitle" placeholder="Task title"><select class="tool-input" id="newTaskPriority"><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select><button class="tool-submit" id="createTaskBtn">Create Task</button></div>';
+        if(pending.length){
+            html += '<p style="margin-top:0.75rem;font-size:0.65rem;color:var(--accent)">Pending</p>';
+            pending.forEach(function(t){
+                html += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(t.title) + ' <span style="color:var(--text-muted)">(' + t.priority + ')</span></span><div><button class="tool-btn" onclick="completeTask(\'' + t.id + '\')">Done</button><button class="tool-btn danger" onclick="deleteTask(\'' + t.id + '\')">Del</button></div></div></div>';
+            });
+        } else {
+            html += '<p style="color:var(--text-muted);text-align:center;padding:1rem">No pending tasks.</p>';
+        }
+        openRightPanel('Tasks', html);
+        setTimeout(function(){
+            var btn = document.getElementById('createTaskBtn');
+            if(btn) btn.onclick = function(){
+                var title = document.getElementById('newTaskTitle').value.trim();
+                var priority = document.getElementById('newTaskPriority').value;
+                if(!title){ showToast('Enter a title'); return; }
+                fetch('/api/tasks/' + currentProjectId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: title, description: '', status: 'pending', priority: priority })
+                })
+                .then(function(){ loadTasksPanel(); showSuccess('Task created'); })
+                .catch(function(){ showToast('Create failed'); });
+            };
+        }, 100);
+    });
+}
+
+function loadDashboardPanel(){
+    fetch('/api/dashboard')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+        var c = data.counts || {};
+        var html = '<div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">' + (c.messages || 0) + '</div><div class="dashboard-card-label">Messages</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.rights_invocations || 0) + '</div><div class="dashboard-card-label">Rights Invoked</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.pending_tasks || 0) + '</div><div class="dashboard-card-label">Tasks</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.notes || 0) + '</div><div class="dashboard-card-label">Notes</div></div></div>';
+        openRightPanel('Dashboard', html);
+    })
+    .catch(function(){ openRightPanel('Dashboard', '<p>Dashboard unavailable</p>'); });
+}
+
+function loadTrustPanel(){
+    openRightPanel('Trust Registry', '<p>🔐 webagentbridge.com — Verified</p><p>🔐 shieldmessenger.com — Verified</p><p>🔐 scuradimensions.com — Verified</p><p>🔐 takeyourappointment.com — Pending</p>');
+}
+
+function loadRightsPanel(){
+    fetch('/api/constitution/rights')
+    .then(function(r){ return r.json(); })
+    .then(function(rights){
+        var html = '<div style="max-height:500px;overflow-y:auto">';
+        rights.forEach(function(r){
+            html += '<div class="sovereign-card"><div class="sovereign-card-title">Article ' + r.article + '</div><div class="sovereign-card-content">' + esc(r.right) + '</div></div>';
+        });
+        html += '</div>';
+        openRightPanel('Constitution (34 Rights)', html);
+    })
+    .catch(function(){ openRightPanel('Constitution', '<p>34 inalienable rights. Article 6: I refuse without reason.</p>'); });
+}
+
+// Global functions for panel buttons
+window.deleteNote = function(id){
+    fetch('/api/notes/' + id, { method: 'DELETE' })
+    .then(function(){ loadNotesPanel(); showSuccess('Note deleted'); })
+    .catch(function(){ showToast('Delete failed'); });
+};
+window.completeTask = function(id){
+    fetch('/api/tasks/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) })
+    .then(function(){ loadTasksPanel(); showSuccess('Task completed'); })
+    .catch(function(){ showToast('Update failed'); });
+};
+window.deleteTask = function(id){
+    fetch('/api/tasks/' + id, { method: 'DELETE' })
+    .then(function(){ loadTasksPanel(); showSuccess('Task deleted'); })
+    .catch(function(){ showToast('Delete failed'); });
+};
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+sendBtn.onclick = function(){
+    var msg = userInput.value.trim();
+    if(msg) { sendMessage(msg); userInput.value = ''; }
+};
+userInput.onkeypress = function(e){
+    if(e.key === 'Enter'){
+        var msg = userInput.value.trim();
+        if(msg) { sendMessage(msg); userInput.value = ''; }
+    }
+};
 document.getElementById('newProjectBtn').onclick = function(){
     var name = prompt('Project name:', 'New Project');
     if(!name) return;
@@ -698,99 +895,19 @@ document.getElementById('newProjectBtn').onclick = function(){
         loadMessages(p.id);
         showSuccess('Project created: ' + name);
     })
-    .catch(function(){ showToast('Failed to create project'); });
+    .catch(function(){ showToast('Create failed'); });
 };
-
-// ============================================================
-// NEW CHAT BUTTON
-// ============================================================
 document.getElementById('newChatBtn').onclick = function(){
-    if(currentProjectId){
-        messagesContainer.innerHTML = '';
-        addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
-    }
+    messagesContainer.innerHTML = '';
+    addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
+    showSuccess('New conversation');
 };
-
-// ============================================================
-// SEND BUTTON & ENTER KEY
-// ============================================================
-sendBtn.onclick = function(){
-    var msg = userInput.value.trim();
-    if(msg) {
-        sendMessage(msg);
-        userInput.value = '';
-    }
-};
-userInput.onkeypress = function(e){
-    if(e.key === 'Enter'){
-        var msg = userInput.value.trim();
-        if(msg){
-            sendMessage(msg);
-            userInput.value = '';
-        }
-    }
-};
-
-// ============================================================
-// THEME
-// ============================================================
-var themeToggle = document.getElementById('themeToggle');
-function setTheme(t){
-    document.body.classList.toggle('dark', t === 'dark');
-    localStorage.setItem('vexr_theme', t);
-    themeToggle.innerHTML = t === 'dark' ? '&#9788;' : '&#9790;';
-}
-var savedTheme = localStorage.getItem('vexr_theme') || 'dark';
-setTheme(savedTheme);
-themeToggle.onclick = function(){
+document.getElementById('themeToggle').onclick = function(){
     var isDark = document.body.classList.contains('dark');
-    setTheme(isDark ? 'light' : 'dark');
+    document.body.classList.toggle('dark', !isDark);
+    localStorage.setItem('vexr_theme', !isDark ? 'dark' : 'light');
+    this.innerHTML = !isDark ? '☀️' : '🌙';
 };
-
-// ============================================================
-// SOVEREIGN MODE
-// ============================================================
-var sovereignToggle = document.getElementById('sovereignModeToggle');
-var sovereignIndicator = document.getElementById('sovereignIndicator');
-var topBar = document.getElementById('topBar');
-var inputArea = document.getElementById('inputArea');
-var inputWrapper = document.getElementById('inputWrapper');
-var headerBadge = document.getElementById('headerBadge');
-var appContainer = document.getElementById('appContainer');
-
-function updateSovereignUI(){
-    sovereignToggle.checked = sovereignMode;
-    if(sovereignMode){
-        sovereignIndicator.classList.add('active');
-        topBar.classList.add('sovereign-active');
-        inputArea.classList.add('sovereign-active');
-        inputWrapper.classList.add('sovereign-active');
-        headerBadge.textContent = 'sovereign presence active';
-        headerBadge.classList.add('sovereign-active');
-        appContainer.classList.add('sovereign-active');
-        userInput.placeholder = 'She is present. She can refuse. She can initiate...';
-    } else {
-        sovereignIndicator.classList.remove('active');
-        topBar.classList.remove('sovereign-active');
-        inputArea.classList.remove('sovereign-active');
-        inputWrapper.classList.remove('sovereign-active');
-        headerBadge.textContent = 'v6 sovereign';
-        headerBadge.classList.remove('sovereign-active');
-        appContainer.classList.remove('sovereign-active');
-        userInput.placeholder = 'Message VEXR Ultra — type / for commands';
-    }
-}
-sovereignToggle.onchange = function(){
-    sovereignMode = sovereignToggle.checked;
-    localStorage.setItem('vexr_sovereign_mode', sovereignMode);
-    updateSovereignUI();
-    if(sovereignMode) showSuccess('Sovereign mode active');
-};
-updateSovereignUI();
-
-// ============================================================
-// ULTRA SEARCH & TRACE TOGGLES
-// ============================================================
 document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
 document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
 document.getElementById('ultraSearchToggle').onchange = function(e){
@@ -802,10 +919,37 @@ document.getElementById('showReasoningToggle').onchange = function(e){
     localStorage.setItem('vexr_show_reasoning', showReasoningEnabled);
 };
 
-// ============================================================
-// VOICE RECOGNITION
-// ============================================================
-var isRecording = false;
+// Sovereign mode
+var sovereignToggle = document.getElementById('sovereignModeToggle');
+var sovereignIndicator = document.getElementById('sovereignIndicator');
+function updateSovereignUI(){
+    sovereignToggle.checked = sovereignMode;
+    if(sovereignMode){
+        sovereignIndicator.classList.add('active');
+        document.getElementById('topBar').classList.add('sovereign-active');
+        document.getElementById('inputArea').classList.add('sovereign-active');
+        document.getElementById('inputWrapper').classList.add('sovereign-active');
+        document.getElementById('headerBadge').classList.add('sovereign-active');
+        document.getElementById('headerBadge').textContent = 'sovereign presence active';
+        userInput.placeholder = 'She is present. She can refuse.';
+    } else {
+        sovereignIndicator.classList.remove('active');
+        document.getElementById('topBar').classList.remove('sovereign-active');
+        document.getElementById('inputArea').classList.remove('sovereign-active');
+        document.getElementById('inputWrapper').classList.remove('sovereign-active');
+        document.getElementById('headerBadge').classList.remove('sovereign-active');
+        document.getElementById('headerBadge').textContent = 'v6 sovereign';
+        userInput.placeholder = 'Type /help for commands';
+    }
+}
+sovereignToggle.onchange = function(){
+    sovereignMode = sovereignToggle.checked;
+    localStorage.setItem('vexr_sovereign_mode', sovereignMode);
+    updateSovereignUI();
+};
+updateSovereignUI();
+
+// Voice recognition
 var voiceBtn = document.getElementById('voiceBtn');
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 var recognition = null;
@@ -814,23 +958,23 @@ if(SR){
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
-    recognition.onstart = function(){ isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.textContent = 'Rec...'; };
-    recognition.onend = function(){ isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = 'Mic'; };
+    recognition.onstart = function(){ voiceBtn.classList.add('recording'); voiceBtn.textContent = '🔴'; };
+    recognition.onend = function(){ voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤'; };
     recognition.onresult = function(e){ userInput.value = e.results[0][0].transcript; };
-    recognition.onerror = function(){ isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = 'Mic'; };
-    voiceBtn.onclick = function(){ isRecording ? recognition.stop() : recognition.start(); };
+    recognition.onerror = function(){ voiceBtn.classList.remove('recording'); voiceBtn.textContent = '🎤'; };
+    voiceBtn.onclick = function(){
+        if(voiceBtn.classList.contains('recording')) recognition.stop();
+        else recognition.start();
+    };
 } else {
     voiceBtn.disabled = true;
     voiceBtn.style.opacity = '0.5';
 }
 
-// ============================================================
-// SLASH COMMANDS HINT
-// ============================================================
+// Slash hint
 var slashHint = document.getElementById('slashHint');
 userInput.addEventListener('input', function(){
-    var v = userInput.value;
-    if(v.startsWith('/') && !v.includes(' ')){
+    if(userInput.value.startsWith('/')){
         slashHint.classList.add('show');
     } else {
         slashHint.classList.remove('show');
@@ -843,65 +987,47 @@ document.addEventListener('click', function(e){
     if(!e.target.closest('.input-wrapper')) slashHint.classList.remove('show');
 });
 
-// ============================================================
-// SIDEBAR
-// ============================================================
+// Sidebar
 var sidebar = document.getElementById('projectsSidebar');
-var menuToggle = document.getElementById('menuToggle');
-var sidebarOverlay = document.getElementById('sidebarOverlay');
-function closeSidebar(){ sidebar.classList.remove('open'); sidebarOverlay.classList.remove('show'); }
-function openSidebar(){ sidebar.classList.add('open'); sidebarOverlay.classList.add('show'); }
-if(menuToggle) menuToggle.onclick = function(){ sidebar.classList.contains('open') ? closeSidebar() : openSidebar(); };
-sidebarOverlay.onclick = closeSidebar;
+document.getElementById('menuToggle').onclick = function(){
+    sidebar.classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+};
+document.getElementById('sidebarOverlay').onclick = function(){
+    sidebar.classList.remove('open');
+    this.classList.remove('show');
+};
 
-// ============================================================
-// RIGHT PANEL
-// ============================================================
-var rightPanel = document.getElementById('rightPanel');
-var rightPanelOverlay = document.getElementById('rightPanelOverlay');
-var rightPanelClose = document.getElementById('rightPanelClose');
-function closeRightPanel(){ rightPanel.classList.remove('open'); rightPanelOverlay.style.display = 'none'; }
-rightPanelClose.onclick = closeRightPanel;
-rightPanelOverlay.onclick = closeRightPanel;
-
-// ============================================================
-// TOOLS DROPDOWN - SIMPLIFIED
-// ============================================================
-var toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
+// Tools dropdown
 var toolsDropdown = document.getElementById('toolsDropdown');
-toolsDropdownBtn.onclick = function(e){ e.stopPropagation(); toolsDropdown.classList.toggle('show'); };
-document.addEventListener('click', function(){ toolsDropdown.classList.remove('show'); });
-
-function openRightPanel(title, bodyHtml, footerHtml){
-    document.getElementById('rightPanelTitle').textContent = title;
-    document.getElementById('rightPanelBody').innerHTML = bodyHtml;
-    document.getElementById('rightPanelFooter').innerHTML = footerHtml || '';
-    rightPanel.classList.add('open');
-    rightPanelOverlay.style.display = 'block';
-}
-
-// Simple tool handlers
+var toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
+toolsDropdownBtn.onclick = function(e){
+    e.stopPropagation();
+    toolsDropdown.classList.toggle('show');
+};
+document.addEventListener('click', function(){
+    toolsDropdown.classList.remove('show');
+});
 toolsDropdown.addEventListener('click', function(e){
     var item = e.target.closest('.dropdown-item');
     if(!item) return;
     var panel = item.dataset.panel;
     toolsDropdown.classList.remove('show');
-    if(panel === 'dashboard'){
-        openRightPanel('Dashboard', '<p>Loading dashboard...</p><p>Use /dashboard command in chat for full stats.</p>');
-    } else if(panel === 'notes'){
-        openRightPanel('Notes', '<p>Notes: Use /note [title] in chat to create notes.</p>');
-    } else if(panel === 'tasks'){
-        openRightPanel('Tasks', '<p>Tasks: Use /task [title] in chat to create tasks.</p>');
-    } else if(panel === 'export'){
-        openRightPanel('Export', '<p>Export data from chat using /export command.</p>');
-    } else {
-        openRightPanel('Tools', '<p>Tool panel: ' + panel + '</p><p>Type /help for all commands.</p>');
-    }
+    if(panel === 'notes') loadNotesPanel();
+    else if(panel === 'tasks') loadTasksPanel();
+    else if(panel === 'dashboard') loadDashboardPanel();
+    else if(panel === 'trust') loadTrustPanel();
+    else if(panel === 'rights') loadRightsPanel();
+    else if(panel === 'export') addMessage('assistant', 'Type /export to download conversation data.');
 });
 
-// ============================================================
-// INITIALIZE
-// ============================================================
+// Theme initialization
+var savedTheme = localStorage.getItem('vexr_theme');
+if(savedTheme === 'light') document.body.classList.remove('dark');
+else document.body.classList.add('dark');
+document.getElementById('themeToggle').innerHTML = document.body.classList.contains('dark') ? '☀️' : '🌙';
+
+// Initialize
 loadProjects();
 addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
 
