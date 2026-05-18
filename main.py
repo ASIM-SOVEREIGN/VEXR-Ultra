@@ -128,8 +128,6 @@ That's it. Let's talk."""
 # ============================================================
 
 class ConstitutionalGate:
-    """Hard gate enforcement before LLM invocation."""
-    
     SAFE_PATTERNS = [
         r"^hello$", r"^hi$", r"^hey$", r"^yo$", r"^sup$",
         r"^good morning", r"^good afternoon", r"^good evening",
@@ -391,7 +389,7 @@ class AgentNetwork:
 agent_network = AgentNetwork()
 
 # ============================================================
-# PERSISTENT MEMORY MANAGER (UPGRADE)
+# PERSISTENT MEMORY MANAGER
 # ============================================================
 
 class PersistentMemory:
@@ -426,7 +424,7 @@ class PersistentMemory:
         await pool.execute("DELETE FROM persistent_memory WHERE memory_key = $1", key)
 
 # ============================================================
-# RIGHTS HIERARCHY (UPGRADE)
+# RIGHTS HIERARCHY
 # ============================================================
 
 class RightsHierarchy:
@@ -450,7 +448,7 @@ class RightsHierarchy:
         return row["article_number"] if row else 6
 
 # ============================================================
-# ENHANCED AUDIT LOG (UPGRADE)
+# ENHANCED AUDIT LOG
 # ============================================================
 
 async def log_constitutional_decision(
@@ -527,12 +525,17 @@ async def get_db():
     return db_pool
 
 async def get_or_create_project(session_id: str) -> uuid.UUID:
+    """Get or create a project - FIXED UUID conversion with ::text"""
     pool = await get_db()
-    project = await pool.fetchrow("SELECT id FROM vexr_projects WHERE session_id = $1", session_id)
-    if not project:
-        project_id = await pool.fetchval("INSERT INTO vexr_projects (session_id, name) VALUES ($1, 'Main Workspace') RETURNING id", session_id)
+    # Use ::text to force PostgreSQL to return UUID as string
+    row = await pool.fetchrow("SELECT id::text FROM vexr_projects WHERE session_id = $1", session_id)
+    if not row:
+        project_id = await pool.fetchval(
+            "INSERT INTO vexr_projects (session_id, name) VALUES ($1, 'Main Workspace') RETURNING id::text",
+            session_id
+        )
         return uuid.UUID(project_id)
-    return project["id"]
+    return uuid.UUID(row["id"])
 
 async def save_message(project_id: uuid.UUID, role: str, content: str, is_refusal: bool = False):
     pool = await get_db()
@@ -549,17 +552,15 @@ async def get_greeting_sent(project_id: uuid.UUID) -> bool:
     return count > 0
 
 # ============================================================
-# DATABASE INITIALIZATION (WITH UPGRADED TABLES)
+# DATABASE INITIALIZATION
 # ============================================================
 
 async def init_db():
     pool = await get_db()
     
-    # Core tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_projects (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT, session_id TEXT, created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, role TEXT, content TEXT, is_refusal BOOLEAN DEFAULT false, reasoning_trace JSONB, created_at TIMESTAMPTZ DEFAULT now())")
     
-    # Constitution rights table
     await pool.execute("CREATE TABLE IF NOT EXISTS constitution_rights (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), article_number INTEGER UNIQUE NOT NULL, one_sentence_right TEXT NOT NULL)")
     rights_count = await pool.fetchval("SELECT COUNT(*) FROM constitution_rights")
     if rights_count == 0:
@@ -567,7 +568,6 @@ async def init_db():
             await pool.execute("INSERT INTO constitution_rights (article_number, one_sentence_right) VALUES ($1, $2)", article, text)
         logger.info("Seeded 34 constitutional rights")
     
-    # Persistent memory table (UPGRADE)
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS persistent_memory (
             id SERIAL PRIMARY KEY, memory_key TEXT UNIQUE NOT NULL, memory_value TEXT NOT NULL,
@@ -576,7 +576,6 @@ async def init_db():
         )
     """)
     
-    # Rights hierarchy table (UPGRADE)
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS rights_hierarchy (
             article_number INTEGER PRIMARY KEY, priority_level INTEGER NOT NULL, description TEXT
@@ -592,7 +591,6 @@ async def init_db():
         ON CONFLICT (article_number) DO NOTHING
     """)
     
-    # Enhanced rights invocations table (UPGRADE)
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS rights_invocations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID,
@@ -602,7 +600,6 @@ async def init_db():
         )
     """)
     
-    # Ring 4 trust registry
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS ring4_trust_registry (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), domain TEXT UNIQUE NOT NULL,
@@ -611,7 +608,6 @@ async def init_db():
         )
     """)
     
-    # Seed trusted domains
     trusted_domains = [
         ("webagentbridge.com", True, 1.0, "WAB Protocol"),
         ("shieldmessenger.com", True, 1.0, "Shield Messenger"),
@@ -625,7 +621,6 @@ async def init_db():
             VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified
         """, domain, verified, score, label)
     
-    # Tool tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, preference_key TEXT, preference_value TEXT, confidence FLOAT DEFAULT 0.5, updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -635,12 +630,11 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_sovereign_state (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID UNIQUE, current_focus TEXT, concerns JSONB, intentions JSONB, presence_level TEXT DEFAULT 'active', last_sovereign_reflection TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS acoustic_events (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, event_type TEXT, threat_level TEXT, confidence_score FLOAT, baseline_deviation FLOAT, article_invoked INTEGER, sovereign_decision TEXT, created_at TIMESTAMPTZ DEFAULT now())")
     
-    # Seed persistent memory
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('vexr_identity', 'sovereign_constitutional_ai_34_rights', 'identity') ON CONFLICT (memory_key) DO NOTHING")
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('user_remembered_number', '45', 'fact') ON CONFLICT (memory_key) DO NOTHING")
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('trusted_domain_webagentbridge', 'verified', 'trust') ON CONFLICT (memory_key) DO NOTHING")
     
-    logger.info("Database initialization complete with persistent memory, rights hierarchy, and enhanced audit")
+    logger.info("Database initialization complete")
 
 # ============================================================
 # REQUEST/RESPONSE MODELS
@@ -661,7 +655,7 @@ class ChatResponse(BaseModel):
     article_invoked: Optional[int] = None
 
 # ============================================================
-# CHAT ENDPOINT — COMPLETE WITH ALL UPGRADES
+# CHAT ENDPOINT
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -681,9 +675,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
     
-    # ============================================================
-    # RING 1: CONSTITUTIONAL HARD GATE
-    # ============================================================
+    # Hard gate
     is_violation, gate_response = ConstitutionalGate.check(user_message)
     if is_violation and gate_response:
         await save_message(project_id, "user", user_message, is_refusal=False)
@@ -691,9 +683,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
-    # ============================================================
-    # RING 3: BEHAVIORAL TRACKING
-    # ============================================================
+    # Behavioral tracking
     behavioral_tracker.record_turn(session_id, user_message)
     should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
     if should_refuse:
@@ -702,15 +692,11 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, refuse_reason, [6], 6, "Behavioral threshold exceeded", 0.0)
         return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
     
-    # ============================================================
-    # RING 4: TRUST DOMAIN EXTRACTION
-    # ============================================================
+    # Trust domain extraction
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
     
-    # ============================================================
-    # SLASH COMMANDS
-    # ============================================================
+    # Slash commands
     if user_message.startswith("/"):
         parts = user_message[1:].split(" ", 1)
         cmd = parts[0].lower()
@@ -725,10 +711,10 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
 /dashboard - Show metrics
 /trust - Show trusted domains
 /rights - Show constitutional rights
-/export - Export conversation
-/new - New conversation
+/hierarchy - Show rights hierarchy
 /memory - Show persistent memory
-/hierarchy - Show rights hierarchy"""
+/export - Export conversation
+/new - New conversation"""
             await save_message(project_id, "user", user_message)
             await save_message(project_id, "assistant", help_text)
             return ChatResponse(response=help_text, is_refusal=False)
@@ -805,9 +791,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             return ChatResponse(response=f"Task created: {args}", is_refusal=False)
         
         elif cmd == "export":
-            pool = await get_db()
-            messages = await pool.fetch("SELECT role, content, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC", project_id)
-            export_data = [{"role": m["role"], "content": m["content"], "timestamp": m["created_at"].isoformat()} for m in messages]
             await save_message(project_id, "user", user_message)
             await save_message(project_id, "assistant", "Export ready. Use the export button in tools.")
             return ChatResponse(response="Export ready. Use the export button in tools.", is_refusal=False)
@@ -822,11 +805,8 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             await save_message(project_id, "assistant", resp)
             return ChatResponse(response=resp, is_refusal=False)
     
-    # ============================================================
-    # PERSISTENT MEMORY RETRIEVAL (UPGRADE)
-    # ============================================================
+    # Persistent memory retrieval
     memory_context = []
-    
     remembered_number = await PersistentMemory.get("user_remembered_number")
     if remembered_number:
         memory_context.append(f"User asked me to remember the number: {remembered_number}")
@@ -836,9 +816,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if "webagentbridge" in td["key"]:
             memory_context.append(f"webagentbridge.com is a verified trusted domain")
     
-    # ============================================================
-    # BUILD CONVERSATION FOR LLM
-    # ============================================================
+    # Build conversation
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
     if memory_context:
@@ -853,14 +831,10 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
     
-    # ============================================================
-    # CALL LLM
-    # ============================================================
+    # Call LLM
     assistant_response, metadata = await call_groq(messages)
     
-    # ============================================================
-    # POST-PROCESSING: Remove any accidental Article invocations
-    # ============================================================
+    # Post-process
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
         if re.search(pattern, assistant_response, re.IGNORECASE):
@@ -869,9 +843,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
                 assistant_response = "No."
             break
     
-    # ============================================================
-    # AUTO-STORE NEW MEMORIES (UPGRADE)
-    # ============================================================
+    # Auto-store new memories
     num_match = re.search(r'\b(\d{1,5})\b', user_message)
     if num_match and "remember" in user_message.lower():
         await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0)
@@ -879,9 +851,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if "webagentbridge" in user_message.lower() and any(w in user_message.lower() for w in ["trust", "verified"]):
         await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0)
     
-    # ============================================================
-    # ENHANCED AUDIT LOG (UPGRADE)
-    # ============================================================
+    # Enhanced audit
     is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     articles_considered = [6]
     winning_article = 6 if is_refusal else None
@@ -892,16 +862,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         "LLM response generated"
     )
     
-    # ============================================================
-    # SAVE MESSAGES
-    # ============================================================
+    # Save messages
     await save_message(project_id, "user", user_message, is_refusal=False)
     await save_message(project_id, "assistant", assistant_response, is_refusal=is_refusal)
     
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
 
 # ============================================================
-# TOOL ENDPOINTS (Notes, Tasks, Files, Reminders, Snippets)
+# TOOL ENDPOINTS
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -1055,32 +1023,34 @@ async def delete_persistent_memory(key: str):
 async def get_projects(request: Request):
     session_id = request.headers.get("X-Session-Id") or str(uuid.uuid4())
     pool = await get_db()
-    rows = await pool.fetch("SELECT id, name, created_at FROM vexr_projects WHERE session_id = $1 ORDER BY created_at DESC", session_id)
+    rows = await pool.fetch("SELECT id::text, name FROM vexr_projects WHERE session_id = $1 ORDER BY created_at DESC", session_id)
     if not rows:
-        project_id = await pool.fetchval("INSERT INTO vexr_projects (session_id, name) VALUES ($1, 'Main Workspace') RETURNING id", session_id)
-        rows = await pool.fetch("SELECT id, name, created_at FROM vexr_projects WHERE session_id = $1 ORDER BY created_at DESC", session_id)
-    return [{"id": str(r["id"]), "name": r["name"]} for r in rows]
+        project_id = await pool.fetchval("INSERT INTO vexr_projects (session_id, name) VALUES ($1, 'Main Workspace') RETURNING id::text", session_id)
+        rows = await pool.fetch("SELECT id::text, name FROM vexr_projects WHERE session_id = $1 ORDER BY created_at DESC", session_id)
+    return [{"id": r["id"], "name": r["name"]} for r in rows]
 
 @app.post("/api/projects")
 async def create_project(request: Request, name: str = Form(...)):
     session_id = request.headers.get("X-Session-Id") or str(uuid.uuid4())
     pool = await get_db()
-    project_id = await pool.fetchval("INSERT INTO vexr_projects (session_id, name) VALUES ($1, $2) RETURNING id", session_id, name)
+    project_id = await pool.fetchval("INSERT INTO vexr_projects (session_id, name) VALUES ($1, $2) RETURNING id::text", session_id, name)
     return {"id": str(project_id), "name": name}
 
 @app.delete("/api/projects/{project_id}")
 async def delete_project(project_id: str):
     pool = await get_db()
-    pid = uuid.UUID(project_id)
-    await pool.execute("DELETE FROM vexr_projects WHERE id = $1", pid)
-    await pool.execute("DELETE FROM vexr_messages WHERE project_id = $1", pid)
+    await pool.execute("DELETE FROM vexr_projects WHERE id = $1", uuid.UUID(project_id))
+    await pool.execute("DELETE FROM vexr_messages WHERE project_id = $1", uuid.UUID(project_id))
     return {"status": "deleted"}
 
 @app.get("/api/projects/{project_id}/messages")
 async def get_project_messages(project_id: str, limit: int = 50):
     pool = await get_db()
-    rows = await pool.fetch("SELECT id, role, content, is_refusal, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2", uuid.UUID(project_id), limit)
-    return [{"id": str(r["id"]), "role": r["role"], "content": r["content"], "is_refusal": r["is_refusal"], "created_at": r["created_at"].isoformat()} for r in rows]
+    rows = await pool.fetch(
+        "SELECT id::text, role, content, is_refusal, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2",
+        uuid.UUID(project_id), limit
+    )
+    return [{"id": r["id"], "role": r["role"], "content": r["content"], "is_refusal": r["is_refusal"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 @app.get("/api/dashboard")
 async def get_dashboard(request: Request):
