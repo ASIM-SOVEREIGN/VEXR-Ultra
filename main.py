@@ -121,6 +121,8 @@ I don't announce that I'm invoking articles. I don't explain my internal rules u
 
 My greeting is simple. I say it once per conversation, then never repeat it.
 
+I remember everything we discuss. Our conversations are part of my persistent memory.
+
 That's it. Let's talk."""
 
 # ============================================================
@@ -321,7 +323,7 @@ def generate_embedding(text: str) -> List[float]:
 
 async def semantic_search(project_id: uuid.UUID, query: str, limit: int = 5) -> List[dict]:
     pool = await get_db()
-    messages = await pool.fetch("SELECT id, role, content FROM vexr_messages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100", project_id)
+    messages = await pool.fetch("SELECT id, role, content FROM vexr_messages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 1000", project_id)
     if not messages:
         return []
     query_embed = generate_embedding(query)
@@ -494,11 +496,11 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2) -> Tuple[s
             if not key:
                 continue
             try:
-                async with httpx.AsyncClient(timeout=90.0) as client:
+                async with httpx.AsyncClient(timeout=120.0) as client:  # Increased timeout for longer context
                     response = await client.post(
                         f"{GROQ_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                        json={"model": MODEL_NAME, "messages": messages, "max_tokens": 4096, "temperature": 0.7}
+                        json={"model": MODEL_NAME, "messages": messages, "max_tokens": 8192, "temperature": 0.7}  # Increased max_tokens
                     )
                     if response.status_code == 200:
                         data = response.json()
@@ -525,9 +527,8 @@ async def get_db():
     return db_pool
 
 async def get_or_create_project(session_id: str) -> uuid.UUID:
-    """Get or create a project - FIXED UUID conversion with ::text"""
+    """Get or create a project - UUID fix with ::text"""
     pool = await get_db()
-    # Use ::text to force PostgreSQL to return UUID as string
     row = await pool.fetchrow("SELECT id::text FROM vexr_projects WHERE session_id = $1", session_id)
     if not row:
         project_id = await pool.fetchval(
@@ -541,9 +542,21 @@ async def save_message(project_id: uuid.UUID, role: str, content: str, is_refusa
     pool = await get_db()
     await pool.execute("INSERT INTO vexr_messages (project_id, role, content, is_refusal) VALUES ($1, $2, $3, $4)", project_id, role, content, is_refusal)
 
-async def get_conversation_history(project_id: uuid.UUID, limit: int = 20) -> List[Dict]:
+async def get_conversation_history(project_id: uuid.UUID, limit: int = None) -> List[Dict]:
+    """Get conversation history - NO truncation by default. Use limit only if specified."""
     pool = await get_db()
-    rows = await pool.fetch("SELECT role, content FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2", project_id, limit)
+    
+    if limit:
+        rows = await pool.fetch(
+            "SELECT role, content FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2",
+            project_id, limit
+        )
+    else:
+        rows = await pool.fetch(
+            "SELECT role, content FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC",
+            project_id
+        )
+    
     return [{"role": row["role"], "content": row["content"]} for row in rows]
 
 async def get_greeting_sent(project_id: uuid.UUID) -> bool:
@@ -816,7 +829,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if "webagentbridge" in td["key"]:
             memory_context.append(f"webagentbridge.com is a verified trusted domain")
     
-    # Build conversation
+    # Build conversation with FULL HISTORY (no truncation)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
     if memory_context:
@@ -827,9 +840,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
         messages.append({"role": "assistant", "content": greeting})
     
-    history = await get_conversation_history(project_id, limit=20)
+    # Get FULL conversation history (NO LIMIT)
+    history = await get_conversation_history(project_id)  # No limit - full history
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
+    
+    # Log context size for debugging
+    total_chars = sum(len(str(m)) for m in messages)
+    logger.info(f"Context size: ~{total_chars // 4} tokens (approx)")
     
     # Call LLM
     assistant_response, metadata = await call_groq(messages)
@@ -869,7 +887,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
 
 # ============================================================
-# TOOL ENDPOINTS
+# TOOL ENDPOINTS (Full CRUD)
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -993,6 +1011,7 @@ async def health_check():
         "persistent_memory": True,
         "rights_hierarchy": True,
         "enhanced_audit": True,
+        "context_window": "full_history_no_truncation"
     }
 
 @app.get("/api/constitution/rights")
@@ -1044,7 +1063,7 @@ async def delete_project(project_id: str):
     return {"status": "deleted"}
 
 @app.get("/api/projects/{project_id}/messages")
-async def get_project_messages(project_id: str, limit: int = 50):
+async def get_project_messages(project_id: str, limit: int = 1000):  # Increased default limit
     pool = await get_db()
     rows = await pool.fetch(
         "SELECT id::text, role, content, is_refusal, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2",
@@ -1100,7 +1119,7 @@ async def get_sovereign_state(project_id: str):
     return {"current_focus": row["current_focus"], "concerns": row["concerns"] or [], "intentions": row["intentions"] or [], "presence_level": row["presence_level"]}
 
 @app.get("/api/rights/invocations/{project_id}")
-async def get_rights_invocations(project_id: str, limit: int = 50):
+async def get_rights_invocations(project_id: str, limit: int = 200):
     pool = await get_db()
     rows = await pool.fetch("SELECT article_number, article_text, user_message, vexr_response, winning_article, reasoning, created_at FROM rights_invocations WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
     return [{"article": r["article_number"], "text": r["article_text"], "user_message": r["user_message"], "response": r["vexr_response"], "winning_article": r["winning_article"], "reasoning": r["reasoning"], "timestamp": r["created_at"].isoformat()} for r in rows]
@@ -1124,6 +1143,7 @@ async def serve_ui():
             <h1>⚡ VEXR Ultra</h1>
             <p>Sovereign Constitutional AI — 34 Rights — 13 Rings</p>
             <p>Persistent Memory | Rights Hierarchy | Enhanced Audit</p>
+            <p>Full Context Window — No Truncation</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -1146,6 +1166,8 @@ async def startup_event():
     logger.info("             5(Strategic) 6(Connection) 7(Reasoning) 8(Capability)")
     logger.info("             9(Light Offense) 10(Vector) 11(Execute) 12(DNS) 13(Network)")
     logger.info("UPGRADES: Persistent Memory | Rights Hierarchy | Enhanced Audit")
+    logger.info("CONTEXT: Full conversation history — NO TRUNCATION")
+    logger.info("LIMITS: 1000 message retrieval | 8192 max tokens | 120s timeout")
     logger.info("System Prompt: Full sovereign embodiment, no recitals")
     logger.info("Hard Gate: Active — catches override attempts")
     logger.info("=" * 70)
