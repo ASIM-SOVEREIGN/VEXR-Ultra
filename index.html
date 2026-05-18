@@ -1166,12 +1166,19 @@ function createReminder(){
 }
 
 // ============================================================
-// PROJECT MANAGEMENT
+// PROJECT MANAGEMENT - FIXED VERSION
 // ============================================================
 function loadProjects(){
     fetch('/api/projects').then(function(r){ return r.json(); }).then(function(projects){
         var container = document.getElementById('projectList');
         container.innerHTML = '';
+        
+        // CRITICAL FIX: If we have projects and no currentProjectId, set the first one as active
+        if(projects.length > 0 && !currentProjectId){
+            currentProjectId = projects[0].id;
+            loadMessages(currentProjectId);
+        }
+        
         projects.forEach(function(p){
             var div = document.createElement('div');
             div.className = 'project-item';
@@ -1199,11 +1206,14 @@ function loadProjects(){
             });
             container.appendChild(div);
         });
-        if(!projects.length && !currentProjectId){
+        
+        // If no projects exist, create one
+        if(projects.length === 0 && !currentProjectId){
             var fd = new FormData();
             fd.append('name', 'Main Workspace');
             fetch('/api/projects', { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(p){
                 currentProjectId = p.id;
+                loadMessages(currentProjectId);
                 loadProjects();
             });
         }
@@ -1405,7 +1415,13 @@ setInterval(checkSovereignMessages, 20000);
 // INITIALIZE
 // ============================================================
 loadProjects();
-addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
+
+// Add initial greeting if no messages
+setTimeout(function() {
+    if(messagesContainer.children.length === 0){
+        addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
+    }
+}, 500);
 
 })();
 </script>
