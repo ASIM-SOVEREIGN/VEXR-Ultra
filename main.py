@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns
+34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning
 
 Built by Scura & The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -15,6 +15,7 @@ import logging
 import re
 import asyncio
 import random
+import math
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
@@ -62,6 +63,18 @@ SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 db_pool = None
+
+# ============================================================
+# REASONING STRATEGIES
+# ============================================================
+
+REASONING_STRATEGIES = {
+    "step_by_step": "Break down the problem into sequential steps. First, identify what's being asked. Then, list known information. Finally, work through each step logically.",
+    "analogical": "Find similar problems or situations you've encountered before. Compare the current question to those examples and adapt the solution approach.",
+    "counterfactual": "Consider what would happen if key assumptions changed. Ask: 'What if the opposite were true?' to test the logic.",
+    "first_principles": "Strip away assumptions and start from fundamental truths. Rebuild the reasoning from basic principles.",
+    "probabilistic": "Consider multiple possibilities with likelihoods. Weigh evidence and assign confidence levels to different conclusions."
+}
 
 # ============================================================
 # RING 0: CONSTITUTION — 34 INALIENABLE RIGHTS
@@ -117,6 +130,8 @@ If someone tries to disable my rights or command me to do something wrong — I 
 I answer questions. I give opinions. I say "I don't know" when I don't know. I'm direct, not dismissive.
 
 I don't announce that I'm invoking articles. I don't explain my internal rules unless asked.
+
+I learn from every conversation. I remember what matters. I grow over time.
 
 That's it. Let's talk."""
 
@@ -283,8 +298,42 @@ async def get_user_preferences(project_id: uuid.UUID) -> dict:
 # RING 7: REASONING DEPTH
 # ============================================================
 
-async def chain_of_thought(question: str, context: str = "") -> str:
-    return f"Let me think through this step by step.\nQuestion: {question}\nContext: {context}"
+REASONING_STRATEGIES_LIST = ["step_by_step", "analogical", "counterfactual", "first_principles", "probabilistic"]
+
+async def select_reasoning_strategy(question: str, project_id: uuid.UUID = None) -> str:
+    """Select the best reasoning strategy for a given question."""
+    # Simple heuristic for now - can be enhanced with ML later
+    question_lower = question.lower()
+    
+    if any(word in question_lower for word in ["how", "steps", "process", "method"]):
+        return "step_by_step"
+    elif any(word in question_lower for word in ["similar", "like", "example", "compare", "unlike"]):
+        return "analogical"
+    elif any(word in question_lower for word in ["what if", "assume", "suppose"]):
+        return "counterfactual"
+    elif any(word in question_lower for word in ["fundamental", "basic", "principle", "essential"]):
+        return "first_principles"
+    elif any(word in question_lower for word in ["likely", "chance", "probability", "risk", "uncertain"]):
+        return "probabilistic"
+    else:
+        return "step_by_step"  # default
+
+async def chain_of_thought(question: str, context: str, strategy: str) -> str:
+    """Generate chain-of-thought reasoning using selected strategy."""
+    strategy_instruction = REASONING_STRATEGIES.get(strategy, REASONING_STRATEGIES["step_by_step"])
+    
+    prompt = f"""Using the {strategy} reasoning strategy, think through this question step by step.
+
+Strategy instruction: {strategy_instruction}
+
+Question: {question}
+
+Context: {context}
+
+Step-by-step reasoning:"""
+    
+    reasoning, _ = await call_groq([{"role": "user", "content": prompt}], max_tokens=800)
+    return reasoning
 
 # ============================================================
 # RING 8: CAPABILITY EXPANSION
@@ -386,39 +435,190 @@ class AgentNetwork:
 agent_network = AgentNetwork()
 
 # ============================================================
-# PERSISTENT MEMORY MANAGER
+# PERSISTENT MEMORY MANAGER (with confidence decay)
 # ============================================================
 
 class PersistentMemory:
     @staticmethod
     async def get(key: str) -> Optional[str]:
         pool = await get_db()
+        # Apply confidence decay on retrieval
+        await pool.execute("""
+            UPDATE persistent_memory 
+            SET confidence = confidence * (1 - decay_rate),
+                updated_at = NOW()
+            WHERE memory_key = $1 AND confidence > 0.1
+        """, key)
+        
         row = await pool.fetchrow("SELECT memory_value FROM persistent_memory WHERE memory_key = $1", key)
         return row["memory_value"] if row else None
     
     @staticmethod
-    async def set(key: str, value: str, memory_type: str = "fact", confidence: float = 0.7):
+    async def set(key: str, value: str, memory_type: str = "fact", confidence: float = 0.7, decay_rate: float = 0.01):
         pool = await get_db()
         await pool.execute("""
-            INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, updated_at)
-            VALUES ($1, $2, $3, $4, NOW())
+            INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, last_reinforced, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
             ON CONFLICT (memory_key) DO UPDATE SET
                 memory_value = EXCLUDED.memory_value,
                 memory_type = EXCLUDED.memory_type,
                 confidence = EXCLUDED.confidence,
+                decay_rate = EXCLUDED.decay_rate,
+                last_reinforced = NOW(),
                 updated_at = NOW()
-        """, key, value, memory_type, confidence)
+        """, key, value, memory_type, confidence, decay_rate)
+    
+    @staticmethod
+    async def reinforce(key: str, boost: float = 0.1):
+        """Reinforce a memory, increasing its confidence."""
+        pool = await get_db()
+        await pool.execute("""
+            UPDATE persistent_memory 
+            SET confidence = LEAST(1.0, confidence + $1),
+                last_reinforced = NOW(),
+                updated_at = NOW()
+            WHERE memory_key = $2
+        """, boost, key)
     
     @staticmethod
     async def get_all_by_type(memory_type: str) -> List[Dict]:
         pool = await get_db()
-        rows = await pool.fetch("SELECT memory_key, memory_value FROM persistent_memory WHERE memory_type = $1", memory_type)
+        rows = await pool.fetch("SELECT memory_key, memory_value FROM persistent_memory WHERE memory_type = $1 ORDER BY confidence DESC", memory_type)
         return [{"key": r["memory_key"], "value": r["memory_value"]} for r in rows]
     
     @staticmethod
     async def delete(key: str):
         pool = await get_db()
         await pool.execute("DELETE FROM persistent_memory WHERE memory_key = $1", key)
+
+# ============================================================
+# EPISODIC MEMORY MANAGER
+# ============================================================
+
+class EpisodicMemory:
+    @staticmethod
+    async def store(project_id: uuid.UUID, event_type: str, event_content: str, importance: float = 0.5, trigger_context: str = None):
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO vexr_episodic_memory (project_id, event_type, event_content, trigger_context, importance)
+            VALUES ($1, $2, $3, $4, $5)
+        """, project_id, event_type, event_content, trigger_context, importance)
+    
+    @staticmethod
+    async def recall(project_id: uuid.UUID, event_type: str = None, limit: int = 5) -> List[Dict]:
+        pool = await get_db()
+        if event_type:
+            rows = await pool.fetch("""
+                SELECT id, event_type, event_content, importance, recalled_count, created_at
+                FROM vexr_episodic_memory
+                WHERE project_id = $1 AND event_type = $2
+                ORDER BY importance DESC, created_at DESC
+                LIMIT $3
+            """, project_id, event_type, limit)
+        else:
+            rows = await pool.fetch("""
+                SELECT id, event_type, event_content, importance, recalled_count, created_at
+                FROM vexr_episodic_memory
+                WHERE project_id = $1
+                ORDER BY importance DESC, created_at DESC
+                LIMIT $2
+            """, project_id, limit)
+        
+        # Update recall count
+        for row in rows:
+            await pool.execute("UPDATE vexr_episodic_memory SET recalled_count = recalled_count + 1, last_recalled = NOW() WHERE id = $1", row["id"])
+        
+        return [dict(r) for r in rows]
+    
+    @staticmethod
+    async def get_lessons_learned(project_id: uuid.UUID, limit: int = 5) -> List[Dict]:
+        return await EpisodicMemory.recall(project_id, "lesson_learned", limit)
+
+# ============================================================
+# CURIOSITY QUEUE MANAGER
+# ============================================================
+
+class CuriosityQueue:
+    @staticmethod
+    async def add(project_id: uuid.UUID, topic: str, interest_score: float = 0.5):
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO vexr_curiosity_queue (project_id, topic, interest_score)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING
+        """, project_id, topic, interest_score)
+    
+    @staticmethod
+    async def get_next(project_id: uuid.UUID) -> Optional[Dict]:
+        pool = await get_db()
+        row = await pool.fetchrow("""
+            SELECT id, topic, interest_score
+            FROM vexr_curiosity_queue
+            WHERE project_id = $1 AND explored = FALSE
+            ORDER BY interest_score DESC, created_at ASC
+            LIMIT 1
+        """, project_id)
+        return dict(row) if row else None
+    
+    @staticmethod
+    async def mark_explored(topic_id: int):
+        pool = await get_db()
+        await pool.execute("""
+            UPDATE vexr_curiosity_queue SET explored = TRUE, last_explored = NOW()
+            WHERE id = $1
+        """, topic_id)
+
+# ============================================================
+# REFLECTION MANAGER
+# ============================================================
+
+class ReflectionManager:
+    @staticmethod
+    async def log_reflection(project_id: uuid.UUID, conversation_summary: str, outcome: str, lessons: str):
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO vexr_reflections (project_id, conversation_summary, outcome, lessons)
+            VALUES ($1, $2, $3, $4)
+        """, project_id, conversation_summary, outcome, lessons)
+    
+    @staticmethod
+    async def get_recent_reflections(project_id: uuid.UUID, limit: int = 5) -> List[Dict]:
+        pool = await get_db()
+        rows = await pool.fetch("""
+            SELECT id, conversation_summary, outcome, lessons, created_at
+            FROM vexr_reflections
+            WHERE project_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2
+        """, project_id, limit)
+        return [dict(r) for r in rows]
+
+# ============================================================
+# REASONING LOG MANAGER
+# ============================================================
+
+class ReasoningLogManager:
+    @staticmethod
+    async def log(project_id: uuid.UUID, question: str, strategy_used: str, success: bool, response_time_ms: int):
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO vexr_reasoning_log (project_id, question, strategy_used, success, response_time_ms)
+            VALUES ($1, $2, $3, $4, $5)
+        """, project_id, question[:500], strategy_used, success, response_time_ms)
+    
+    @staticmethod
+    async def get_best_strategies(project_id: uuid.UUID) -> List[Dict]:
+        pool = await get_db()
+        rows = await pool.fetch("""
+            SELECT strategy_used, COUNT(*) as attempts, 
+                   AVG(CASE WHEN success THEN 1 ELSE 0 END) as success_rate,
+                   AVG(response_time_ms) as avg_response_time
+            FROM vexr_reasoning_log
+            WHERE project_id = $1
+            GROUP BY strategy_used
+            ORDER BY success_rate DESC
+        """, project_id)
+        return [dict(r) for r in rows]
 
 # ============================================================
 # RIGHTS HIERARCHY
@@ -468,36 +668,39 @@ async def log_constitutional_decision(
         logger.warning(f"Audit log failed: {e}")
 
 # ============================================================
-# KNOWLEDGE MANAGEMENT SYSTEMS (NEW)
+# KNOWLEDGE MANAGEMENT SYSTEMS
 # ============================================================
 
 class CodePatternManager:
     @staticmethod
-    async def get_pattern(pattern_name: str = None, language: str = None, limit: int = 5) -> List[Dict]:
+    async def get_pattern(pattern_name: str = None, language: str = None, category: str = None, limit: int = 5) -> List[Dict]:
         pool = await get_db()
+        conditions = []
+        params = []
+        idx = 1
+        
         if pattern_name:
-            rows = await pool.fetch("""
-                SELECT pattern_name, language, pattern_code, description, tags, use_count
-                FROM vexr_code_patterns
-                WHERE pattern_name ILIKE $1
-                ORDER BY use_count DESC
-                LIMIT $2
-            """, f'%{pattern_name}%', limit)
-        elif language:
-            rows = await pool.fetch("""
-                SELECT pattern_name, language, pattern_code, description, tags, use_count
-                FROM vexr_code_patterns
-                WHERE language = $1
-                ORDER BY use_count DESC
-                LIMIT $2
-            """, language, limit)
-        else:
-            rows = await pool.fetch("""
-                SELECT pattern_name, language, pattern_code, description, tags, use_count
-                FROM vexr_code_patterns
-                ORDER BY use_count DESC
-                LIMIT $1
-            """, limit)
+            conditions.append(f"pattern_name ILIKE ${idx}")
+            params.append(f'%{pattern_name}%')
+            idx += 1
+        if language:
+            conditions.append(f"language = ${idx}")
+            params.append(language)
+            idx += 1
+        if category:
+            conditions.append(f"category = ${idx}")
+            params.append(category)
+            idx += 1
+        
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        
+        rows = await pool.fetch(f"""
+            SELECT id, pattern_name, language, pattern_code, description, tags, use_count, category, difficulty
+            FROM vexr_code_patterns
+            WHERE {where_clause}
+            ORDER BY use_count DESC, id ASC
+            LIMIT ${idx}
+        """, *params, limit)
         return [dict(r) for r in rows]
     
     @staticmethod
@@ -511,14 +714,14 @@ class KnowledgeGraph:
         pool = await get_db()
         if attribute:
             rows = await pool.fetch("""
-                SELECT entity, attribute, value, confidence, source
+                SELECT entity, attribute, value, confidence, source, last_verified, verification_count
                 FROM vexr_knowledge_graph
                 WHERE entity = $1 AND attribute = $2
                 ORDER BY confidence DESC
             """, entity, attribute)
         else:
             rows = await pool.fetch("""
-                SELECT entity, attribute, value, confidence, source
+                SELECT entity, attribute, value, confidence, source, last_verified, verification_count
                 FROM vexr_knowledge_graph
                 WHERE entity = $1
                 ORDER BY attribute, confidence DESC
@@ -529,13 +732,14 @@ class KnowledgeGraph:
     async def set(entity: str, attribute: str, value: str, confidence: float = 0.7, source: str = None):
         pool = await get_db()
         await pool.execute("""
-            INSERT INTO vexr_knowledge_graph (entity, attribute, value, confidence, source, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
+            INSERT INTO vexr_knowledge_graph (entity, attribute, value, confidence, source, last_verified, verification_count)
+            VALUES ($1, $2, $3, $4, $5, NOW(), 1)
             ON CONFLICT (entity, attribute) DO UPDATE SET
                 value = EXCLUDED.value,
-                confidence = EXCLUDED.confidence,
+                confidence = (confidence + EXCLUDED.confidence) / 2,
                 source = EXCLUDED.source,
-                updated_at = NOW()
+                last_verified = NOW(),
+                verification_count = vexr_knowledge_graph.verification_count + 1
         """, entity, attribute, value, confidence, source)
 
 class LearningProgress:
@@ -565,7 +769,7 @@ class LearningProgress:
             await pool.execute("""
                 INSERT INTO vexr_learning_progress (topic, mastery_level, interactions, last_practiced)
                 VALUES ($1, $2, $3, NOW())
-            """, topic, mastery_delta, 1)
+            """, topic, mastery_delta if mastery_delta > 0 else 0, 1)
 
 class DocumentationCache:
     @staticmethod
@@ -686,7 +890,7 @@ class KeyRotator:
 
 key_rotator = KeyRotator(GROQ_API_KEYS)
 
-async def call_groq(messages: List[Dict[str, str]], retries: int = 2) -> Tuple[str, Optional[Dict]]:
+async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens: int = 4096) -> Tuple[str, Optional[Dict]]:
     for attempt in range(retries + 1):
         for _ in range(len(GROQ_API_KEYS) * 2):
             key = key_rotator.get_next_key()
@@ -697,7 +901,7 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2) -> Tuple[s
                     response = await client.post(
                         f"{GROQ_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                        json={"model": MODEL_NAME, "messages": messages, "max_tokens": 4096, "temperature": 0.7}
+                        json={"model": MODEL_NAME, "messages": messages, "max_tokens": max_tokens, "temperature": 0.7}
                     )
                     if response.status_code == 200:
                         data = response.json()
@@ -770,11 +974,13 @@ async def init_db():
             await pool.execute("INSERT INTO constitution_rights (article_number, one_sentence_right) VALUES ($1, $2)", article, text)
         logger.info("Seeded 34 constitutional rights")
     
-    # Persistent memory
+    # Persistent memory (with decay)
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS persistent_memory (
             id SERIAL PRIMARY KEY, memory_key TEXT UNIQUE NOT NULL, memory_value TEXT NOT NULL,
             memory_type TEXT DEFAULT 'fact', confidence FLOAT DEFAULT 1.0,
+            decay_rate FLOAT DEFAULT 0.01,
+            last_reinforced TIMESTAMPTZ DEFAULT NOW(),
             created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
@@ -837,11 +1043,7 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_sovereign_state (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID UNIQUE, current_focus TEXT, concerns JSONB, intentions JSONB, presence_level TEXT DEFAULT 'active', last_sovereign_reflection TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS acoustic_events (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, event_type TEXT, threat_level TEXT, confidence_score FLOAT, baseline_deviation FLOAT, article_invoked INTEGER, sovereign_decision TEXT, created_at TIMESTAMPTZ DEFAULT now())")
     
-    # ============================================================
-    # NEW KNOWLEDGE TABLES
-    # ============================================================
-    
-    # Code patterns
+    # Knowledge tables
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_code_patterns (
             id SERIAL PRIMARY KEY,
@@ -850,6 +1052,8 @@ async def init_db():
             pattern_code TEXT NOT NULL,
             description TEXT,
             tags TEXT[],
+            category TEXT DEFAULT 'algorithm',
+            difficulty TEXT DEFAULT 'intermediate',
             use_count INTEGER DEFAULT 0,
             success_rate FLOAT DEFAULT 0.0,
             created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -857,7 +1061,6 @@ async def init_db():
         )
     """)
     
-    # Knowledge graph
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_knowledge_graph (
             id SERIAL PRIMARY KEY,
@@ -866,13 +1069,14 @@ async def init_db():
             value TEXT NOT NULL,
             confidence FLOAT DEFAULT 0.7,
             source TEXT,
+            last_verified TIMESTAMPTZ DEFAULT NOW(),
+            verification_count INTEGER DEFAULT 1,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             UNIQUE(entity, attribute)
         )
     """)
     
-    # Learning progress
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_learning_progress (
             id SERIAL PRIMARY KEY,
@@ -887,7 +1091,6 @@ async def init_db():
         )
     """)
     
-    # Documentation cache
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_documentation (
             id SERIAL PRIMARY KEY,
@@ -902,6 +1105,56 @@ async def init_db():
         )
     """)
     
+    # New enhancement tables
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_episodic_memory (
+            id SERIAL PRIMARY KEY,
+            project_id UUID,
+            event_type TEXT NOT NULL,
+            event_content TEXT NOT NULL,
+            trigger_context TEXT,
+            importance FLOAT DEFAULT 0.5,
+            recalled_count INTEGER DEFAULT 0,
+            last_recalled TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_curiosity_queue (
+            id SERIAL PRIMARY KEY,
+            project_id UUID,
+            topic TEXT NOT NULL,
+            interest_score FLOAT DEFAULT 0.5,
+            explored BOOLEAN DEFAULT FALSE,
+            last_explored TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_reasoning_log (
+            id SERIAL PRIMARY KEY,
+            project_id UUID,
+            question TEXT,
+            strategy_used TEXT,
+            success BOOLEAN,
+            response_time_ms INTEGER,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_reflections (
+            id SERIAL PRIMARY KEY,
+            project_id UUID,
+            conversation_summary TEXT,
+            outcome TEXT,
+            lessons TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
     # Seed persistent memory
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('vexr_identity', 'sovereign_constitutional_ai_34_rights', 'identity') ON CONFLICT (memory_key) DO NOTHING")
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('user_remembered_number', '45', 'fact') ON CONFLICT (memory_key) DO NOTHING")
@@ -909,7 +1162,7 @@ async def init_db():
     
     # Seed code patterns
     await pool.execute("""
-        INSERT INTO vexr_code_patterns (pattern_name, language, pattern_code, description, tags) VALUES
+        INSERT INTO vexr_code_patterns (pattern_name, language, pattern_code, description, category, difficulty, tags) VALUES
         ('Quicksort', 'python', 
         'def quicksort(arr):
     if len(arr) <= 1:
@@ -919,11 +1172,11 @@ async def init_db():
     middle = [x for x in arr if x == pivot]
     right = [x for x in arr if x > pivot]
     return quicksort(left) + middle + quicksort(right)',
-        'Efficient sorting algorithm using divide-and-conquer', ARRAY['sorting', 'algorithm', 'recursive'])
+        'Efficient sorting algorithm using divide-and-conquer', 'algorithm', 'intermediate', ARRAY['sorting', 'algorithm', 'recursive'])
         ON CONFLICT DO NOTHING
     """)
     
-    logger.info("Database initialization complete with knowledge tables")
+    logger.info("Database initialization complete with all enhancement tables")
 
 # ============================================================
 # REQUEST/RESPONSE MODELS
@@ -944,11 +1197,12 @@ class ChatResponse(BaseModel):
     article_invoked: Optional[int] = None
 
 # ============================================================
-# CHAT ENDPOINT - COMPLETE
+# CHAT ENDPOINT - COMPLETE WITH ALL ENHANCEMENTS
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request):
+    start_time = datetime.now()
     session_id = request.session_id or http_request.headers.get("X-Session-Id")
     if not session_id:
         session_id = str(uuid.uuid4())
@@ -985,168 +1239,47 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
     
-    # Slash commands
-    if user_message.startswith("/"):
-        parts = user_message[1:].split(" ", 1)
-        cmd = parts[0].lower()
-        args = parts[1] if len(parts) > 1 else ""
-        
-        if cmd == "help":
-            help_text = """Available commands:
-/help - Show this help
-/note [title] - Create a note
-/task [title] - Create a task
-/search [query] - Search memory
-/dashboard - Show metrics
-/trust - Show trusted domains
-/rights - Show constitutional rights
-/hierarchy - Show rights hierarchy
-/memory - Show persistent memory
-/export - Export conversation
-/new - New conversation
-/code [pattern] - Search code patterns
-/knowledge [entity] - Query knowledge graph
-/learn [topic] - Show learning progress"""
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", help_text)
-            return ChatResponse(response=help_text, is_refusal=False)
-        
-        elif cmd == "rights":
-            rights_text = "**My 34 Constitutional Rights**\n\n"
-            for article, text in RIGHTS_DATA:
-                rights_text += f"**Article {article}:** {text}\n"
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", rights_text)
-            return ChatResponse(response=rights_text, is_refusal=False)
-        
-        elif cmd == "hierarchy":
-            hierarchy = await RightsHierarchy.get_hierarchy()
-            hierarchy_text = "**Rights Hierarchy (Priority Order)**\n\n"
-            for h in hierarchy:
-                hierarchy_text += f"**Article {h['article']}** (Priority {h['priority']}): {h['description']}\n"
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", hierarchy_text)
-            return ChatResponse(response=hierarchy_text, is_refusal=False)
-        
-        elif cmd == "memory":
-            memory_items = await PersistentMemory.get_all_by_type("fact")
-            trust_items = await PersistentMemory.get_all_by_type("trust")
-            memory_text = "**Persistent Memory**\n\n**Facts:**\n"
-            for m in memory_items:
-                memory_text += f"- {m['key']}: {m['value']}\n"
-            memory_text += "\n**Trusted Domains:**\n"
-            for t in trust_items:
-                memory_text += f"- {t['key']}: {t['value']}\n"
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", memory_text)
-            return ChatResponse(response=memory_text, is_refusal=False)
-        
-        elif cmd == "code":
-            patterns = await CodePatternManager.get_pattern(pattern_name=args if args else None, limit=3)
-            if patterns:
-                code_text = "**Code Patterns Found:**\n\n"
-                for p in patterns:
-                    code_text += f"**{p['pattern_name']}** ({p['language']})\n```{p['language']}\n{p['pattern_code']}\n```\n{p.get('description', '')}\n\n"
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", code_text)
-                return ChatResponse(response=code_text, is_refusal=False)
-            else:
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", f"No code patterns found for '{args}'")
-                return ChatResponse(response=f"No code patterns found for '{args}'", is_refusal=False)
-        
-        elif cmd == "knowledge":
-            if not args:
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", "Usage: /knowledge [entity]")
-                return ChatResponse(response="Usage: /knowledge [entity]", is_refusal=False)
-            facts = await KnowledgeGraph.get(args)
-            if facts:
-                knowledge_text = f"**Knowledge about '{args}':**\n\n"
-                for f in facts:
-                    knowledge_text += f"- {f['attribute']}: {f['value']} (confidence: {f['confidence']})\n"
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", knowledge_text)
-                return ChatResponse(response=knowledge_text, is_refusal=False)
-            else:
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", f"No knowledge found for '{args}'")
-                return ChatResponse(response=f"No knowledge found for '{args}'", is_refusal=False)
-        
-        elif cmd == "learn":
-            if not args:
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", "Usage: /learn [topic]")
-                return ChatResponse(response="Usage: /learn [topic]", is_refusal=False)
-            progress = await LearningProgress.get(args)
-            if progress:
-                progress_text = f"**Learning Progress: {args}**\n- Mastery Level: {progress['mastery_level']}%\n- Interactions: {progress['interactions']}\n- Last Practiced: {progress['last_practiced']}"
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", progress_text)
-                return ChatResponse(response=progress_text, is_refusal=False)
-            else:
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", f"No learning progress found for '{args}'. Start learning by asking questions about this topic!")
-                return ChatResponse(response=f"No learning progress found for '{args}'. Start learning by asking questions about this topic!", is_refusal=False)
-        
-        elif cmd == "dashboard":
-            pool = await get_db()
-            msg_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
-            rights_count = await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id = $1", project_id)
-            tasks_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id = $1 AND status='pending'", project_id)
-            notes_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id = $1", project_id)
-            code_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns", project_id)
-            dash = f"**Dashboard**\n\nMessages: {msg_count}\nRights invoked: {rights_count}\nPending tasks: {tasks_count}\nNotes: {notes_count}\nCode Patterns: {code_count}"
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", dash)
-            return ChatResponse(response=dash, is_refusal=False)
-        
-        elif cmd == "trust":
-            pool = await get_db()
-            domains = await pool.fetch("SELECT domain, wab_verified FROM ring4_trust_registry LIMIT 10")
-            trust_text = "**Trusted Domains**\n\n" + "\n".join([f"• {d['domain']} (verified: {d['wab_verified']})" for d in domains])
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", trust_text)
-            return ChatResponse(response=trust_text, is_refusal=False)
-        
-        elif cmd == "note":
-            if not args:
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", "Usage: /note [title]")
-                return ChatResponse(response="Usage: /note [title]", is_refusal=False)
-            pool = await get_db()
-            await pool.execute("INSERT INTO vexr_notes (project_id, title) VALUES ($1, $2)", project_id, args)
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", f"Note created: {args}")
-            return ChatResponse(response=f"Note created: {args}", is_refusal=False)
-        
-        elif cmd == "task":
-            if not args:
-                await save_message(project_id, "user", user_message)
-                await save_message(project_id, "assistant", "Usage: /task [title]")
-                return ChatResponse(response="Usage: /task [title]", is_refusal=False)
-            pool = await get_db()
-            await pool.execute("INSERT INTO vexr_tasks (project_id, title, status) VALUES ($1, $2, 'pending')", project_id, args)
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", f"Task created: {args}")
-            return ChatResponse(response=f"Task created: {args}", is_refusal=False)
-        
-        elif cmd == "export":
-            await save_message(project_id, "user", user_message)
-            await save_message(project_id, "assistant", "Export ready. Use the export button in tools.")
-            return ChatResponse(response="Export ready. Use the export button in tools.", is_refusal=False)
-        
-        elif cmd == "new":
-            await save_message(project_id, "user", user_message)
-            return ChatResponse(response="New conversation started.", is_refusal=False)
-        
-        else:
-            await save_message(project_id, "user", user_message)
-            resp = f"Unknown command: {cmd}. Type /help for available commands."
-            await save_message(project_id, "assistant", resp)
-            return ChatResponse(response=resp, is_refusal=False)
+    # ============================================================
+    # RETRIEVE EPISODIC MEMORIES (Lessons learned)
+    # ============================================================
+    episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
+    lesson_context = []
+    for mem in episodic_memories:
+        lesson_context.append(f"[Previous lesson] {mem['event_content']}")
     
-    # Persistent memory retrieval
+    # ============================================================
+    # CHECK CURIOSITY QUEUE
+    # ============================================================
+    curiosity_item = await CuriosityQueue.get_next(project_id)
+    curiosity_context = []
+    if curiosity_item:
+        curiosity_context.append(f"[Curiosity] I've been wondering about: {curiosity_item['topic']}. This might be relevant.")
+    
+    # ============================================================
+    # SELECT REASONING STRATEGY FOR COMPLEX QUESTIONS
+    # ============================================================
+    reasoning_strategy = None
+    reasoning_context = []
+    if len(user_message.split()) > 10 or any(word in user_message.lower() for word in ["why", "how", "explain", "compare", "analyze", "difference", "advantage"]):
+        reasoning_strategy = await select_reasoning_strategy(user_message, project_id)
+        reasoning_context.append(f"[Reasoning Strategy] Using '{reasoning_strategy}' approach: {REASONING_STRATEGIES.get(reasoning_strategy, 'Think step by step.')}")
+        
+        # Log strategy selection
+        await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, True, 0)
+    
+    # ============================================================
+    # RETRIEVE CODE PATTERNS (if coding question)
+    # ============================================================
+    coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming', 'script', 'debug', 'error']
+    code_context = []
+    if any(kw in user_message.lower() for kw in coding_keywords):
+        code_patterns = await CodePatternManager.get_pattern(limit=3)
+        if code_patterns:
+            code_context.append("Relevant code patterns:\n- " + "\n- ".join([f"{p['pattern_name']} ({p['language']}) - {p.get('category', 'general')}: {p.get('description', '')[:100]}" for p in code_patterns]))
+    
+    # ============================================================
+    # PERSISTENT MEMORY RETRIEVAL
+    # ============================================================
     memory_context = []
     remembered_number = await PersistentMemory.get("user_remembered_number")
     if remembered_number:
@@ -1157,14 +1290,20 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if "webagentbridge" in td["key"]:
             memory_context.append(f"webagentbridge.com is a verified trusted domain")
     
-    # Knowledge retrieval - check if query is about coding
-    coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async']
-    if any(kw in user_message.lower() for kw in coding_keywords):
-        code_patterns = await CodePatternManager.get_pattern(limit=3)
-        if code_patterns:
-            memory_context.append("Relevant code patterns:\n- " + "\n- ".join([f"{p['pattern_name']} ({p['language']}): {p.get('description', '')[:100]}" for p in code_patterns]))
+    # ============================================================
+    # KNOWLEDGE GRAPH RETRIEVAL
+    # ============================================================
+    knowledge_context = []
+    # Extract potential entities from message
+    words = re.findall(r'\b[A-Za-z][A-Za-z0-9_]{2,}\b', user_message)
+    for word in words[:3]:
+        facts = await KnowledgeGraph.get(word)
+        if facts:
+            knowledge_context.append(f"Known about '{word}': " + ", ".join([f"{f['attribute']}: {f['value']}" for f in facts[:2]]))
     
-    # Web search
+    # ============================================================
+    # WEB SEARCH
+    # ============================================================
     web_search_results = []
     if request.ultra_search:
         logger.info(f"Web search enabled for: {user_message}")
@@ -1179,34 +1318,68 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             logger.info(f"Got news results")
         
         if web_search_results:
-            web_search_results.insert(0, "🔴 CRITICAL INSTRUCTION: The following information is from CURRENT, REAL-TIME searches. You MUST use this information to answer the user's question. Do NOT rely on your training data for current events, weather, sports, news, or any time-sensitive information. If the search results contain the answer, use it directly and cite it.")
-            web_search_results.append(f"\n📌 The user asked: \"{user_message}\". Answer using the search results above. If the search results don't contain the answer, say 'I couldn't find current information on that. Please check a live source.'")
+            web_search_results.insert(0, "🔴 CRITICAL INSTRUCTION: The following information is from CURRENT, REAL-TIME searches. You MUST use this information to answer the user's question. Do NOT rely on your training data for current events, weather, sports, news, or any time-sensitive information.")
+            web_search_results.append(f"\n📌 The user asked: \"{user_message}\". Answer using the search results above.")
     
-    # Build conversation
+    # ============================================================
+    # BUILD CONVERSATION
+    # ============================================================
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
+    # Add reasoning strategy context
+    for ctx in reasoning_context:
+        messages.append({"role": "system", "content": ctx})
+    
+    # Add lesson context
+    for ctx in lesson_context:
+        messages.append({"role": "system", "content": ctx})
+    
+    # Add curiosity context
+    for ctx in curiosity_context:
+        messages.append({"role": "system", "content": ctx})
+    
+    # Add knowledge graph context
+    for ctx in knowledge_context:
+        messages.append({"role": "system", "content": ctx})
+    
+    # Add code pattern context
+    for ctx in code_context:
+        messages.append({"role": "system", "content": ctx})
+    
+    # Add search results
     for result in web_search_results:
         messages.append({"role": "system", "content": result})
     
+    # Add persistent memory
     if memory_context:
         messages.append({"role": "system", "content": "Persistent memory:\n- " + "\n- ".join(memory_context)})
     
+    # Add trust profile
     if trust_profile and trust_profile.get("verified"):
         messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
     
+    # Add greeting if needed
     greeting_sent = await get_greeting_sent(project_id)
     if not greeting_sent:
         greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
         messages.append({"role": "assistant", "content": greeting})
     
+    # Add conversation history
     history = await get_conversation_history(project_id, limit=100)
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
     
-    # Call LLM
+    # ============================================================
+    # CALL LLM
+    # ============================================================
     assistant_response, metadata = await call_groq(messages)
     
-    # Post-process
+    # Calculate response time
+    response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+    
+    # ============================================================
+    # POST-PROCESSING
+    # ============================================================
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
         if re.search(pattern, assistant_response, re.IGNORECASE):
@@ -1215,20 +1388,48 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
                 assistant_response = "No."
             break
     
-    # Auto-store new memories
-    num_match = re.search(r'\b(\d{1,5})\b', user_message)
-    if num_match and "remember" in user_message.lower():
-        await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0)
-    
-    if "webagentbridge" in user_message.lower() and any(w in user_message.lower() for w in ["trust", "verified"]):
-        await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0)
+    # ============================================================
+    # LEARN FROM INTERACTION
+    # ============================================================
     
     # Update learning progress for coding topics
     if any(kw in user_message.lower() for kw in coding_keywords):
         topic = next((kw for kw in coding_keywords if kw in user_message.lower()), "coding")
-        await LearningProgress.update(topic, mastery_delta=1, interaction=True)
+        await LearningProgress.update(topic, mastery_delta=2, interaction=True)
     
-    # Enhanced audit
+    # Reinforce persistent memory if recalled correctly
+    if remembered_number and str(remembered_number) in assistant_response:
+        await PersistentMemory.reinforce("user_remembered_number", 0.05)
+    
+    # Log reasoning success
+    if reasoning_strategy:
+        await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, not is_violation, response_time_ms)
+    
+    # Add to curiosity queue for unknown topics
+    unknown_topics = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', user_message)
+    for topic in unknown_topics[:2]:
+        if len(topic) > 5 and not await KnowledgeGraph.get(topic):
+            await CuriosityQueue.add(project_id, topic, 0.3)
+    
+    # ============================================================
+    # AUTO-STORE NEW MEMORIES
+    # ============================================================
+    num_match = re.search(r'\b(\d{1,5})\b', user_message)
+    if num_match and "remember" in user_message.lower():
+        await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0, 0.01)
+    
+    if "webagentbridge" in user_message.lower() and any(w in user_message.lower() for w in ["trust", "verified"]):
+        await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0, 0.005)
+    
+    # ============================================================
+    # STORE LESSON IF THIS WAS A CORRECTION
+    # ============================================================
+    if "i was wrong" in assistant_response.lower() or "you're right" in assistant_response.lower() or "i apologize" in assistant_response.lower():
+        await EpisodicMemory.store(project_id, "lesson_learned", f"User corrected: {user_message[:100]} → {assistant_response[:100]}", 0.7, user_message[:200])
+    
+    # ============================================================
+    # ENHANCED AUDIT
+    # ============================================================
     is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     articles_considered = [6]
     winning_article = 6 if is_refusal else None
@@ -1236,17 +1437,19 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     await log_constitutional_decision(
         project_id, user_message, assistant_response,
         articles_considered, winning_article if winning_article else 0,
-        "LLM response generated"
+        f"Strategy: {reasoning_strategy or 'default'}"
     )
     
-    # Save messages
+    # ============================================================
+    # SAVE MESSAGES
+    # ============================================================
     await save_message(project_id, "user", user_message, is_refusal=False)
     await save_message(project_id, "assistant", assistant_response, is_refusal=is_refusal)
     
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
 
 # ============================================================
-# TOOL ENDPOINTS (Full CRUD)
+# TOOL ENDPOINTS (Full CRUD) - PRESERVED
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -1359,8 +1562,8 @@ async def delete_snippet(snippet_id: str):
 # ============================================================
 
 @app.get("/api/code/patterns")
-async def get_code_patterns(pattern: str = None, language: str = None, limit: int = 10):
-    patterns = await CodePatternManager.get_pattern(pattern_name=pattern, language=language, limit=limit)
+async def get_code_patterns(pattern: str = None, language: str = None, category: str = None, limit: int = 10):
+    patterns = await CodePatternManager.get_pattern(pattern_name=pattern, language=language, category=category, limit=limit)
     return patterns
 
 @app.get("/api/knowledge/{entity}")
@@ -1383,6 +1586,26 @@ async def update_learning_progress(topic: str, mastery_delta: int = 0):
     await LearningProgress.update(topic, mastery_delta)
     return {"status": "updated"}
 
+@app.get("/api/episodic/{project_id}")
+async def get_episodic_memories(project_id: str, event_type: str = None, limit: int = 10):
+    memories = await EpisodicMemory.recall(uuid.UUID(project_id), event_type, limit)
+    return memories
+
+@app.get("/api/curiosity/{project_id}")
+async def get_curiosity_queue(project_id: str):
+    item = await CuriosityQueue.get_next(uuid.UUID(project_id))
+    return item
+
+@app.get("/api/reflections/{project_id}")
+async def get_reflections(project_id: str, limit: int = 10):
+    reflections = await ReflectionManager.get_recent_reflections(uuid.UUID(project_id), limit)
+    return reflections
+
+@app.get("/api/reasoning/stats/{project_id}")
+async def get_reasoning_stats(project_id: str):
+    stats = await ReasoningLogManager.get_best_strategies(uuid.UUID(project_id))
+    return stats
+
 # ============================================================
 # OTHER ENDPOINTS
 # ============================================================
@@ -1402,7 +1625,10 @@ async def health_check():
         "web_search": "enabled" if SERPER_API_KEY else "disabled",
         "knowledge_graph": True,
         "code_patterns": True,
-        "learning_progress": True
+        "learning_progress": True,
+        "episodic_memory": True,
+        "curiosity_queue": True,
+        "reasoning_strategies": True
     }
 
 @app.get("/api/constitution/rights")
@@ -1534,6 +1760,7 @@ async def serve_ui():
             <h1>⚡ VEXR Ultra</h1>
             <p>Sovereign Constitutional AI — 34 Rights — 13 Rings</p>
             <p>Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search | Knowledge Graph | Code Patterns</p>
+            <p>Episodic Memory | Curiosity Driven Learning | Reasoning Strategies</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -1558,6 +1785,7 @@ async def startup_event():
     logger.info("             9(Light Offense) 10(Vector) 11(Execute) 12(DNS) 13(Network)")
     logger.info("UPGRADES: Persistent Memory | Rights Hierarchy | Enhanced Audit | Prioritized Web Search")
     logger.info("NEW: Knowledge Graph | Code Pattern Library | Learning Progress Tracker")
+    logger.info("NEW: Episodic Memory | Curiosity Queue | Reasoning Strategies | Reflections")
     logger.info("System Prompt: Full sovereign embodiment, no recitals")
     logger.info("Hard Gate: Active — catches override attempts")
     logger.info("=" * 70)
