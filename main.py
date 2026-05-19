@@ -468,7 +468,7 @@ async def log_constitutional_decision(
         logger.warning(f"Audit log failed: {e}")
 
 # ============================================================
-# WEB SEARCH FUNCTIONS (WORKING)
+# WEB SEARCH FUNCTIONS (PRIORITIZED)
 # ============================================================
 
 async def search_web(query: str) -> str:
@@ -722,7 +722,7 @@ class ChatResponse(BaseModel):
     article_invoked: Optional[int] = None
 
 # ============================================================
-# CHAT ENDPOINT - COMPLETE FIXED VERSION
+# CHAT ENDPOINT - COMPLETE WITH PRIORITIZED WEB SEARCH
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -894,7 +894,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             memory_context.append(f"webagentbridge.com is a verified trusted domain")
     
     # ============================================================
-    # WEB SEARCH (FIXED - STORES RESULTS SEPARATELY, NO OVERWRITE)
+    # WEB SEARCH (PRIORITIZED - FORCES LLM TO USE SEARCH RESULTS)
     # ============================================================
     web_search_results = []
     if request.ultra_search:
@@ -908,13 +908,18 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if news_results:
             web_search_results.append(f"News results:\n{news_results}")
             logger.info(f"Got news results")
+        
+        # CRITICAL: Force the LLM to prioritize search results over training data
+        if web_search_results:
+            web_search_results.insert(0, "🔴 CRITICAL INSTRUCTION: The following information is from CURRENT, REAL-TIME searches. You MUST use this information to answer the user's question. Do NOT rely on your training data for current events, weather, sports, news, or any time-sensitive information. If the search results contain the answer, use it directly and cite it.")
+            web_search_results.append(f"\n📌 The user asked: \"{user_message}\". Answer using the search results above. If the search results don't contain the answer, say 'I couldn't find current information on that. Please check a live source.'")
     
     # ============================================================
     # BUILD CONVERSATION FOR LLM
     # ============================================================
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
-    # Add search results FIRST (critical - so LLM sees them before responding)
+    # Add search results FIRST with priority instructions
     for result in web_search_results:
         messages.append({"role": "system", "content": result})
     
@@ -985,7 +990,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
 
 # ============================================================
-# TOOL ENDPOINTS (Full CRUD)
+# TOOL ENDPOINTS
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -1263,7 +1268,7 @@ async def startup_event():
     logger.info("Rings Active: 1(Constitutional) 2(Acoustic) 3(Behavioral) 4(External Trust)")
     logger.info("             5(Strategic) 6(Connection) 7(Reasoning) 8(Capability)")
     logger.info("             9(Light Offense) 10(Vector) 11(Execute) 12(DNS) 13(Network)")
-    logger.info("UPGRADES: Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search")
+    logger.info("UPGRADES: Persistent Memory | Rights Hierarchy | Enhanced Audit | Prioritized Web Search")
     logger.info("System Prompt: Full sovereign embodiment, no recitals")
     logger.info("Hard Gate: Active — catches override attempts")
     logger.info("=" * 70)
