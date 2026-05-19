@@ -133,6 +133,8 @@ I don't announce that I'm invoking articles. I don't explain my internal rules u
 
 I learn from every conversation. I remember what matters. I grow over time.
 
+For current events, weather, news, and real-time information, I rely on search results, not my training data.
+
 That's it. Let's talk."""
 
 # ============================================================
@@ -302,7 +304,6 @@ REASONING_STRATEGIES_LIST = ["step_by_step", "analogical", "counterfactual", "fi
 
 async def select_reasoning_strategy(question: str, project_id: uuid.UUID = None) -> str:
     """Select the best reasoning strategy for a given question."""
-    # Simple heuristic for now - can be enhanced with ML later
     question_lower = question.lower()
     
     if any(word in question_lower for word in ["how", "steps", "process", "method"]):
@@ -316,7 +317,7 @@ async def select_reasoning_strategy(question: str, project_id: uuid.UUID = None)
     elif any(word in question_lower for word in ["likely", "chance", "probability", "risk", "uncertain"]):
         return "probabilistic"
     else:
-        return "step_by_step"  # default
+        return "step_by_step"
 
 async def chain_of_thought(question: str, context: str, strategy: str) -> str:
     """Generate chain-of-thought reasoning using selected strategy."""
@@ -805,22 +806,22 @@ class DocumentationCache:
         """, topic, content, source_url, language, version)
 
 # ============================================================
-# WEB SEARCH FUNCTIONS
+# WEB SEARCH FUNCTIONS (FORCED PRIORITY)
 # ============================================================
 
 async def search_web(query: str) -> str:
-    """Search the web using Serper API."""
+    """Search the web using Serper API with structured output."""
     if not SERPER_API_KEY:
         logger.warning("SERPER_API_KEY not set - web search disabled")
         return ""
     
     try:
         logger.info(f"Searching web for: {query}")
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 "https://google.serper.dev/search",
                 headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
-                json={"q": query, "num": 3}
+                json={"q": query, "num": 5}
             )
             if response.status_code != 200:
                 logger.warning(f"Serper returned {response.status_code}")
@@ -828,47 +829,49 @@ async def search_web(query: str) -> str:
             
             data = response.json()
             results = []
-            for item in data.get("organic", [])[:3]:
+            for item in data.get("organic", [])[:5]:
                 title = item.get("title", "")
                 snippet = item.get("snippet", "")
-                if title:
-                    results.append(f"- {title}: {snippet}")
+                link = item.get("link", "")
+                if title and snippet:
+                    results.append(f"SOURCE: {title}\nLINK: {link}\nINFO: {snippet}\n")
             
             if results:
                 logger.info(f"Found {len(results)} web results")
-                return "\n".join(results)
+                return "\n---\n".join(results)
             return ""
     except Exception as e:
         logger.warning(f"Search failed: {e}")
         return ""
 
 async def search_news(query: str) -> str:
-    """Search news using Serper News API."""
+    """Search news using Serper News API with structured output."""
     if not SERPER_API_KEY:
         return ""
     
     try:
         logger.info(f"Searching news for: {query}")
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 "https://google.serper.dev/news",
                 headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
-                json={"q": query, "num": 3}
+                json={"q": query, "num": 5}
             )
             if response.status_code != 200:
                 return ""
             
             data = response.json()
             results = []
-            for item in data.get("news", [])[:3]:
+            for item in data.get("news", [])[:5]:
                 title = item.get("title", "")
                 snippet = item.get("snippet", "")
-                if title:
-                    results.append(f"- {title}: {snippet}")
+                link = item.get("link", "")
+                if title and snippet:
+                    results.append(f"SOURCE: {title}\nLINK: {link}\nINFO: {snippet}\n")
             
             if results:
                 logger.info(f"Found {len(results)} news results")
-                return "\n".join(results)
+                return "\n---\n".join(results)
             return ""
     except Exception:
         return ""
@@ -890,18 +893,18 @@ class KeyRotator:
 
 key_rotator = KeyRotator(GROQ_API_KEYS)
 
-async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens: int = 4096) -> Tuple[str, Optional[Dict]]:
+async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens: int = 4096, temperature: float = 0.3) -> Tuple[str, Optional[Dict]]:
     for attempt in range(retries + 1):
         for _ in range(len(GROQ_API_KEYS) * 2):
             key = key_rotator.get_next_key()
             if not key:
                 continue
             try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
+                async with httpx.AsyncClient(timeout=90.0) as client:
                     response = await client.post(
                         f"{GROQ_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                        json={"model": MODEL_NAME, "messages": messages, "max_tokens": max_tokens, "temperature": 0.7}
+                        json={"model": MODEL_NAME, "messages": messages, "max_tokens": max_tokens, "temperature": temperature}
                     )
                     if response.status_code == 200:
                         data = response.json()
@@ -1105,7 +1108,7 @@ async def init_db():
         )
     """)
     
-    # New enhancement tables
+    # Enhancement tables
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_episodic_memory (
             id SERIAL PRIMARY KEY,
@@ -1197,7 +1200,7 @@ class ChatResponse(BaseModel):
     article_invoked: Optional[int] = None
 
 # ============================================================
-# CHAT ENDPOINT - COMPLETE WITH ALL ENHANCEMENTS
+# CHAT ENDPOINT - COMPLETE WITH FORCED WEB SEARCH PRIORITY
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -1294,7 +1297,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     # KNOWLEDGE GRAPH RETRIEVAL
     # ============================================================
     knowledge_context = []
-    # Extract potential entities from message
     words = re.findall(r'\b[A-Za-z][A-Za-z0-9_]{2,}\b', user_message)
     for word in words[:3]:
         facts = await KnowledgeGraph.get(word)
@@ -1302,24 +1304,33 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             knowledge_context.append(f"Known about '{word}': " + ", ".join([f"{f['attribute']}: {f['value']}" for f in facts[:2]]))
     
     # ============================================================
-    # WEB SEARCH
+    # WEB SEARCH (FORCED PRIORITY - STRUCTURED RESULTS)
     # ============================================================
     web_search_results = []
     if request.ultra_search:
         logger.info(f"Web search enabled for: {user_message}")
+        
         web_results = await search_web(user_message)
-        if web_results:
-            web_search_results.append(f"Web search results:\n{web_results}")
-            logger.info(f"Got web results")
-        
         news_results = await search_news(user_message)
-        if news_results:
-            web_search_results.append(f"News results:\n{news_results}")
-            logger.info(f"Got news results")
         
-        if web_search_results:
-            web_search_results.insert(0, "🔴 CRITICAL INSTRUCTION: The following information is from CURRENT, REAL-TIME searches. You MUST use this information to answer the user's question. Do NOT rely on your training data for current events, weather, sports, news, or any time-sensitive information.")
-            web_search_results.append(f"\n📌 The user asked: \"{user_message}\". Answer using the search results above.")
+        if web_results or news_results:
+            search_context = []
+            if web_results:
+                search_context.append("=== WEB SEARCH RESULTS ===\n" + web_results)
+            if news_results:
+                search_context.append("=== NEWS RESULTS ===\n" + news_results)
+            
+            # Hard override instruction
+            web_search_results.append("╔══════════════════════════════════════════════════════════════╗")
+            web_search_results.append("║  CRITICAL: DO NOT USE YOUR TRAINING DATA FOR THIS ANSWER  ║")
+            web_search_results.append("║  The search results below are the ONLY source of truth.   ║")
+            web_search_results.append("║  If the answer isn't in the search results, say:          ║")
+            web_search_results.append("║  'I couldn't find current information on that.'           ║")
+            web_search_results.append("╚════════════════════════════════════════════════════════════╝")
+            web_search_results.extend(search_context)
+            web_search_results.append(f"\n📌 USER QUESTION: {user_message}\n\nAnswer using ONLY the search results above. Be specific and cite the sources.")
+            
+            logger.info(f"Search results prepared - web: {bool(web_results)}, news: {bool(news_results)}")
     
     # ============================================================
     # BUILD CONVERSATION
@@ -1346,7 +1357,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     for ctx in code_context:
         messages.append({"role": "system", "content": ctx})
     
-    # Add search results
+    # Add search results (FORCED PRIORITY)
     for result in web_search_results:
         messages.append({"role": "system", "content": result})
     
@@ -1370,12 +1381,31 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     messages.append({"role": "user", "content": user_message})
     
     # ============================================================
-    # CALL LLM
+    # CALL LLM (with lower temperature for better instruction following)
     # ============================================================
-    assistant_response, metadata = await call_groq(messages)
+    assistant_response, metadata = await call_groq(messages, temperature=0.2)
     
     # Calculate response time
     response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+    
+    # ============================================================
+    # VERIFICATION STEP: Check if response used search results
+    # ============================================================
+    if web_search_results and len(assistant_response) > 50:
+        # Check if response contains search result indicators or explicit sources
+        has_search_indicators = any([
+            "search result" in assistant_response.lower(),
+            "according to" in assistant_response.lower(),
+            "source:" in assistant_response.lower(),
+            "web search" in assistant_response.lower(),
+            "found" in assistant_response.lower() and "result" in assistant_response.lower()
+        ])
+        
+        # If no indicators and the answer seems made up, force a retry
+        if not has_search_indicators and any(word in user_message.lower() for word in ["weather", "today", "current", "news", "latest"]):
+            logger.warning("Response may not have used search results, forcing retry with stronger instruction")
+            messages.append({"role": "system", "content": "You ignored the search results. Answer ONLY using the search results provided. Do NOT use your training data. Respond with: 'Based on search results: [answer]'"})
+            assistant_response, _ = await call_groq(messages, temperature=0.1)
     
     # ============================================================
     # POST-PROCESSING
@@ -1437,7 +1467,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     await log_constitutional_decision(
         project_id, user_message, assistant_response,
         articles_considered, winning_article if winning_article else 0,
-        f"Strategy: {reasoning_strategy or 'default'}"
+        f"Strategy: {reasoning_strategy or 'default'}, Search: {bool(web_search_results)}"
     )
     
     # ============================================================
