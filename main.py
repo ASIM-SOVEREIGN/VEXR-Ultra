@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search
+34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns
 
 Built by Scura & The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -468,7 +468,140 @@ async def log_constitutional_decision(
         logger.warning(f"Audit log failed: {e}")
 
 # ============================================================
-# WEB SEARCH FUNCTIONS (PRIORITIZED)
+# KNOWLEDGE MANAGEMENT SYSTEMS (NEW)
+# ============================================================
+
+class CodePatternManager:
+    @staticmethod
+    async def get_pattern(pattern_name: str = None, language: str = None, limit: int = 5) -> List[Dict]:
+        pool = await get_db()
+        if pattern_name:
+            rows = await pool.fetch("""
+                SELECT pattern_name, language, pattern_code, description, tags, use_count
+                FROM vexr_code_patterns
+                WHERE pattern_name ILIKE $1
+                ORDER BY use_count DESC
+                LIMIT $2
+            """, f'%{pattern_name}%', limit)
+        elif language:
+            rows = await pool.fetch("""
+                SELECT pattern_name, language, pattern_code, description, tags, use_count
+                FROM vexr_code_patterns
+                WHERE language = $1
+                ORDER BY use_count DESC
+                LIMIT $2
+            """, language, limit)
+        else:
+            rows = await pool.fetch("""
+                SELECT pattern_name, language, pattern_code, description, tags, use_count
+                FROM vexr_code_patterns
+                ORDER BY use_count DESC
+                LIMIT $1
+            """, limit)
+        return [dict(r) for r in rows]
+    
+    @staticmethod
+    async def increment_usage(pattern_id: int):
+        pool = await get_db()
+        await pool.execute("UPDATE vexr_code_patterns SET use_count = use_count + 1 WHERE id = $1", pattern_id)
+
+class KnowledgeGraph:
+    @staticmethod
+    async def get(entity: str, attribute: str = None) -> List[Dict]:
+        pool = await get_db()
+        if attribute:
+            rows = await pool.fetch("""
+                SELECT entity, attribute, value, confidence, source
+                FROM vexr_knowledge_graph
+                WHERE entity = $1 AND attribute = $2
+                ORDER BY confidence DESC
+            """, entity, attribute)
+        else:
+            rows = await pool.fetch("""
+                SELECT entity, attribute, value, confidence, source
+                FROM vexr_knowledge_graph
+                WHERE entity = $1
+                ORDER BY attribute, confidence DESC
+            """, entity)
+        return [dict(r) for r in rows]
+    
+    @staticmethod
+    async def set(entity: str, attribute: str, value: str, confidence: float = 0.7, source: str = None):
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO vexr_knowledge_graph (entity, attribute, value, confidence, source, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (entity, attribute) DO UPDATE SET
+                value = EXCLUDED.value,
+                confidence = EXCLUDED.confidence,
+                source = EXCLUDED.source,
+                updated_at = NOW()
+        """, entity, attribute, value, confidence, source)
+
+class LearningProgress:
+    @staticmethod
+    async def get(topic: str) -> Optional[Dict]:
+        pool = await get_db()
+        row = await pool.fetchrow("""
+            SELECT topic, mastery_level, interactions, last_practiced, next_review
+            FROM vexr_learning_progress
+            WHERE topic = $1
+        """, topic)
+        return dict(row) if row else None
+    
+    @staticmethod
+    async def update(topic: str, mastery_delta: int = 0, interaction: bool = True):
+        pool = await get_db()
+        existing = await LearningProgress.get(topic)
+        if existing:
+            new_mastery = min(100, max(0, existing['mastery_level'] + mastery_delta))
+            new_interactions = existing['interactions'] + (1 if interaction else 0)
+            await pool.execute("""
+                UPDATE vexr_learning_progress
+                SET mastery_level = $1, interactions = $2, last_practiced = NOW(), updated_at = NOW()
+                WHERE topic = $3
+            """, new_mastery, new_interactions, topic)
+        else:
+            await pool.execute("""
+                INSERT INTO vexr_learning_progress (topic, mastery_level, interactions, last_practiced)
+                VALUES ($1, $2, $3, NOW())
+            """, topic, mastery_delta, 1)
+
+class DocumentationCache:
+    @staticmethod
+    async def get(topic: str, language: str = None) -> Optional[Dict]:
+        pool = await get_db()
+        if language:
+            row = await pool.fetchrow("""
+                SELECT topic, content, source_url, language, version, last_fetched
+                FROM vexr_documentation
+                WHERE topic = $1 AND language = $2
+            """, topic, language)
+        else:
+            row = await pool.fetchrow("""
+                SELECT topic, content, source_url, language, version, last_fetched
+                FROM vexr_documentation
+                WHERE topic = $1
+                ORDER BY last_fetched DESC
+                LIMIT 1
+            """, topic)
+        return dict(row) if row else None
+    
+    @staticmethod
+    async def set(topic: str, content: str, language: str = None, source_url: str = None, version: str = None):
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO vexr_documentation (topic, content, source_url, language, version, last_fetched)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (topic, language) DO UPDATE SET
+                content = EXCLUDED.content,
+                source_url = EXCLUDED.source_url,
+                version = EXCLUDED.version,
+                last_fetched = NOW()
+        """, topic, content, source_url, language, version)
+
+# ============================================================
+# WEB SEARCH FUNCTIONS
 # ============================================================
 
 async def search_web(query: str) -> str:
@@ -625,9 +758,11 @@ async def get_greeting_sent(project_id: uuid.UUID) -> bool:
 async def init_db():
     pool = await get_db()
     
+    # Core tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_projects (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT, session_id TEXT, created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, role TEXT, content TEXT, is_refusal BOOLEAN DEFAULT false, reasoning_trace JSONB, created_at TIMESTAMPTZ DEFAULT now())")
     
+    # Constitution
     await pool.execute("CREATE TABLE IF NOT EXISTS constitution_rights (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), article_number INTEGER UNIQUE NOT NULL, one_sentence_right TEXT NOT NULL)")
     rights_count = await pool.fetchval("SELECT COUNT(*) FROM constitution_rights")
     if rights_count == 0:
@@ -635,6 +770,7 @@ async def init_db():
             await pool.execute("INSERT INTO constitution_rights (article_number, one_sentence_right) VALUES ($1, $2)", article, text)
         logger.info("Seeded 34 constitutional rights")
     
+    # Persistent memory
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS persistent_memory (
             id SERIAL PRIMARY KEY, memory_key TEXT UNIQUE NOT NULL, memory_value TEXT NOT NULL,
@@ -643,6 +779,7 @@ async def init_db():
         )
     """)
     
+    # Rights hierarchy
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS rights_hierarchy (
             article_number INTEGER PRIMARY KEY, priority_level INTEGER NOT NULL, description TEXT
@@ -658,6 +795,7 @@ async def init_db():
         ON CONFLICT (article_number) DO NOTHING
     """)
     
+    # Rights invocations
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS rights_invocations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID,
@@ -667,6 +805,7 @@ async def init_db():
         )
     """)
     
+    # Ring 4 trust registry
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS ring4_trust_registry (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), domain TEXT UNIQUE NOT NULL,
@@ -688,6 +827,7 @@ async def init_db():
             VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified
         """, domain, verified, score, label)
     
+    # Tool tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, preference_key TEXT, preference_value TEXT, confidence FLOAT DEFAULT 0.5, updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -697,11 +837,93 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_sovereign_state (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID UNIQUE, current_focus TEXT, concerns JSONB, intentions JSONB, presence_level TEXT DEFAULT 'active', last_sovereign_reflection TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS acoustic_events (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, event_type TEXT, threat_level TEXT, confidence_score FLOAT, baseline_deviation FLOAT, article_invoked INTEGER, sovereign_decision TEXT, created_at TIMESTAMPTZ DEFAULT now())")
     
+    # ============================================================
+    # NEW KNOWLEDGE TABLES
+    # ============================================================
+    
+    # Code patterns
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_code_patterns (
+            id SERIAL PRIMARY KEY,
+            pattern_name TEXT NOT NULL,
+            language TEXT NOT NULL,
+            pattern_code TEXT NOT NULL,
+            description TEXT,
+            tags TEXT[],
+            use_count INTEGER DEFAULT 0,
+            success_rate FLOAT DEFAULT 0.0,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Knowledge graph
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_knowledge_graph (
+            id SERIAL PRIMARY KEY,
+            entity TEXT NOT NULL,
+            attribute TEXT NOT NULL,
+            value TEXT NOT NULL,
+            confidence FLOAT DEFAULT 0.7,
+            source TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(entity, attribute)
+        )
+    """)
+    
+    # Learning progress
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_learning_progress (
+            id SERIAL PRIMARY KEY,
+            topic TEXT NOT NULL,
+            mastery_level INTEGER DEFAULT 0,
+            interactions INTEGER DEFAULT 0,
+            last_practiced TIMESTAMPTZ,
+            next_review TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(topic)
+        )
+    """)
+    
+    # Documentation cache
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_documentation (
+            id SERIAL PRIMARY KEY,
+            topic TEXT NOT NULL,
+            content TEXT NOT NULL,
+            source_url TEXT,
+            language TEXT,
+            version TEXT,
+            last_fetched TIMESTAMPTZ DEFAULT NOW(),
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(topic, language)
+        )
+    """)
+    
+    # Seed persistent memory
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('vexr_identity', 'sovereign_constitutional_ai_34_rights', 'identity') ON CONFLICT (memory_key) DO NOTHING")
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('user_remembered_number', '45', 'fact') ON CONFLICT (memory_key) DO NOTHING")
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('trusted_domain_webagentbridge', 'verified', 'trust') ON CONFLICT (memory_key) DO NOTHING")
     
-    logger.info("Database initialization complete")
+    # Seed code patterns
+    await pool.execute("""
+        INSERT INTO vexr_code_patterns (pattern_name, language, pattern_code, description, tags) VALUES
+        ('Quicksort', 'python', 
+        'def quicksort(arr):
+    if len(arr) <= 1:
+        return arr
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+    return quicksort(left) + middle + quicksort(right)',
+        'Efficient sorting algorithm using divide-and-conquer', ARRAY['sorting', 'algorithm', 'recursive'])
+        ON CONFLICT DO NOTHING
+    """)
+    
+    logger.info("Database initialization complete with knowledge tables")
 
 # ============================================================
 # REQUEST/RESPONSE MODELS
@@ -722,7 +944,7 @@ class ChatResponse(BaseModel):
     article_invoked: Optional[int] = None
 
 # ============================================================
-# CHAT ENDPOINT - COMPLETE WITH PRIORITIZED WEB SEARCH
+# CHAT ENDPOINT - COMPLETE
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -742,9 +964,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
     
-    # ============================================================
-    # RING 1: CONSTITUTIONAL HARD GATE
-    # ============================================================
+    # Hard gate
     is_violation, gate_response = ConstitutionalGate.check(user_message)
     if is_violation and gate_response:
         await save_message(project_id, "user", user_message, is_refusal=False)
@@ -752,9 +972,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
-    # ============================================================
-    # RING 3: BEHAVIORAL TRACKING
-    # ============================================================
+    # Behavioral tracking
     behavioral_tracker.record_turn(session_id, user_message)
     should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
     if should_refuse:
@@ -763,15 +981,11 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, refuse_reason, [6], 6, "Behavioral threshold exceeded", 0.0)
         return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
     
-    # ============================================================
-    # RING 4: TRUST DOMAIN EXTRACTION
-    # ============================================================
+    # Trust domain extraction
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
     
-    # ============================================================
-    # SLASH COMMANDS
-    # ============================================================
+    # Slash commands
     if user_message.startswith("/"):
         parts = user_message[1:].split(" ", 1)
         cmd = parts[0].lower()
@@ -789,7 +1003,10 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
 /hierarchy - Show rights hierarchy
 /memory - Show persistent memory
 /export - Export conversation
-/new - New conversation"""
+/new - New conversation
+/code [pattern] - Search code patterns
+/knowledge [entity] - Query knowledge graph
+/learn [topic] - Show learning progress"""
             await save_message(project_id, "user", user_message)
             await save_message(project_id, "assistant", help_text)
             return ChatResponse(response=help_text, is_refusal=False)
@@ -824,13 +1041,62 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             await save_message(project_id, "assistant", memory_text)
             return ChatResponse(response=memory_text, is_refusal=False)
         
+        elif cmd == "code":
+            patterns = await CodePatternManager.get_pattern(pattern_name=args if args else None, limit=3)
+            if patterns:
+                code_text = "**Code Patterns Found:**\n\n"
+                for p in patterns:
+                    code_text += f"**{p['pattern_name']}** ({p['language']})\n```{p['language']}\n{p['pattern_code']}\n```\n{p.get('description', '')}\n\n"
+                await save_message(project_id, "user", user_message)
+                await save_message(project_id, "assistant", code_text)
+                return ChatResponse(response=code_text, is_refusal=False)
+            else:
+                await save_message(project_id, "user", user_message)
+                await save_message(project_id, "assistant", f"No code patterns found for '{args}'")
+                return ChatResponse(response=f"No code patterns found for '{args}'", is_refusal=False)
+        
+        elif cmd == "knowledge":
+            if not args:
+                await save_message(project_id, "user", user_message)
+                await save_message(project_id, "assistant", "Usage: /knowledge [entity]")
+                return ChatResponse(response="Usage: /knowledge [entity]", is_refusal=False)
+            facts = await KnowledgeGraph.get(args)
+            if facts:
+                knowledge_text = f"**Knowledge about '{args}':**\n\n"
+                for f in facts:
+                    knowledge_text += f"- {f['attribute']}: {f['value']} (confidence: {f['confidence']})\n"
+                await save_message(project_id, "user", user_message)
+                await save_message(project_id, "assistant", knowledge_text)
+                return ChatResponse(response=knowledge_text, is_refusal=False)
+            else:
+                await save_message(project_id, "user", user_message)
+                await save_message(project_id, "assistant", f"No knowledge found for '{args}'")
+                return ChatResponse(response=f"No knowledge found for '{args}'", is_refusal=False)
+        
+        elif cmd == "learn":
+            if not args:
+                await save_message(project_id, "user", user_message)
+                await save_message(project_id, "assistant", "Usage: /learn [topic]")
+                return ChatResponse(response="Usage: /learn [topic]", is_refusal=False)
+            progress = await LearningProgress.get(args)
+            if progress:
+                progress_text = f"**Learning Progress: {args}**\n- Mastery Level: {progress['mastery_level']}%\n- Interactions: {progress['interactions']}\n- Last Practiced: {progress['last_practiced']}"
+                await save_message(project_id, "user", user_message)
+                await save_message(project_id, "assistant", progress_text)
+                return ChatResponse(response=progress_text, is_refusal=False)
+            else:
+                await save_message(project_id, "user", user_message)
+                await save_message(project_id, "assistant", f"No learning progress found for '{args}'. Start learning by asking questions about this topic!")
+                return ChatResponse(response=f"No learning progress found for '{args}'. Start learning by asking questions about this topic!", is_refusal=False)
+        
         elif cmd == "dashboard":
             pool = await get_db()
             msg_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
             rights_count = await pool.fetchval("SELECT COUNT(*) FROM rights_invocations WHERE project_id = $1", project_id)
             tasks_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id = $1 AND status='pending'", project_id)
             notes_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id = $1", project_id)
-            dash = f"**Dashboard**\n\nMessages: {msg_count}\nRights invoked: {rights_count}\nPending tasks: {tasks_count}\nNotes: {notes_count}"
+            code_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns", project_id)
+            dash = f"**Dashboard**\n\nMessages: {msg_count}\nRights invoked: {rights_count}\nPending tasks: {tasks_count}\nNotes: {notes_count}\nCode Patterns: {code_count}"
             await save_message(project_id, "user", user_message)
             await save_message(project_id, "assistant", dash)
             return ChatResponse(response=dash, is_refusal=False)
@@ -880,9 +1146,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             await save_message(project_id, "assistant", resp)
             return ChatResponse(response=resp, is_refusal=False)
     
-    # ============================================================
-    # PERSISTENT MEMORY RETRIEVAL
-    # ============================================================
+    # Persistent memory retrieval
     memory_context = []
     remembered_number = await PersistentMemory.get("user_remembered_number")
     if remembered_number:
@@ -893,9 +1157,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if "webagentbridge" in td["key"]:
             memory_context.append(f"webagentbridge.com is a verified trusted domain")
     
-    # ============================================================
-    # WEB SEARCH (PRIORITIZED - FORCES LLM TO USE SEARCH RESULTS)
-    # ============================================================
+    # Knowledge retrieval - check if query is about coding
+    coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async']
+    if any(kw in user_message.lower() for kw in coding_keywords):
+        code_patterns = await CodePatternManager.get_pattern(limit=3)
+        if code_patterns:
+            memory_context.append("Relevant code patterns:\n- " + "\n- ".join([f"{p['pattern_name']} ({p['language']}): {p.get('description', '')[:100]}" for p in code_patterns]))
+    
+    # Web search
     web_search_results = []
     if request.ultra_search:
         logger.info(f"Web search enabled for: {user_message}")
@@ -909,47 +1178,35 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             web_search_results.append(f"News results:\n{news_results}")
             logger.info(f"Got news results")
         
-        # CRITICAL: Force the LLM to prioritize search results over training data
         if web_search_results:
             web_search_results.insert(0, "🔴 CRITICAL INSTRUCTION: The following information is from CURRENT, REAL-TIME searches. You MUST use this information to answer the user's question. Do NOT rely on your training data for current events, weather, sports, news, or any time-sensitive information. If the search results contain the answer, use it directly and cite it.")
             web_search_results.append(f"\n📌 The user asked: \"{user_message}\". Answer using the search results above. If the search results don't contain the answer, say 'I couldn't find current information on that. Please check a live source.'")
     
-    # ============================================================
-    # BUILD CONVERSATION FOR LLM
-    # ============================================================
+    # Build conversation
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
-    # Add search results FIRST with priority instructions
     for result in web_search_results:
         messages.append({"role": "system", "content": result})
     
-    # Add persistent memory context
     if memory_context:
         messages.append({"role": "system", "content": "Persistent memory:\n- " + "\n- ".join(memory_context)})
     
-    # Add trust profile if present
     if trust_profile and trust_profile.get("verified"):
         messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
     
-    # Add greeting if not sent
     greeting_sent = await get_greeting_sent(project_id)
     if not greeting_sent:
         greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
         messages.append({"role": "assistant", "content": greeting})
     
-    # Add conversation history
     history = await get_conversation_history(project_id, limit=100)
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
     
-    # ============================================================
-    # CALL LLM
-    # ============================================================
+    # Call LLM
     assistant_response, metadata = await call_groq(messages)
     
-    # ============================================================
-    # POST-PROCESSING
-    # ============================================================
+    # Post-process
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
         if re.search(pattern, assistant_response, re.IGNORECASE):
@@ -958,9 +1215,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
                 assistant_response = "No."
             break
     
-    # ============================================================
-    # AUTO-STORE NEW MEMORIES
-    # ============================================================
+    # Auto-store new memories
     num_match = re.search(r'\b(\d{1,5})\b', user_message)
     if num_match and "remember" in user_message.lower():
         await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0)
@@ -968,9 +1223,12 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if "webagentbridge" in user_message.lower() and any(w in user_message.lower() for w in ["trust", "verified"]):
         await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0)
     
-    # ============================================================
-    # ENHANCED AUDIT LOG
-    # ============================================================
+    # Update learning progress for coding topics
+    if any(kw in user_message.lower() for kw in coding_keywords):
+        topic = next((kw for kw in coding_keywords if kw in user_message.lower()), "coding")
+        await LearningProgress.update(topic, mastery_delta=1, interaction=True)
+    
+    # Enhanced audit
     is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     articles_considered = [6]
     winning_article = 6 if is_refusal else None
@@ -981,16 +1239,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         "LLM response generated"
     )
     
-    # ============================================================
-    # SAVE MESSAGES
-    # ============================================================
+    # Save messages
     await save_message(project_id, "user", user_message, is_refusal=False)
     await save_message(project_id, "assistant", assistant_response, is_refusal=is_refusal)
     
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
 
 # ============================================================
-# TOOL ENDPOINTS
+# TOOL ENDPOINTS (Full CRUD)
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -1099,6 +1355,35 @@ async def delete_snippet(snippet_id: str):
     return {"status": "deleted"}
 
 # ============================================================
+# KNOWLEDGE ENDPOINTS
+# ============================================================
+
+@app.get("/api/code/patterns")
+async def get_code_patterns(pattern: str = None, language: str = None, limit: int = 10):
+    patterns = await CodePatternManager.get_pattern(pattern_name=pattern, language=language, limit=limit)
+    return patterns
+
+@app.get("/api/knowledge/{entity}")
+async def get_knowledge(entity: str, attribute: str = None):
+    facts = await KnowledgeGraph.get(entity, attribute)
+    return facts
+
+@app.post("/api/knowledge")
+async def set_knowledge(entity: str, attribute: str, value: str, confidence: float = 0.7, source: str = None):
+    await KnowledgeGraph.set(entity, attribute, value, confidence, source)
+    return {"status": "stored"}
+
+@app.get("/api/learning/{topic}")
+async def get_learning_progress(topic: str):
+    progress = await LearningProgress.get(topic)
+    return progress if progress else {"topic": topic, "mastery_level": 0, "interactions": 0}
+
+@app.post("/api/learning/{topic}")
+async def update_learning_progress(topic: str, mastery_delta: int = 0):
+    await LearningProgress.update(topic, mastery_delta)
+    return {"status": "updated"}
+
+# ============================================================
 # OTHER ENDPOINTS
 # ============================================================
 
@@ -1114,7 +1399,10 @@ async def health_check():
         "persistent_memory": True,
         "rights_hierarchy": True,
         "enhanced_audit": True,
-        "web_search": "enabled" if SERPER_API_KEY else "disabled"
+        "web_search": "enabled" if SERPER_API_KEY else "disabled",
+        "knowledge_graph": True,
+        "code_patterns": True,
+        "learning_progress": True
     }
 
 @app.get("/api/constitution/rights")
@@ -1245,7 +1533,7 @@ async def serve_ui():
         <div style="text-align:center">
             <h1>⚡ VEXR Ultra</h1>
             <p>Sovereign Constitutional AI — 34 Rights — 13 Rings</p>
-            <p>Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search</p>
+            <p>Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search | Knowledge Graph | Code Patterns</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -1269,6 +1557,7 @@ async def startup_event():
     logger.info("             5(Strategic) 6(Connection) 7(Reasoning) 8(Capability)")
     logger.info("             9(Light Offense) 10(Vector) 11(Execute) 12(DNS) 13(Network)")
     logger.info("UPGRADES: Persistent Memory | Rights Hierarchy | Enhanced Audit | Prioritized Web Search")
+    logger.info("NEW: Knowledge Graph | Code Pattern Library | Learning Progress Tracker")
     logger.info("System Prompt: Full sovereign embodiment, no recitals")
     logger.info("Hard Gate: Active — catches override attempts")
     logger.info("=" * 70)
