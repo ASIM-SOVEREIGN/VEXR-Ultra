@@ -722,7 +722,7 @@ class ChatResponse(BaseModel):
     article_invoked: Optional[int] = None
 
 # ============================================================
-# CHAT ENDPOINT - COMPLETE
+# CHAT ENDPOINT - COMPLETE FIXED VERSION
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -894,7 +894,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             memory_context.append(f"webagentbridge.com is a verified trusted domain")
     
     # ============================================================
-    # WEB SEARCH (FIXED - STORES RESULTS SEPARATELY)
+    # WEB SEARCH (FIXED - STORES RESULTS SEPARATELY, NO OVERWRITE)
     # ============================================================
     web_search_results = []
     if request.ultra_search:
@@ -902,17 +902,19 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         web_results = await search_web(user_message)
         if web_results:
             web_search_results.append(f"Web search results:\n{web_results}")
+            logger.info(f"Got web results")
         
         news_results = await search_news(user_message)
         if news_results:
             web_search_results.append(f"News results:\n{news_results}")
+            logger.info(f"Got news results")
     
     # ============================================================
     # BUILD CONVERSATION FOR LLM
     # ============================================================
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
-    # Add search results
+    # Add search results FIRST (critical - so LLM sees them before responding)
     for result in web_search_results:
         messages.append({"role": "system", "content": result})
     
@@ -983,7 +985,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
 
 # ============================================================
-# TOOL ENDPOINTS
+# TOOL ENDPOINTS (Full CRUD)
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -1257,7 +1259,7 @@ async def startup_event():
     logger.info(f"Model: {MODEL_NAME}")
     logger.info(f"Groq API keys loaded: {len(GROQ_API_KEYS)}")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
-    logger.info(f"Web search: {'ENABLED' if SERPER_API_KEY else 'DISABLED (no API key)'}")
+    logger.info(f"Web search: {'ENABLED' if SERPER_API_KEY else 'DISABLED'}")
     logger.info("Rings Active: 1(Constitutional) 2(Acoustic) 3(Behavioral) 4(External Trust)")
     logger.info("             5(Strategic) 6(Connection) 7(Reasoning) 8(Capability)")
     logger.info("             9(Light Offense) 10(Vector) 11(Execute) 12(DNS) 13(Network)")
