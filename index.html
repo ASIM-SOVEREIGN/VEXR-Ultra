@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>VEXR Ultra</title>
+    <title>VEXR Ultra — Sovereign AI</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
     <style>
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -332,7 +332,7 @@
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
-            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v6 sovereign</span></div>
+            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v7 sovereign</span></div>
         </div>
         <div class="top-actions">
             <label class="toggle-label" title="Sovereign mode"><span class="sovereign-indicator" id="sovereignIndicator"></span><input type="checkbox" id="sovereignModeToggle"> Sovereign</label>
@@ -742,6 +742,8 @@ function sendMessage(msg, img) {
     addMessage('user', msg);
     showThinking();
     
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
     fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -749,6 +751,7 @@ function sendMessage(msg, img) {
             messages: [{ role: 'user', content: msg }],
             project_id: currentProjectId,
             ultra_search: ultraSearchEnabled,
+            timezone: tz,
             sovereign_mode: sovereignMode,
             agent_mode: sovereignMode
         })
@@ -1166,14 +1169,14 @@ function createReminder(){
 }
 
 // ============================================================
-// PROJECT MANAGEMENT - FIXED VERSION
+// PROJECT MANAGEMENT
 // ============================================================
 function loadProjects(){
     fetch('/api/projects').then(function(r){ return r.json(); }).then(function(projects){
         var container = document.getElementById('projectList');
         container.innerHTML = '';
         
-        // CRITICAL FIX: If we have projects and no currentProjectId, set the first one as active
+        // If we have projects and no currentProjectId, set the first one as active
         if(projects.length > 0 && !currentProjectId){
             currentProjectId = projects[0].id;
             loadMessages(currentProjectId);
@@ -1221,7 +1224,9 @@ function loadProjects(){
 }
 
 function loadMessages(projectId){
-    fetch('/api/projects/' + projectId + '/messages').then(function(r){ return r.json(); }).then(function(messages){
+    fetch('/api/projects/' + projectId + '/messages')
+    .then(function(r){ return r.json(); })
+    .then(function(messages){
         messagesContainer.innerHTML = '';
         if(messages && messages.length){
             messages.forEach(function(m){
@@ -1230,7 +1235,8 @@ function loadMessages(projectId){
         } else {
             addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
         }
-    }).catch(function(e){
+    })
+    .catch(function(e){
         console.error('loadMessages error:', e);
         messagesContainer.innerHTML = '';
         addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
@@ -1366,7 +1372,7 @@ function updateSovereignUI(){
         topBar.classList.remove('sovereign-active');
         inputArea.classList.remove('sovereign-active');
         inputWrapper.classList.remove('sovereign-active');
-        headerBadge.textContent = 'v6 sovereign';
+        headerBadge.textContent = 'v7 sovereign';
         headerBadge.classList.remove('sovereign-active');
         appContainer.classList.remove('sovereign-active');
         userInput.placeholder = 'Message VEXR Ultra — type / for commands';
@@ -1395,8 +1401,11 @@ document.getElementById('showReasoningToggle').onchange = function(e){
 };
 
 // ============================================================
-// SOVEREIGN MESSAGES POLLING
+// SOVEREIGN MESSAGES POLLING (DISABLED - 404 fix)
 // ============================================================
+// The /api/sovereign/messages endpoint doesn't exist, so polling is disabled
+// to prevent 404 errors. Uncomment if endpoint is added later.
+/*
 async function checkSovereignMessages() {
     if (!currentProjectId) return;
     try {
@@ -1407,9 +1416,10 @@ async function checkSovereignMessages() {
             await fetch(`/api/sovereign/acknowledge/${msg.id}`, { method: 'POST' });
             showSuccess('✨ VEXR surfaced a thought');
         }
-    } catch(e) { /* silent */ }
+    } catch(e) { /* silent *\/ }
 }
 setInterval(checkSovereignMessages, 20000);
+*/
 
 // ============================================================
 // INITIALIZE
