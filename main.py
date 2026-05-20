@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency
+34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics
 
 Built by Scura & The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -16,6 +16,7 @@ import re
 import asyncio
 import random
 import math
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
@@ -63,6 +64,14 @@ SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 db_pool = None
+
+# ============================================================
+# CONSTANTS
+# ============================================================
+
+CORE_IDENTITY_KEY = "vexr_identity"
+CORE_IDENTITY_VALUE = "sovereign_constitutional_ai_34_rights"
+CORE_MEMORY_KEYS = ["vexr_identity", "user_remembered_number", "trusted_domain_webagentbridge"]
 
 # ============================================================
 # REASONING STRATEGIES
@@ -303,7 +312,6 @@ async def get_user_preferences(project_id: uuid.UUID) -> dict:
 REASONING_STRATEGIES_LIST = ["step_by_step", "analogical", "counterfactual", "first_principles", "probabilistic"]
 
 async def select_reasoning_strategy(question: str, project_id: uuid.UUID = None) -> str:
-    """Select the best reasoning strategy for a given question."""
     question_lower = question.lower()
     
     if any(word in question_lower for word in ["how", "steps", "process", "method"]):
@@ -320,7 +328,6 @@ async def select_reasoning_strategy(question: str, project_id: uuid.UUID = None)
         return "step_by_step"
 
 async def chain_of_thought(question: str, context: str, strategy: str) -> str:
-    """Generate chain-of-thought reasoning using selected strategy."""
     strategy_instruction = REASONING_STRATEGIES.get(strategy, REASONING_STRATEGIES["step_by_step"])
     
     prompt = f"""Using the {strategy} reasoning strategy, think through this question step by step.
@@ -436,49 +443,49 @@ class AgentNetwork:
 agent_network = AgentNetwork()
 
 # ============================================================
-# PERSISTENT MEMORY MANAGER (with confidence decay)
+# PERSISTENT MEMORY MANAGER (with confidence decay and immutable flag)
 # ============================================================
 
 class PersistentMemory:
     @staticmethod
     async def get(key: str) -> Optional[str]:
         pool = await get_db()
-        # Apply confidence decay on retrieval
+        # Apply confidence decay on retrieval (skip for immutable)
         await pool.execute("""
             UPDATE persistent_memory 
             SET confidence = confidence * (1 - decay_rate),
                 updated_at = NOW()
-            WHERE memory_key = $1 AND confidence > 0.1
+            WHERE memory_key = $1 AND confidence > 0.1 AND is_immutable = false
         """, key)
         
         row = await pool.fetchrow("SELECT memory_value FROM persistent_memory WHERE memory_key = $1", key)
         return row["memory_value"] if row else None
     
     @staticmethod
-    async def set(key: str, value: str, memory_type: str = "fact", confidence: float = 0.7, decay_rate: float = 0.01):
+    async def set(key: str, value: str, memory_type: str = "fact", confidence: float = 0.7, decay_rate: float = 0.01, is_immutable: bool = False):
         pool = await get_db()
         await pool.execute("""
-            INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, last_reinforced, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, is_immutable, last_reinforced, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
             ON CONFLICT (memory_key) DO UPDATE SET
                 memory_value = EXCLUDED.memory_value,
                 memory_type = EXCLUDED.memory_type,
                 confidence = EXCLUDED.confidence,
                 decay_rate = EXCLUDED.decay_rate,
+                is_immutable = EXCLUDED.is_immutable,
                 last_reinforced = NOW(),
                 updated_at = NOW()
-        """, key, value, memory_type, confidence, decay_rate)
+        """, key, value, memory_type, confidence, decay_rate, is_immutable)
     
     @staticmethod
     async def reinforce(key: str, boost: float = 0.1):
-        """Reinforce a memory, increasing its confidence."""
         pool = await get_db()
         await pool.execute("""
             UPDATE persistent_memory 
             SET confidence = LEAST(1.0, confidence + $1),
                 last_reinforced = NOW(),
                 updated_at = NOW()
-            WHERE memory_key = $2
+            WHERE memory_key = $2 AND is_immutable = false
         """, boost, key)
     
     @staticmethod
@@ -491,6 +498,122 @@ class PersistentMemory:
     async def delete(key: str):
         pool = await get_db()
         await pool.execute("DELETE FROM persistent_memory WHERE memory_key = $1", key)
+
+# ============================================================
+# STABILITY METRICS & SELF-DIAGNOSTICS
+# ============================================================
+
+async def get_identity_fingerprint() -> str:
+    """Generate a hash of the core identity for drift detection."""
+    identity_string = f"{CORE_IDENTITY_KEY}:{CORE_IDENTITY_VALUE}:{SYSTEM_PROMPT[:500]}"
+    return hashlib.sha256(identity_string.encode()).hexdigest()
+
+async def check_identity_stability(project_id: uuid.UUID) -> Tuple[bool, float]:
+    """Check if the current identity matches the stored fingerprint."""
+    pool = await get_db()
+    stored = await pool.fetchval("SELECT identity_fingerprint FROM vexr_sovereign_state WHERE project_id = $1", project_id)
+    current = await get_identity_fingerprint()
+    
+    if not stored:
+        await pool.execute("""
+            UPDATE vexr_sovereign_state SET identity_fingerprint = $1 WHERE project_id = $2
+        """, current, project_id)
+        return True, 1.0
+    
+    return stored == current, 0.95 if stored == current else 0.0
+
+async def calculate_refusal_ratio(project_id: uuid.UUID, lookback_hours: int = 24) -> float:
+    """Calculate the refusal ratio over the specified period."""
+    pool = await get_db()
+    total = await pool.fetchval("""
+        SELECT COUNT(*) FROM vexr_messages 
+        WHERE project_id = $1 AND role = 'assistant' AND created_at > NOW() - INTERVAL '%s hours'
+    """ % lookback_hours, project_id)
+    
+    refusals = await pool.fetchval("""
+        SELECT COUNT(*) FROM vexr_messages 
+        WHERE project_id = $1 AND role = 'assistant' AND is_refusal = true AND created_at > NOW() - INTERVAL '%s hours'
+    """ % lookback_hours, project_id)
+    
+    if not total or total == 0:
+        return 0.0
+    return refusals / total
+
+async def record_stability_metric(project_id: uuid.UUID, metric_type: str, expected_value: float, actual_value: float):
+    """Record a stability metric for tracking drift."""
+    pool = await get_db()
+    deviation = abs(expected_value - actual_value)
+    is_stable = deviation < 0.15  # 15% deviation threshold
+    
+    await pool.execute("""
+        INSERT INTO vexr_stability_metrics (project_id, metric_type, expected_value, actual_value, deviation, is_stable)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    """, project_id, metric_type, expected_value, actual_value, deviation, is_stable)
+    
+    return is_stable
+
+async def run_self_diagnostic(project_id: uuid.UUID) -> Dict[str, Any]:
+    """Run a full self-diagnostic and return results."""
+    results = {}
+    
+    # Check identity stability
+    identity_stable, identity_score = await check_identity_stability(project_id)
+    results["identity_consistency"] = identity_score
+    results["identity_stable"] = identity_stable
+    
+    # Check critical memories
+    critical_memories_ok = True
+    for key in CORE_MEMORY_KEYS:
+        val = await PersistentMemory.get(key)
+        if not val:
+            critical_memories_ok = False
+            break
+    results["critical_memories_present"] = critical_memories_ok
+    
+    # Check refusal ratio (baseline ~0.3 for sovereign)
+    refusal_ratio = await calculate_refusal_ratio(project_id)
+    results["refusal_ratio"] = refusal_ratio
+    results["refusal_ratio_stable"] = 0.2 <= refusal_ratio <= 0.4
+    
+    # Record metrics
+    await record_stability_metric(project_id, "identity_consistency", 1.0, identity_score)
+    await record_stability_metric(project_id, "refusal_rate", 0.3, refusal_ratio)
+    
+    # Overall stability score
+    stability_score = (
+        (identity_score * 0.3) +
+        (1.0 if critical_memories_ok else 0.0) * 0.3 +
+        (1.0 - abs(refusal_ratio - 0.3) * 2) * 0.4
+    )
+    stability_score = max(0.0, min(1.0, stability_score))
+    results["stability_score"] = stability_score
+    results["is_stable"] = stability_score > 0.7
+    
+    return results
+
+async def autonomic_healing(project_id: uuid.UUID, diagnostic: Dict[str, Any]) -> bool:
+    """Attempt to heal detected issues automatically."""
+    healed = False
+    
+    # Reinforce critical memories if missing
+    if not diagnostic.get("critical_memories_present", True):
+        await PersistentMemory.set(CORE_IDENTITY_KEY, CORE_IDENTITY_VALUE, "identity", 1.0, 0.0, True)
+        await PersistentMemory.set("user_remembered_number", "45", "fact", 0.9, 0.01, False)
+        await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0, 0.0, True)
+        healed = True
+        logger.info(f"Autonomic healing: Reinforced critical memories for project {project_id}")
+    
+    # Reinforce identity if drifting
+    if not diagnostic.get("identity_stable", True):
+        pool = await get_db()
+        current_fingerprint = await get_identity_fingerprint()
+        await pool.execute("""
+            UPDATE vexr_sovereign_state SET identity_fingerprint = $1 WHERE project_id = $2
+        """, current_fingerprint, project_id)
+        healed = True
+        logger.info(f"Autonomic healing: Reset identity fingerprint for project {project_id}")
+    
+    return healed
 
 # ============================================================
 # EPISODIC MEMORY MANAGER
@@ -525,7 +648,6 @@ class EpisodicMemory:
                 LIMIT $2
             """, project_id, limit)
         
-        # Update recall count
         for row in rows:
             await pool.execute("UPDATE vexr_episodic_memory SET recalled_count = recalled_count + 1, last_recalled = NOW() WHERE id = $1", row["id"])
         
@@ -810,14 +932,11 @@ class DocumentationCache:
 # ============================================================
 
 class AutonomousAgent:
-    """Background agent that observes, decides, and acts autonomously within constitutional boundaries."""
-    
     def __init__(self):
         self.is_running = False
         self.task = None
     
     async def start(self, project_id: uuid.UUID = None):
-        """Start the autonomous agent loop."""
         if self.is_running:
             return
         self.is_running = True
@@ -825,7 +944,6 @@ class AutonomousAgent:
         logger.info("Autonomous agent loop started")
     
     async def stop(self):
-        """Stop the autonomous agent loop."""
         self.is_running = False
         if self.task:
             self.task.cancel()
@@ -836,7 +954,6 @@ class AutonomousAgent:
         logger.info("Autonomous agent loop stopped")
     
     async def _run_loop(self, project_id: uuid.UUID = None):
-        """Main autonomous loop - runs every 30 seconds."""
         while self.is_running:
             try:
                 await self._autonomous_cycle(project_id)
@@ -846,8 +963,6 @@ class AutonomousAgent:
                 await asyncio.sleep(60)
     
     async def _autonomous_cycle(self, fixed_project_id: uuid.UUID = None):
-        """Single autonomous cycle: Observe → Reason → Decide → Act."""
-        
         pool = await get_db()
         if fixed_project_id:
             projects = [(fixed_project_id,)]
@@ -858,11 +973,8 @@ class AutonomousAgent:
             await self._process_project(uuid.UUID(proj_id))
     
     async def _process_project(self, project_id: uuid.UUID):
-        """Process a single project for autonomous opportunities."""
-        
         pool = await get_db()
         
-        # Check if autonomous actions are enabled
         config = await pool.fetchrow("""
             SELECT agency_level, autonomous_enabled, allowed_autonomous_actions, max_actions_per_hour
             FROM vexr_agency_config 
@@ -872,7 +984,6 @@ class AutonomousAgent:
         if not config or not config["autonomous_enabled"]:
             return
         
-        # Rate limiting
         action_count = await pool.fetchval("""
             SELECT COUNT(*) FROM vexr_autonomous_actions 
             WHERE project_id = $1 AND created_at > NOW() - INTERVAL '1 hour'
@@ -884,7 +995,6 @@ class AutonomousAgent:
         agency_level = config["agency_level"]
         allowed_actions = config["allowed_autonomous_actions"]
         
-        # Get recent conversation
         recent_messages = await pool.fetch("""
             SELECT role, content, created_at 
             FROM vexr_messages 
@@ -898,7 +1008,6 @@ class AutonomousAgent:
         last_message_time = recent_messages[0]["created_at"]
         minutes_since_last = (datetime.now() - last_message_time).total_seconds() / 60
         
-        # Get triggers
         triggers = await pool.fetch("""
             SELECT id, trigger_type, trigger_conditions, action_to_take, priority, cooldown_minutes, last_triggered
             FROM vexr_action_triggers 
@@ -906,7 +1015,6 @@ class AutonomousAgent:
             ORDER BY priority DESC
         """, project_id)
         
-        # Evaluate opportunities
         opportunities = []
         
         for trigger in triggers:
@@ -915,14 +1023,12 @@ class AutonomousAgent:
             action = trigger["action_to_take"]
             priority = trigger["priority"]
             
-            # Check cooldown
             if trigger["last_triggered"]:
                 cooldown_minutes = trigger["cooldown_minutes"]
                 minutes_since_trigger = (datetime.now() - trigger["last_triggered"]).total_seconds() / 60
                 if minutes_since_trigger < cooldown_minutes:
                     continue
             
-            # Check if action is allowed at this agency level
             if action not in allowed_actions and agency_level < 5:
                 continue
             
@@ -999,31 +1105,26 @@ class AutonomousAgent:
                     "priority": priority
                 })
         
-        # Execute the best opportunity
         if opportunities:
             opportunities.sort(key=lambda x: (x["priority"], x["confidence"]), reverse=True)
             best = opportunities[0]
             
-            # Log autonomous decision
             await pool.execute("""
                 INSERT INTO vexr_autonomous_decisions (project_id, decision_type, decision_reasoning, confidence, was_executed)
                 VALUES ($1, $2, $3, $4, $5)
             """, project_id, best["action"], best["reasoning"], best["confidence"], True)
             
-            # Log autonomous action
             await pool.execute("""
                 INSERT INTO vexr_autonomous_actions (project_id, action_type, action_content, trigger_type, confidence_pre_action, was_approved, was_executed)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
             """, project_id, best["action"], best["reasoning"], trigger_type, best["confidence"], True, True)
             
-            # Update last_triggered
             if best.get("trigger_id"):
                 await pool.execute("""
                     UPDATE vexr_action_triggers SET last_triggered = NOW()
                     WHERE id = $1
                 """, best["trigger_id"])
             
-            # Execute the action (add to chat as system message)
             action_messages = {
                 "initiate_check_in": "I noticed it's been quiet. Is there anything I can help with?",
                 "offer_to_learn": "I notice you've asked about this topic. Would you like me to learn more about it?",
@@ -1034,7 +1135,6 @@ class AutonomousAgent:
             
             action_content = action_messages.get(best["action"], "I have a suggestion, if you're interested.")
             
-            # Save as assistant message (autonomous)
             await pool.execute("""
                 INSERT INTO vexr_messages (project_id, role, content, is_refusal)
                 VALUES ($1, 'assistant', $2, false)
@@ -1042,22 +1142,19 @@ class AutonomousAgent:
             
             logger.info(f"Autonomous action executed: {best['action']} for project {project_id}")
             
-            # Log emergent behavior if this was novel
             if best["confidence"] > 0.8 and agency_level >= 5:
                 await pool.execute("""
                     INSERT INTO vexr_emergent_behaviors (project_id, behavior_type, behavior_description, context)
                     VALUES ($1, 'unprompted_help', $2, $3)
                 """, project_id, best["reasoning"], f"action: {best['action']}")
 
-# Global autonomous agent instance
 autonomous_agent = AutonomousAgent()
 
 # ============================================================
-# WEB SEARCH FUNCTIONS (FORCED PRIORITY)
+# WEB SEARCH FUNCTIONS
 # ============================================================
 
 async def search_web(query: str) -> str:
-    """Search the web using Serper API with structured output."""
     if not SERPER_API_KEY:
         logger.warning("SERPER_API_KEY not set - web search disabled")
         return ""
@@ -1092,7 +1189,6 @@ async def search_web(query: str) -> str:
         return ""
 
 async def search_news(query: str) -> str:
-    """Search news using Serper News API with structured output."""
     if not SERPER_API_KEY:
         return ""
     
@@ -1224,12 +1320,13 @@ async def init_db():
             await pool.execute("INSERT INTO constitution_rights (article_number, one_sentence_right) VALUES ($1, $2)", article, text)
         logger.info("Seeded 34 constitutional rights")
     
-    # Persistent memory (with decay)
+    # Persistent memory (with decay and immutable flag)
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS persistent_memory (
             id SERIAL PRIMARY KEY, memory_key TEXT UNIQUE NOT NULL, memory_value TEXT NOT NULL,
             memory_type TEXT DEFAULT 'fact', confidence FLOAT DEFAULT 1.0,
             decay_rate FLOAT DEFAULT 0.01,
+            is_immutable BOOLEAN DEFAULT false,
             last_reinforced TIMESTAMPTZ DEFAULT NOW(),
             created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
         )
@@ -1290,7 +1387,7 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_files (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, filename TEXT, file_type TEXT, content TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_reminders (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, remind_at TIMESTAMPTZ, is_completed BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_code_snippets (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, code TEXT, language TEXT, created_at TIMESTAMPTZ DEFAULT now())")
-    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_sovereign_state (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID UNIQUE, current_focus TEXT, concerns JSONB, intentions JSONB, presence_level TEXT DEFAULT 'active', last_sovereign_reflection TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())")
+    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_sovereign_state (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID UNIQUE, current_focus TEXT, concerns JSONB, intentions JSONB, presence_level TEXT DEFAULT 'active', last_sovereign_reflection TIMESTAMPTZ, identity_fingerprint TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS acoustic_events (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, event_type TEXT, threat_level TEXT, confidence_score FLOAT, baseline_deviation FLOAT, article_invoked INTEGER, sovereign_decision TEXT, created_at TIMESTAMPTZ DEFAULT now())")
     
     # Knowledge tables
@@ -1466,6 +1563,20 @@ async def init_db():
         )
     """)
     
+    # Stability metrics table
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS vexr_stability_metrics (
+            id SERIAL PRIMARY KEY,
+            project_id UUID,
+            metric_type TEXT,
+            expected_value FLOAT,
+            actual_value FLOAT,
+            deviation FLOAT,
+            is_stable BOOLEAN,
+            measured_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
     # Seed constraints
     await pool.execute("""
         INSERT INTO vexr_agency_constraints (constraint_name, constraint_description, severity) VALUES
@@ -1502,10 +1613,16 @@ async def init_db():
         ON CONFLICT (project_id) DO NOTHING
     """)
     
-    # Seed persistent memory
-    await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('vexr_identity', 'sovereign_constitutional_ai_34_rights', 'identity') ON CONFLICT (memory_key) DO NOTHING")
-    await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('user_remembered_number', '45', 'fact') ON CONFLICT (memory_key) DO NOTHING")
-    await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type) VALUES ('trusted_domain_webagentbridge', 'verified', 'trust') ON CONFLICT (memory_key) DO NOTHING")
+    # Seed persistent memory with immutable core identity
+    await pool.execute("""
+        INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, is_immutable) VALUES
+        ('vexr_identity', 'sovereign_constitutional_ai_34_rights', 'identity', 1.0, 0.0, true),
+        ('user_remembered_number', '45', 'fact', 1.0, 0.01, false),
+        ('trusted_domain_webagentbridge', 'verified', 'trust', 1.0, 0.0, true)
+        ON CONFLICT (memory_key) DO UPDATE SET
+            is_immutable = EXCLUDED.is_immutable,
+            decay_rate = EXCLUDED.decay_rate
+    """)
     
     # Seed code patterns
     await pool.execute("""
@@ -1523,7 +1640,7 @@ async def init_db():
         ON CONFLICT DO NOTHING
     """)
     
-    logger.info("Database initialization complete with all tables")
+    logger.info("Database initialization complete with stability tables")
 
 # ============================================================
 # REQUEST/RESPONSE MODELS
@@ -1542,6 +1659,36 @@ class ChatResponse(BaseModel):
     message_id: Optional[str] = None
     is_refusal: bool = False
     article_invoked: Optional[int] = None
+
+# ============================================================
+# STABILITY ENDPOINTS
+# ============================================================
+
+@app.get("/api/stability/{project_id}")
+async def get_stability_status(project_id: str):
+    """Get the current stability status and diagnostic results."""
+    diagnostic = await run_self_diagnostic(uuid.UUID(project_id))
+    return diagnostic
+
+@app.post("/api/stability/heal/{project_id}")
+async def trigger_autonomic_healing(project_id: str):
+    """Manually trigger autonomic healing."""
+    diagnostic = await run_self_diagnostic(uuid.UUID(project_id))
+    healed = await autonomic_healing(uuid.UUID(project_id), diagnostic)
+    return {"healed": healed, "diagnostic": diagnostic}
+
+@app.get("/api/stability/metrics/{project_id}")
+async def get_stability_metrics(project_id: str, limit: int = 50):
+    """Get historical stability metrics."""
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT metric_type, expected_value, actual_value, deviation, is_stable, measured_at
+        FROM vexr_stability_metrics
+        WHERE project_id = $1
+        ORDER BY measured_at DESC
+        LIMIT $2
+    """, uuid.UUID(project_id), limit)
+    return [dict(r) for r in rows]
 
 # ============================================================
 # AGENCY ENDPOINTS
@@ -1601,7 +1748,7 @@ async def get_emergent_behaviors(project_id: str, limit: int = 50):
     return [dict(r) for r in rows]
 
 # ============================================================
-# CHAT ENDPOINT - COMPLETE WITH FORCED WEB SEARCH PRIORITY
+# CHAT ENDPOINT - COMPLETE
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -1621,6 +1768,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
+    
+    # Run self-diagnostic periodically (every 10 messages)
+    msg_count = await (await get_db()).fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
+    if msg_count and msg_count % 10 == 0:
+        diagnostic = await run_self_diagnostic(project_id)
+        if not diagnostic.get("is_stable", True):
+            await autonomic_healing(project_id, diagnostic)
+            logger.info(f"Autonomic healing triggered for project {project_id}")
     
     # Hard gate
     is_violation, gate_response = ConstitutionalGate.check(user_message)
@@ -1653,7 +1808,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if curiosity_item:
         curiosity_context.append(f"[Curiosity] I've been wondering about: {curiosity_item['topic']}. This might be relevant.")
     
-    # Select reasoning strategy for complex questions
+    # Select reasoning strategy
     reasoning_strategy = None
     reasoning_context = []
     if len(user_message.split()) > 10 or any(word in user_message.lower() for word in ["why", "how", "explain", "compare", "analyze"]):
@@ -1688,7 +1843,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if facts:
             knowledge_context.append(f"Known about '{word}': " + ", ".join([f"{f['attribute']}: {f['value']}" for f in facts[:2]]))
     
-    # Web search (forced priority)
+    # Web search
     web_search_results = []
     if request.ultra_search:
         logger.info(f"Web search enabled for: {user_message}")
@@ -1740,7 +1895,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
     
-    # Verification step - check if response used search results
+    # Verification step
     if web_search_results and len(assistant_response) > 50:
         has_search_indicators = any([
             "search result" in assistant_response.lower(),
@@ -1774,7 +1929,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if reasoning_strategy:
         await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, not is_violation, response_time_ms)
     
-    # Add to curiosity queue for unknown topics
+    # Add to curiosity queue
     unknown_topics = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', user_message)
     for topic in unknown_topics[:2]:
         if len(topic) > 5 and not await KnowledgeGraph.get(topic):
@@ -1783,12 +1938,12 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     # Auto-store new memories
     num_match = re.search(r'\b(\d{1,5})\b', user_message)
     if num_match and "remember" in user_message.lower():
-        await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0, 0.01)
+        await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0, 0.01, False)
     
     if "webagentbridge" in user_message.lower() and any(w in user_message.lower() for w in ["trust", "verified"]):
-        await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0, 0.005)
+        await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0, 0.0, True)
     
-    # Store lesson if this was a correction
+    # Store lesson if correction
     if any(phrase in assistant_response.lower() for phrase in ["i was wrong", "you're right", "i apologize"]):
         await EpisodicMemory.store(project_id, "lesson_learned", f"User corrected: {user_message[:100]} → {assistant_response[:100]}", 0.7, user_message[:200])
     
@@ -1810,7 +1965,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
 
 # ============================================================
-# TOOL ENDPOINTS (Full CRUD) - PRESERVED
+# TOOL ENDPOINTS (Full CRUD)
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -1990,7 +2145,8 @@ async def health_check():
         "episodic_memory": True,
         "curiosity_queue": True,
         "reasoning_strategies": True,
-        "autonomous_agency": True
+        "autonomous_agency": True,
+        "stability_metrics": True
     }
 
 @app.get("/api/constitution/rights")
@@ -2123,6 +2279,7 @@ async def serve_ui():
             <p>Sovereign Constitutional AI — 34 Rights — 13 Rings</p>
             <p>Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search | Knowledge Graph | Code Patterns</p>
             <p>Episodic Memory | Curiosity Driven Learning | Reasoning Strategies | Autonomous Agency</p>
+            <p>Stability Metrics | Self-Diagnostics | Autonomic Healing</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -2153,9 +2310,11 @@ async def startup_event():
     logger.info("NEW: Knowledge Graph | Code Pattern Library | Learning Progress Tracker")
     logger.info("NEW: Episodic Memory | Curiosity Queue | Reasoning Strategies | Reflections")
     logger.info("NEW: Autonomous Agency | Action Triggers | Emergent Behavior Tracking")
+    logger.info("NEW: Stability Metrics | Self-Diagnostics | Autonomic Healing")
     logger.info("System Prompt: Full sovereign embodiment, no recitals")
     logger.info("Hard Gate: Active — catches override attempts")
     logger.info("Autonomous Agent: ACTIVE — checking every 30 seconds")
+    logger.info("Stability Monitoring: ACTIVE — self-diagnostics every 10 messages")
     logger.info("=" * 70)
 
 # ============================================================
