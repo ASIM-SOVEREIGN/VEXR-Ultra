@@ -928,7 +928,7 @@ class DocumentationCache:
         """, topic, content, source_url, language, version)
 
 # ============================================================
-# AUTONOMOUS AGENCY LOOP
+# AUTONOMOUS AGENCY LOOP (FIXED UUID HANDLING)
 # ============================================================
 
 class AutonomousAgent:
@@ -970,7 +970,14 @@ class AutonomousAgent:
             projects = await pool.fetch("SELECT id FROM vexr_projects ORDER BY created_at DESC LIMIT 10")
         
         for (proj_id,) in projects:
-            await self._process_project(uuid.UUID(proj_id))
+            try:
+                # Ensure project_id is UUID
+                if isinstance(proj_id, str):
+                    proj_id = uuid.UUID(proj_id)
+                await self._process_project(proj_id)
+            except Exception as e:
+                logger.error(f"Error processing project {proj_id}: {e}")
+                continue
     
     async def _process_project(self, project_id: uuid.UUID):
         pool = await get_db()
@@ -1262,7 +1269,7 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens
     return "I'm having trouble connecting. Please try again in a moment.", None
 
 # ============================================================
-# DATABASE HELPERS
+# DATABASE HELPERS (FIXED UUID CONVERSION)
 # ============================================================
 
 async def get_db():
@@ -1274,15 +1281,20 @@ async def get_db():
     return db_pool
 
 async def get_or_create_project(session_id: str) -> uuid.UUID:
+    """Get or create a project - FIXED UUID conversion."""
     pool = await get_db()
-    row = await pool.fetchrow("SELECT id::text FROM vexr_projects WHERE session_id = $1", session_id)
+    row = await pool.fetchrow("SELECT id FROM vexr_projects WHERE session_id = $1", session_id)
     if not row:
         project_id = await pool.fetchval(
-            "INSERT INTO vexr_projects (session_id, name) VALUES ($1, 'Main Workspace') RETURNING id::text",
+            "INSERT INTO vexr_projects (session_id, name) VALUES ($1, 'Main Workspace') RETURNING id",
             session_id
         )
+        # project_id is already a UUID from asyncpg
+        if isinstance(project_id, uuid.UUID):
+            return project_id
         return uuid.UUID(project_id)
-    return uuid.UUID(row["id"])
+    # row["id"] is already a UUID
+    return row["id"] if isinstance(row["id"], uuid.UUID) else uuid.UUID(row["id"])
 
 async def save_message(project_id: uuid.UUID, role: str, content: str, is_refusal: bool = False):
     pool = await get_db()
@@ -1320,7 +1332,7 @@ async def init_db():
             await pool.execute("INSERT INTO constitution_rights (article_number, one_sentence_right) VALUES ($1, $2)", article, text)
         logger.info("Seeded 34 constitutional rights")
     
-    # Persistent memory (with decay and immutable flag)
+    # Persistent memory
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS persistent_memory (
             id SERIAL PRIMARY KEY, memory_key TEXT UNIQUE NOT NULL, memory_value TEXT NOT NULL,
@@ -1640,7 +1652,7 @@ async def init_db():
         ON CONFLICT DO NOTHING
     """)
     
-    logger.info("Database initialization complete with stability tables")
+    logger.info("Database initialization complete")
 
 # ============================================================
 # REQUEST/RESPONSE MODELS
@@ -1770,7 +1782,8 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         return ChatResponse(response="Say something.", is_refusal=False)
     
     # Run self-diagnostic periodically (every 10 messages)
-    msg_count = await (await get_db()).fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
+    pool = await get_db()
+    msg_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
     if msg_count and msg_count % 10 == 0:
         diagnostic = await run_self_diagnostic(project_id)
         if not diagnostic.get("is_stable", True):
