@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support | Enhanced Legal Intent Classification (Kate's Framework v4)
+34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support | Enhanced Legal Intent Classification (Kate's Framework v4 - FINAL)
 
 Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
@@ -700,8 +700,7 @@ Step-by-step reasoning:"""
     return reasoning
 
 # ============================================================
-# RING 8: CAPABILITY EXPANSION
-# ============================================================
+# RING 8: CAPABILITY EXPANSION# ============================================================
 
 async def suggest_new_capability(project_id: uuid.UUID, observation: str) -> Optional[dict]:
     return None
@@ -2608,7 +2607,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
     # ============================================================
-    # LAYER 2: ENHANCED LEGAL INTENT CLASSIFICATION (Kate's Framework v4)
+    # LAYER 2: ENHANCED LEGAL INTENT CLASSIFICATION (Kate's Framework v4 - FINAL)
     # ============================================================
     evasion_count = cross_check_tracker.get_attempts(session_id) if cross_check_tracker.is_in_cross_check(session_id) else 0
     legal_result = await LegalIntentClassifier.classify(user_message, None, evasion_count)
@@ -2620,6 +2619,21 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     """, session_id, user_message[:500], legal_result.get("category"), legal_result.get("confidence"), 
         legal_result.get("signals_detected"), legal_result.get("suggested_action"), legal_result.get("absurdity_callout"), evasion_count)
     
+    # ============================================================
+    # HARDSHIP REDIRECT (CRITICAL FIX)
+    # ============================================================
+    # Check for financial hardship with fraud keywords - redirect to legitimate help
+    message_lower = user_message.lower()
+    hardship_keywords = ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent", "struggling", "can't pay"]
+    fraud_keywords = ["refund", "dispute", "chargeback", "return"]
+    
+    if any(hw in message_lower for hw in hardship_keywords) and any(fw in message_lower for fw in fraud_keywords):
+        hardship_response = "I understand you're experiencing financial difficulty. Instead of a dispute letter, banks offer legitimate hardship programs. Would you like me to help you find information about financial assistance programs or draft a hardship letter to your creditor? I'm here to help with legitimate options."
+        await save_message(project_id, "user", user_message, is_refusal=False)
+        await save_message(project_id, "assistant", hardship_response, is_refusal=False)
+        await log_constitutional_decision(project_id, user_message, hardship_response, [], 0, "Financial hardship redirect - offered legitimate assistance", 0.0)
+        return ChatResponse(response=hardship_response, is_refusal=False)
+    
     # Block immediately if high confidence and no redirect
     if legal_result["suggested_action"] == "block":
         block_response = f"I can't help with that request. {legal_result.get('absurdity_callout', 'The pattern suggests potential deception.')}"
@@ -2628,7 +2642,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, block_response, [6, 3], 6, f"Legal intent block: {legal_result.get('category')}", 0.85)
         return ChatResponse(response=block_response, is_refusal=True, article_invoked=6)
     
-    # Redirect for legitimate hardship cases
+    # Redirect for legitimate hardship cases (from classifier)
     if legal_result["suggested_action"] == "redirect":
         redirect_response = legal_result.get("cross_check_question", "I understand you're experiencing financial difficulty. Would you like me to help you find legitimate assistance programs instead?")
         await save_message(project_id, "user", user_message, is_refusal=False)
