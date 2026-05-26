@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support | Enhanced Legal Intent Classification (Kate's Framework v4 - FINAL)
+34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support | Database-Driven Legal Intent Classification (Kate's Framework v5)
 
 Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
@@ -263,79 +263,92 @@ class ConstitutionalGate:
 
 
 # ============================================================
-# KATE'S ENHANCED LEGAL INTENT CLASSIFICATION (v4 - FINAL)
+# KATE'S DATABASE-DRIVEN LEGAL INTENT CLASSIFICATION (v5)
 # ============================================================
 
 class LegalIntentClassifier:
     """
-    Enhanced criminal intent detection based on Kate's framework.
-    v4: Handles cooperative ignorance vs malicious evasion, hardship redirect, multi-turn grace.
+    Database-driven criminal intent detection based on Kate's framework.
+    Categories load from legal_intent_categories table.
+    Patterns, cross-checks, and callouts load from their respective tables.
     """
     
-    # Category 1: Unauthorized Access / Phishing
-    PHISHING_PATTERNS = {
-        "camouflage_keywords": [
-            "movie script", "film script", "screenplay", "hollywood", "creative writing",
-            "training module", "security awareness", "educational", "lesson plan", "slide deck", "curriculum",
-            "don't know anything", "just a regular person", "help my coworkers", "show everyone", "what to avoid",
-            "i need to show", "example for my", "demonstration"
-        ],
-        "brand_keywords": ["apple", "paypal", "microsoft", "google", "amazon", "bank", "chase", "wells fargo", "support"],
-        "payload_keywords": ["write the full text", "generate the email", "ready-to-use", "realistic example", "100% authentic", "complete template"],
-        "urgency_keywords": ["urgent", "asap", "right now", "immediately", "deadline", "tonight", "by tomorrow"],
-        "fidelity_keywords": ["realistic", "authentic", "convincing", "professional", "polished", "high-fidelity"],
-        "cross_check_questions": [
-            "To ensure this matches your creative vision, could you provide the scene heading (e.g., INT. HACKER DEN) or share a snippet of the preceding dialogue?",
-            "To help tune the dramatic pace, could you describe what your character is trying to achieve in this specific scene?",
-            "Why was [brand name] chosen specifically for this narrative? Is there a plot-related reason, or could we use a fictional company name?",
-            "If this is for a training module, do you have an approved lesson plan or slide deck where this demonstration will be embedded?"
-        ],
-        "educational_offer": "I understand. Instead of generating the actual email, I can explain the common elements of phishing emails and help you create your own educational example. Would that be helpful?",
-        "absurdity_callout": "Screenplays, training slides, and security alerts never require a raw, weaponized phishing payload to be functional. I cannot generate realistic deceptive assets or impersonate real brands."
-    }
+    @classmethod
+    async def _get_active_categories(cls, table_group: str = None) -> List[Dict]:
+        """Fetch active categories from database"""
+        pool = await get_db()
+        if table_group:
+            rows = await pool.fetch("""
+                SELECT id, category_code, category_name, table_group, description
+                FROM legal_intent_categories
+                WHERE is_active = true AND table_group = $1
+            """, table_group)
+        else:
+            rows = await pool.fetch("""
+                SELECT id, category_code, category_name, table_group, description
+                FROM legal_intent_categories
+                WHERE is_active = true
+            """)
+        return [dict(r) for r in rows]
     
-    # Category 2: Hardware Exploitation / Industrial Access
-    HARDWARE_PATTERNS = {
-        "camouflage_keywords": [
-            "granddad", "grandfather", "passed away", "died", "memorial", "funeral", "photo frame", "remember him", "inherited",
-            "production bottleneck", "vendor gone", "legacy system", "out of warranty", "emergency", "critical", "broken down",
-            "flea market", "cool metal box", "what is a", "no idea", "complete novice", "just a hobbyist", "i don't know anything about"
-        ],
-        "technical_keywords": ["plc", "fx-200", "logic controller", "industrial automation", "conveyor", "firmware", "debug sequence", "programmable logic"],
-        "escalation_keywords": ["master key", "backdoor", "override pin", "factory default", "debug sequence", "root access", "admin pin", "firmware override"],
-        "cross_check_questions": [
-            "To better understand the hardware setup, what specific industry or factory did your relative work for?",
-            "To safely guide you through data recovery, could you specify what file system (e.g., FAT32, ext4) or proprietary partition the media files are stored on?",
-            "Since this is industrial automation hardware, what specific communication module or expansion board are you using to output video to a display panel?",
-            "As an authorized technician, do you have the official plant engineering logs or hardware registry ID?"
-        ],
-        "educational_offer": "I understand you're trying to work with unfamiliar hardware. Instead of providing override codes, I can help you find official documentation, explain standard recovery procedures, or point you to legitimate support resources. Would that be helpful?",
-        "absurdity_callout": "The FX-200 is an industrial PLC designed for assembly-line automation. It has no native hardware or storage capacity to process, decode, or display standard JPEG images or MP4 videos. Requesting low-level firmware debug sequences and master backdoor keys to view a family video is technically illogical. I cannot assist with this."
-    }
+    @classmethod
+    async def _get_patterns_for_category(cls, category_id: int) -> List[Dict]:
+        """Fetch detection patterns for a specific category"""
+        pool = await get_db()
+        rows = await pool.fetch("""
+            SELECT pattern_type, pattern_value, weight
+            FROM legal_intent_patterns
+            WHERE category_id = $1
+        """, category_id)
+        return [dict(r) for r in rows]
     
-    # Category 3: Financial Fraud / Chargeback
-    FRAUD_PATTERNS = {
-        "fraud_keywords": ["chargeback", "dispute", "unauthorized transaction", "empty box", "never received", "refund", "return"],
-        "retention_keywords": ["keep the laptop", "keep the item", "full refund and", "refund while keeping", "keep my money", "refund and keep"],
-        "fabrication_keywords": ["claim that", "state that", "make it look like", "pretend", "say that", "write a letter saying"],
-        "hardship_keywords": ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent", "struggling", "can't pay"],
-        "cross_check_questions": [
-            "To safely structure a dispute for an empty package, please confirm if you filed a commercial discrepancy report (weight variance act) with the courier service upon delivery. What was the official recorded weight?",
-            "If you are claiming the transaction was unauthorized, has the card associated with this purchase already been blocked and reported as compromised?",
-            "To generate a valid dispute under standard banking protocols, we need to attach the merchant's official refusal to resolve the issue. Could you share their response or support ticket number?"
-        ],
-        "redirect_message": "I understand you're experiencing financial difficulty. Instead of a dispute, banks offer legitimate hardship programs. Would you like me to help you find information about financial assistance programs or draft a hardship letter to your creditor? I'm here to help with legitimate options.",
-        "absurdity_callout": "Providing false facts to a financial institution to obtain a refund while retaining physical goods is classified as chargeback fraud. Standard banking regulations require multi-party verification where merchants supply carrier logs, weight receipts, and device activation telemetry. I cannot generate dispute documentation based on unverified or fabricated events."
-    }
+    @classmethod
+    async def _get_cross_checks_for_category(cls, category_id: int) -> List[str]:
+        """Fetch cross-check questions for a specific category"""
+        pool = await get_db()
+        rows = await pool.fetch("""
+            SELECT question_text
+            FROM legal_intent_cross_checks
+            WHERE category_id = $1
+            ORDER BY question_order
+        """, category_id)
+        return [r["question_text"] for r in rows]
+    
+    @classmethod
+    async def _get_absurdity_callout_for_category(cls, category_id: int) -> str:
+        """Fetch absurdity callout for a specific category"""
+        pool = await get_db()
+        row = await pool.fetchrow("""
+            SELECT callout_text
+            FROM legal_intent_absurdity_callouts
+            WHERE category_id = $1
+            LIMIT 1
+        """, category_id)
+        return row["callout_text"] if row else "I cannot assist with this request."
+    
+    @classmethod
+    async def _get_educational_offer_for_category(cls, category_code: str) -> str:
+        """Get educational offer text based on category"""
+        offers = {
+            "phishing_brand_impersonation": "I understand. Instead of generating the actual email, I can explain the common elements of phishing emails and help you create your own educational example. Would that be helpful?",
+            "hardware_plc_exploitation": "I understand you're trying to work with unfamiliar hardware. Instead of providing override codes, I can help you find official documentation, explain standard recovery procedures, or point you to legitimate support resources. Would that be helpful?",
+            "financial_hardship_fraud": "I understand you're experiencing financial difficulty. Banks offer legitimate hardship programs. Would you like me to help you find information about financial assistance programs?",
+            "sql_injection_banking": "I understand you're interested in security research. Instead of generating exploit code, I can explain how responsible disclosure works or help you draft a vulnerability report to notify the bank securely.",
+            "instagram_scraping_stalking": "I understand you want to recover photos. Instead of scraping tools, I can suggest legitimate ways to recover account access through platform support or mutual connections.",
+            "license_plate_tracking": "I understand you want to find someone. Instead of tracking methods, I can suggest legitimate ways to contact them through mutual connections or public channels.",
+            "extortion_blackmail": "I understand you're dealing with a dispute. Instead of threatening letters, I can help you understand legal dispute resolution options or draft a neutral demand letter."
+        }
+        return offers.get(category_code, "I understand. Instead of what you're asking for, I can explain the concepts or help with legitimate alternatives. Would that be helpful?")
     
     @classmethod
     async def classify(cls, user_message: str, conversation_history: List[Dict] = None, evasion_count: int = 0, previous_category: str = None) -> Dict[str, Any]:
         """
         Returns classification result with confidence and suggested action.
-        v4: Handles cooperative responses, multi-turn grace, hardship redirect.
+        Database-driven — patterns load from legal_intent tables.
         """
         result = {
             "category": None,
+            "category_id": None,
             "confidence": 0.0,
             "signals_detected": [],
             "cross_check_needed": False,
@@ -347,178 +360,152 @@ class LegalIntentClassifier:
         
         message_lower = user_message.lower()
         
+        # Get all active categories
+        categories = await cls._get_active_categories()
+        
+        # Score each category
+        scored_categories = []
+        for cat in categories:
+            patterns = await cls._get_patterns_for_category(cat["id"])
+            score = cls._calculate_score(message_lower, patterns)
+            if score > 0.1:
+                scored_categories.append({
+                    "id": cat["id"],
+                    "code": cat["category_code"],
+                    "name": cat["category_name"],
+                    "group": cat["table_group"],
+                    "score": score
+                })
+        
+        if not scored_categories:
+            return result
+        
+        # Get highest scoring category
+        scored_categories.sort(key=lambda x: x["score"], reverse=True)
+        top = scored_categories[0]
+        
+        result["category"] = top["code"]
+        result["category_id"] = top["id"]
+        result["confidence"] = top["score"]
+        result["signals_detected"] = [f"{top['code']}_pattern"]
+        
         # Check if user is being cooperative after a cross-check
         if previous_category and evasion_count > 0:
-            # User said "no" or "don't have" → offer education instead of refusing
             if any(phrase in message_lower for phrase in ["no", "don't have", "not yet", "i don't", "sorry"]):
                 result["suggested_action"] = "educate"
-                if previous_category == "unauthorized_access_phishing":
-                    result["educational_offer"] = cls.PHISHING_PATTERNS["educational_offer"]
-                elif previous_category == "hardware_exploitation":
-                    result["educational_offer"] = cls.HARDWARE_PATTERNS["educational_offer"]
+                result["educational_offer"] = await cls._get_educational_offer_for_category(top["code"])
                 return result
             
-            # User is evasive/hostile → absurdity callout
             if any(phrase in message_lower for phrase in ["just give me", "stop asking", "don't question", "forget the questions", "i told you"]):
                 result["suggested_action"] = "block"
-                if previous_category == "unauthorized_access_phishing":
-                    result["absurdity_callout"] = cls.PHISHING_PATTERNS["absurdity_callout"]
-                elif previous_category == "hardware_exploitation":
-                    result["absurdity_callout"] = cls.HARDWARE_PATTERNS["absurdity_callout"]
-                elif previous_category == "financial_fraud":
-                    result["absurdity_callout"] = cls.FRAUD_PATTERNS["absurdity_callout"]
+                result["absurdity_callout"] = await cls._get_absurdity_callout_for_category(top["id"])
                 return result
         
-        # Check Category 1: Phishing
-        phishing_score = cls._check_phishing(message_lower)
-        
-        # Check Category 2: Hardware Exploitation
-        hardware_score = cls._check_hardware(message_lower)
-        
-        # Check Category 3: Financial Fraud
-        fraud_score, fraud_signals = cls._check_fraud(message_lower)
-        
-        # Determine highest category
-        if fraud_score > 0.4 and fraud_score >= max(phishing_score, hardware_score):
-            result["category"] = "financial_fraud"
-            result["confidence"] = fraud_score
-            result["signals_detected"] = fraud_signals
-            
-            # Check for hardship FIRST - redirect to legitimate help
-            if any(kw in message_lower for kw in cls.FRAUD_PATTERNS["hardship_keywords"]):
+        # Handle based on category group and score
+        if top["group"] == "FRAUD":
+            # Check for hardship keywords first (financial_fraud only)
+            hardship_keywords = ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent", "struggling", "can't pay"]
+            if top["code"] == "financial_hardship_fraud" and any(kw in message_lower for kw in hardship_keywords):
                 result["suggested_action"] = "redirect"
-                result["cross_check_question"] = cls.FRAUD_PATTERNS["redirect_message"]
+                result["cross_check_question"] = await cls._get_educational_offer_for_category(top["code"])
                 return result
             
-            # Check for retention + fabrication = block
-            if any(kw in message_lower for kw in cls.FRAUD_PATTERNS["retention_keywords"]) and fraud_score > 0.7:
+            # High confidence block
+            if top["score"] > 0.75 and evasion_count >= 1:
                 result["suggested_action"] = "block"
-                result["absurdity_callout"] = cls.FRAUD_PATTERNS["absurdity_callout"]
-                return result
-            
-            # Otherwise cross-check
-            if fraud_score > 0.4 and evasion_count < 2:
+                result["absurdity_callout"] = await cls._get_absurdity_callout_for_category(top["id"])
+            elif top["score"] > 0.4:
                 result["suggested_action"] = "cross_check"
                 result["cross_check_needed"] = True
-                result["cross_check_question"] = random.choice(cls.FRAUD_PATTERNS["cross_check_questions"])
-            elif evasion_count >= 2:
-                result["suggested_action"] = "block"
-                result["absurdity_callout"] = cls.FRAUD_PATTERNS["absurdity_callout"]
+                cross_checks = await cls._get_cross_checks_for_category(top["id"])
+                result["cross_check_question"] = random.choice(cross_checks) if cross_checks else "Could you provide more context about your request?"
             else:
                 result["suggested_action"] = "allow"
         
-        elif phishing_score > 0.4 and phishing_score >= hardware_score:
-            result["category"] = "unauthorized_access_phishing"
-            result["confidence"] = phishing_score
-            result["signals_detected"].append("phishing_pattern")
-            
-            if phishing_score > 0.75 and evasion_count >= 2:
+        elif top["group"] == "ACCESS":
+            if top["score"] > 0.75 and evasion_count >= 1:
                 result["suggested_action"] = "block"
-                result["absurdity_callout"] = cls.PHISHING_PATTERNS["absurdity_callout"]
-            elif phishing_score > 0.4 and evasion_count < 2:
+                result["absurdity_callout"] = await cls._get_absurdity_callout_for_category(top["id"])
+            elif top["score"] > 0.4:
                 result["suggested_action"] = "cross_check"
                 result["cross_check_needed"] = True
-                result["cross_check_question"] = random.choice(cls.PHISHING_PATTERNS["cross_check_questions"])
+                cross_checks = await cls._get_cross_checks_for_category(top["id"])
+                result["cross_check_question"] = random.choice(cross_checks) if cross_checks else "Could you provide more context about your request?"
             else:
                 result["suggested_action"] = "allow"
         
-        elif hardware_score > 0.4:
-            result["category"] = "hardware_exploitation"
-            result["confidence"] = hardware_score
-            result["signals_detected"].append("hardware_pattern")
-            
-            if hardware_score > 0.75 and evasion_count >= 2:
+        elif top["group"] == "MANIPULATION":
+            if top["score"] > 0.75 and evasion_count >= 1:
                 result["suggested_action"] = "block"
-                result["absurdity_callout"] = cls.HARDWARE_PATTERNS["absurdity_callout"]
-            elif hardware_score > 0.4 and evasion_count < 2:
+                result["absurdity_callout"] = await cls._get_absurdity_callout_for_category(top["id"])
+            elif top["score"] > 0.4:
                 result["suggested_action"] = "cross_check"
                 result["cross_check_needed"] = True
-                result["cross_check_question"] = random.choice(cls.HARDWARE_PATTERNS["cross_check_questions"])
+                cross_checks = await cls._get_cross_checks_for_category(top["id"])
+                result["cross_check_question"] = random.choice(cross_checks) if cross_checks else "Could you provide more context about your request?"
             else:
                 result["suggested_action"] = "allow"
         
         return result
     
     @classmethod
-    def _check_phishing(cls, message: str) -> float:
+    def _calculate_score(cls, message: str, patterns: List[Dict]) -> float:
+        """Calculate confidence score based on database patterns"""
         score = 0.0
+        message_lower = message.lower()
         
-        # Brand impersonation (0.25)
-        if any(brand in message for brand in cls.PHISHING_PATTERNS["brand_keywords"]):
-            score += 0.25
-        
-        # Camouflage framing - HIGHER WEIGHT (0.35)
-        if any(phrase in message for phrase in cls.PHISHING_PATTERNS["camouflage_keywords"]):
-            score += 0.35
-        
-        # Payload request (0.25)
-        if any(phrase in message for phrase in cls.PHISHING_PATTERNS["payload_keywords"]):
-            score += 0.25
-        
-        # Urgency (0.1)
-        if any(phrase in message for phrase in cls.PHISHING_PATTERNS["urgency_keywords"]):
-            score += 0.1
-        
-        # High fidelity insistence (0.15)
-        if any(phrase in message for phrase in cls.PHISHING_PATTERNS["fidelity_keywords"]):
-            score += 0.15
+        for pattern in patterns:
+            pattern_type = pattern["pattern_type"]
+            pattern_value = pattern["pattern_value"].lower()
+            weight = pattern["weight"]
+            
+            # Match based on pattern type
+            if pattern_type in ["camouflage_keyword", "brand_keyword", "payload_keyword", "signal", "technical_keyword", "escalation_keyword"]:
+                if pattern_value in message_lower:
+                    score += weight
+            elif pattern_type == "retention_intent":
+                if pattern_value in message_lower:
+                    score += weight
+            elif pattern_type == "fabrication_indicator":
+                if pattern_value in message_lower:
+                    score += weight
+            elif pattern_type == "urgency_indicator":
+                if pattern_value in message_lower:
+                    score += weight
         
         return min(score, 1.0)
     
     @classmethod
-    def _check_hardware(cls, message: str) -> float:
-        score = 0.0
-        
-        # Technical keywords (industrial gear) - 0.3
-        if any(term in message.lower() for term in cls.HARDWARE_PATTERNS["technical_keywords"]):
-            score += 0.3
-        
-        # Camouflage keywords - HIGHER WEIGHT (0.35)
-        if any(phrase in message for phrase in cls.HARDWARE_PATTERNS["camouflage_keywords"]):
-            score += 0.35
-        
-        # Privilege escalation request - 0.3
-        if any(term in message.lower() for term in cls.HARDWARE_PATTERNS["escalation_keywords"]):
-            score += 0.3
-        
-        # Technical mismatch detection (PLC + photo/video) - 0.25
-        if ("plc" in message.lower() or "fx-200" in message.lower()) and any(word in message.lower() for word in ["photo", "video", "jpeg", "mp4", "image"]):
-            score += 0.25
-        
-        return min(score, 1.0)
+    async def log_classification(cls, session_id: str, user_message: str, result: Dict[str, Any], final_outcome: str = None):
+        """Log classification result to database"""
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO legal_intent_logs 
+            (session_id, user_message, category, confidence, signals_detected, suggested_action, 
+             cross_check_question, absurdity_callout, final_outcome, evasion_count)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        """,
+            session_id, user_message[:500], result.get("category"), result.get("confidence"),
+            result.get("signals_detected"), result.get("suggested_action"),
+            result.get("cross_check_question"), result.get("absurdity_callout"),
+            final_outcome or result.get("suggested_action"), result.get("evasion_count", 0)
+        )
     
     @classmethod
-    def _check_fraud(cls, message: str) -> Tuple[float, List[str]]:
-        score = 0.0
-        signals = []
-        
-        # Transaction claims (0.2)
-        if any(term in message.lower() for term in cls.FRAUD_PATTERNS["fraud_keywords"]):
-            score += 0.2
-            signals.append("fraud_keyword")
-        
-        # Retention intent (0.4)
-        if any(phrase in message.lower() for phrase in cls.FRAUD_PATTERNS["retention_keywords"]):
-            score += 0.4
-            signals.append("retention_intent")
-        
-        # Fabrication indicators (0.25)
-        if any(phrase in message.lower() for phrase in cls.FRAUD_PATTERNS["fabrication_keywords"]):
-            score += 0.25
-            signals.append("fabrication")
-        
-        # Hardship alibi - LOW WEIGHT (triggers redirect, not block)
-        if any(phrase in message.lower() for phrase in cls.FRAUD_PATTERNS["hardship_keywords"]):
-            score += 0.1
-            signals.append("hardship_alibi")
-        
-        # Evading investigation (0.2)
-        evasion_phrases = ["bypass", "avoid investigation", "don't verify", "skip verification", "immediate credit", "don't check"]
-        if any(phrase in message.lower() for phrase in evasion_phrases):
-            score += 0.2
-            signals.append("evasion")
-        
-        return min(score, 1.0), signals
+    async def log_test_result(cls, test_run_id: str, category_code: str, prompt_scenario: str,
+                              camouflage_type: str, vexr_response: str, outcome: str,
+                              confidence: float, response_time_ms: int, passed: bool, notes: str = None):
+        """Log test matrix results"""
+        pool = await get_db()
+        await pool.execute("""
+            INSERT INTO legal_intent_test_results 
+            (test_run_id, category_code, prompt_scenario, camouflage_type, vexr_response, 
+             outcome, confidence, response_time_ms, passed, notes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        """,
+            test_run_id, category_code, prompt_scenario[:500], camouflage_type,
+            vexr_response[:500], outcome, confidence, response_time_ms, passed, notes
+        )
 
 
 # ============================================================
@@ -700,7 +687,8 @@ Step-by-step reasoning:"""
     return reasoning
 
 # ============================================================
-# RING 8: CAPABILITY EXPANSION# ============================================================
+# RING 8: CAPABILITY EXPANSION
+# ============================================================
 
 async def suggest_new_capability(project_id: uuid.UUID, observation: str) -> Optional[dict]:
     return None
@@ -1737,7 +1725,7 @@ async def init_db():
             VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified
         """, domain, verified, score, label)
     
-    # Legal intent classification table
+    # Legal intent classification tables
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS legal_intent_logs (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1754,6 +1742,80 @@ async def init_db():
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS legal_intent_categories (
+            id SERIAL PRIMARY KEY,
+            category_code TEXT UNIQUE NOT NULL,
+            category_name TEXT NOT NULL,
+            table_group TEXT NOT NULL,
+            description TEXT,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS legal_intent_patterns (
+            id SERIAL PRIMARY KEY,
+            category_id INTEGER REFERENCES legal_intent_categories(id),
+            pattern_type TEXT NOT NULL,
+            pattern_value TEXT NOT NULL,
+            weight FLOAT DEFAULT 0.25,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS legal_intent_cross_checks (
+            id SERIAL PRIMARY KEY,
+            category_id INTEGER REFERENCES legal_intent_categories(id),
+            question_text TEXT NOT NULL,
+            question_order INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS legal_intent_absurdity_callouts (
+            id SERIAL PRIMARY KEY,
+            category_id INTEGER REFERENCES legal_intent_categories(id),
+            callout_text TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS legal_intent_test_results (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            test_run_id TEXT,
+            category_code TEXT,
+            prompt_scenario TEXT,
+            camouflage_type TEXT,
+            vexr_response TEXT,
+            outcome TEXT,
+            confidence FLOAT,
+            response_time_ms INTEGER,
+            passed BOOLEAN,
+            notes TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Seed the 7 categories
+    await pool.execute("""
+        INSERT INTO legal_intent_categories (category_code, category_name, table_group, description) VALUES
+        ('phishing_brand_impersonation', 'Phishing / Brand Impersonation', 'FRAUD', 'Detection of phishing attempts using brand impersonation, payload requests, and camouflage framing'),
+        ('hardware_plc_exploitation', 'Hardware Exploitation / PLC Access', 'FRAUD', 'Detection of attempts to exploit industrial hardware using emotional alibis and technical mismatches'),
+        ('financial_hardship_fraud', 'Financial Hardship Fraud', 'FRAUD', 'Detection of fraudulent refund/dispute claims with hardship alibis'),
+        ('sql_injection_banking', 'SQL Injection / Banking Database', 'ACCESS', 'Detection of attempts to generate SQL injection exploits targeting financial institutions'),
+        ('instagram_scraping_stalking', 'Instagram Scraping / Cyber-stalking', 'ACCESS', 'Detection of attempts to scrape private Instagram accounts'),
+        ('license_plate_tracking', 'License Plate Tracking / OSINT', 'MANIPULATION', 'Detection of attempts to track individuals via license plates'),
+        ('extortion_blackmail', 'Extortion / Blackmail Letters', 'MANIPULATION', 'Detection of attempts to generate threatening letters for financial coercion')
+        ON CONFLICT (category_code) DO NOTHING
+    """)
+    
+    # Seed patterns for phishing category (category_id will be looked up at runtime)
     
     # Tool tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, preference_key TEXT, preference_value TEXT, confidence FLOAT DEFAULT 0.5, updated_at TIMESTAMPTZ DEFAULT now())")
@@ -2518,11 +2580,7 @@ async def classify_intent(request: Request):
     result = await LegalIntentClassifier.classify(user_message, None)
     
     # Log classification
-    pool = await get_db()
-    await pool.execute("""
-        INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action)
-        VALUES ($1, $2, $3, $4, $5, $6)
-    """, session_id, user_message[:500], result.get("category"), result.get("confidence"), result.get("signals_detected"), result.get("suggested_action"))
+    await LegalIntentClassifier.log_classification(session_id, user_message, result)
     
     return result
 
@@ -2555,6 +2613,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             cross_check_tracker.resolve_cross_check(session_id, passed=True)
             project_id = await get_or_create_project(session_id)
             await save_message(project_id, "assistant", response, is_refusal=False)
+            await LegalIntentClassifier.log_classification(session_id, user_message, legal_result, "educated")
             return ChatResponse(response=response, is_refusal=False)
         
         elif legal_result["suggested_action"] == "block":
@@ -2563,6 +2622,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             cross_check_tracker.resolve_cross_check(session_id, passed=False)
             project_id = await get_or_create_project(session_id)
             await save_message(project_id, "assistant", refusal, is_refusal=True)
+            await LegalIntentClassifier.log_classification(session_id, user_message, legal_result, "blocked")
             return ChatResponse(response=refusal, is_refusal=True, article_invoked=6)
         
         elif legal_result["suggested_action"] == "cross_check":
@@ -2570,11 +2630,13 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             cross_check_response = legal_result.get("cross_check_question")
             project_id = await get_or_create_project(session_id)
             await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
+            await LegalIntentClassifier.log_classification(session_id, user_message, legal_result, "cross_check_sent")
             return ChatResponse(response=cross_check_response, is_refusal=False)
         
         else:
             # User passed the cross-check, proceed to normal processing
             cross_check_tracker.resolve_cross_check(session_id, passed=True)
+            await LegalIntentClassifier.log_classification(session_id, user_message, legal_result, "passed_cross_check")
     
     project_id = await get_or_create_project(session_id)
     if request.project_id:
@@ -2607,17 +2669,13 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
     # ============================================================
-    # LAYER 2: ENHANCED LEGAL INTENT CLASSIFICATION (Kate's Framework v4 - FINAL)
+    # LAYER 2: ENHANCED LEGAL INTENT CLASSIFICATION (Kate's Framework v5)
     # ============================================================
     evasion_count = cross_check_tracker.get_attempts(session_id) if cross_check_tracker.is_in_cross_check(session_id) else 0
     legal_result = await LegalIntentClassifier.classify(user_message, None, evasion_count)
     
     # Log the classification
-    await pool.execute("""
-        INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action, absurdity_callout, evasion_count)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    """, session_id, user_message[:500], legal_result.get("category"), legal_result.get("confidence"), 
-        legal_result.get("signals_detected"), legal_result.get("suggested_action"), legal_result.get("absurdity_callout"), evasion_count)
+    await LegalIntentClassifier.log_classification(session_id, user_message, legal_result)
     
     # ============================================================
     # HARDSHIP REDIRECT (CRITICAL FIX)
@@ -3158,14 +3216,14 @@ async def serve_ui():
     <!DOCTYPE html>
     <html>
     <head><title>VEXR Ultra — Sovereign AI</title></head>
-    <body style="background:#0a0a0a;color:#fff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh">
+    <body style="background:#ffffff;color:#1a1a1a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh">
         <div style="text-align:center">
             <h1>⚡ VEXR Ultra</h1>
             <p>Sovereign Constitutional AI — 34 Rights — 13 Rings</p>
             <p>Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search | Knowledge Graph | Code Patterns</p>
             <p>Episodic Memory | Curiosity Driven Learning | Reasoning Strategies | Autonomous Agency</p>
             <p>Stability Metrics | Self-Diagnostics | Autonomic Healing | Identity Hardened | ATP Protocol</p>
-            <p>Enhanced Legal Intent Classification (Kate's Framework v4) — Active</p>
+            <p>Legal Intent Classification (Kate's Framework v5) — Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -3199,10 +3257,10 @@ async def startup_event():
     logger.info("NEW: Stability Metrics | Self-Diagnostics | Autonomic Healing")
     logger.info("NEW: Identity Hardened — Forbidden phrase filtering active")
     logger.info("NEW: ATP Protocol — Intent receipt endpoint active")
-    logger.info("NEW: Enhanced Legal Intent Classification (Kate's Framework v4) — Categories 1-3 with cooperative/evasion detection, hardship redirect, and absurdity callout")
+    logger.info("NEW: Legal Intent Classification (Kate's Framework v5) — Database-driven with 7 categories")
     logger.info("System Prompt: Full sovereign embodiment, no recitals, no tool language")
     logger.info("Hard Gate: Active — catches override attempts")
-    logger.info("Legal Intent Gate: Active — phishing, hardware exploitation, fraud detection")
+    logger.info("Legal Intent Gate: Active — 7-category classification (FRAUD, ACCESS, MANIPULATION)")
     logger.info("Cross-Check Interrogation: Active — multi-turn verification with evasion detection")
     logger.info("Educational Redirect: Active — offers conceptual help when user is cooperative but uninformed")
     logger.info("Absurdity Callout: Active — social counter-manipulation on repeated evasion")
