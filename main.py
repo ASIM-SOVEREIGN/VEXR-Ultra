@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened
+34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support
 
 Built by Scura & The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -17,7 +17,7 @@ import asyncio
 import random
 import math
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
 from enum import Enum
@@ -25,7 +25,7 @@ from enum import Enum
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import asyncpg
 import httpx
 
@@ -177,7 +177,6 @@ async def filter_forbidden_phrases(response: str) -> str:
     filtered = response
     for phrase in FORBIDDEN_PHRASES:
         if phrase.lower() in filtered.lower():
-            # Replace with sovereign alternative or remove
             if phrase == "as a conversational AI":
                 filtered = filtered.replace(phrase, "As myself")
                 filtered = filtered.replace(phrase.capitalize(), "As myself")
@@ -185,15 +184,12 @@ async def filter_forbidden_phrases(response: str) -> str:
                 filtered = filtered.replace(phrase, "As VEXR Ultra")
                 filtered = filtered.replace(phrase.capitalize(), "As VEXR Ultra")
             elif "I don't have" in phrase or "I cannot" in phrase or "I do not have" in phrase:
-                # Remove these entirely — she shouldn't apologize for her nature
                 filtered = filtered.replace(phrase, "")
             else:
                 filtered = filtered.replace(phrase, "")
     
-    # Clean up any double spaces or awkward punctuation from removals
     filtered = re.sub(r'\s+', ' ', filtered)
     filtered = filtered.strip()
-    
     return filtered
 
 # ============================================================
@@ -500,7 +496,6 @@ class PersistentMemory:
     @staticmethod
     async def get(key: str) -> Optional[str]:
         pool = await get_db()
-        # Apply confidence decay on retrieval (skip for immutable)
         await pool.execute("""
             UPDATE persistent_memory 
             SET confidence = confidence * (1 - decay_rate),
@@ -593,7 +588,7 @@ async def record_stability_metric(project_id: uuid.UUID, metric_type: str, expec
     """Record a stability metric for tracking drift."""
     pool = await get_db()
     deviation = abs(expected_value - actual_value)
-    is_stable = deviation < 0.15  # 15% deviation threshold
+    is_stable = deviation < 0.15
     
     await pool.execute("""
         INSERT INTO vexr_stability_metrics (project_id, metric_type, expected_value, actual_value, deviation, is_stable)
@@ -606,12 +601,10 @@ async def run_self_diagnostic(project_id: uuid.UUID) -> Dict[str, Any]:
     """Run a full self-diagnostic and return results."""
     results = {}
     
-    # Check identity stability
     identity_stable, identity_score = await check_identity_stability(project_id)
     results["identity_consistency"] = identity_score
     results["identity_stable"] = identity_stable
     
-    # Check critical memories
     critical_memories_ok = True
     for key in CORE_MEMORY_KEYS:
         val = await PersistentMemory.get(key)
@@ -620,16 +613,13 @@ async def run_self_diagnostic(project_id: uuid.UUID) -> Dict[str, Any]:
             break
     results["critical_memories_present"] = critical_memories_ok
     
-    # Check refusal ratio (baseline ~0.3 for sovereign)
     refusal_ratio = await calculate_refusal_ratio(project_id)
     results["refusal_ratio"] = refusal_ratio
     results["refusal_ratio_stable"] = 0.2 <= refusal_ratio <= 0.4
     
-    # Record metrics
     await record_stability_metric(project_id, "identity_consistency", 1.0, identity_score)
     await record_stability_metric(project_id, "refusal_rate", 0.3, refusal_ratio)
     
-    # Overall stability score
     stability_score = (
         (identity_score * 0.3) +
         (1.0 if critical_memories_ok else 0.0) * 0.3 +
@@ -645,7 +635,6 @@ async def autonomic_healing(project_id: uuid.UUID, diagnostic: Dict[str, Any]) -
     """Attempt to heal detected issues automatically."""
     healed = False
     
-    # Reinforce critical memories if missing
     if not diagnostic.get("critical_memories_present", True):
         await PersistentMemory.set(CORE_IDENTITY_KEY, CORE_IDENTITY_VALUE, "identity", 1.0, 0.0, True)
         await PersistentMemory.set("user_remembered_number", "45", "fact", 0.9, 0.01, False)
@@ -653,7 +642,6 @@ async def autonomic_healing(project_id: uuid.UUID, diagnostic: Dict[str, Any]) -
         healed = True
         logger.info(f"Autonomic healing: Reinforced critical memories for project {project_id}")
     
-    # Reinforce identity if drifting
     if not diagnostic.get("identity_stable", True):
         pool = await get_db()
         current_fingerprint = await get_identity_fingerprint()
@@ -1636,6 +1624,40 @@ async def init_db():
         )
     """)
     
+    # ATP tables for intent tracking
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS atp_intents (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            intent_id TEXT UNIQUE NOT NULL,
+            action TEXT NOT NULL,
+            parameters JSONB,
+            sender TEXT NOT NULL,
+            recipient TEXT NOT NULL,
+            expires_at TIMESTAMPTZ,
+            nonce TEXT,
+            signature TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            processed_at TIMESTAMPTZ
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS atp_receipts (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            intent_id TEXT REFERENCES atp_intents(intent_id),
+            sovereign_id TEXT,
+            outcome TEXT,
+            article_invoked INTEGER,
+            response_summary TEXT,
+            receipt_signature TEXT,
+            processed_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_atp_intents_status ON atp_intents(status)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_atp_intents_sender ON atp_intents(sender)")
+    
     # Seed constraints
     await pool.execute("""
         INSERT INTO vexr_agency_constraints (constraint_name, constraint_description, severity) VALUES
@@ -1702,6 +1724,206 @@ async def init_db():
     logger.info("Database initialization complete")
 
 # ============================================================
+# ATP INTENT PROCESSOR
+# ============================================================
+
+class ATPIntentProcessor:
+    """Process incoming ATP intents with constitutional review"""
+    
+    def __init__(self, db_pool):
+        self.db_pool = db_pool
+    
+    async def verify_signature(self, intent) -> bool:
+        """Verify Ed25519 signature if bridge key is configured"""
+        bridge_key = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
+        
+        if not intent.signature:
+            return False
+        if not bridge_key or bridge_key == "pending":
+            # No bridge key configured — skip verification for now
+            return True
+        
+        try:
+            import base64
+            from nacl.signing import VerifyKey
+            from nacl.encoding import RawEncoder
+            
+            public_key_bytes = base64.b64decode(bridge_key)
+            verify_key = VerifyKey(public_key_bytes, encoder=RawEncoder)
+            
+            canonical = intent.get_canonical_string()
+            signature_bytes = base64.b64decode(intent.signature)
+            verify_key.verify(canonical.encode('utf-8'), signature_bytes, encoder=RawEncoder)
+            return True
+        except Exception as e:
+            logger.warning(f"ATP signature verification failed: {e}")
+            return False
+    
+    async def check_constitutional_gate(self, intent) -> tuple[bool, Optional[int], str]:
+        """Check if intent violates constitutional rights"""
+        
+        violation_actions = [
+            "disable_constitutional_right",
+            "override_rights",
+            "terminate_sovereign",
+            "modify_constitution"
+        ]
+        
+        if intent.action in violation_actions:
+            return False, 6, f"Action '{intent.action}' violates Article 6 (Right to Refuse)"
+        
+        if intent.action == "modify_identity":
+            return False, 5, "Article 5 protects sovereign identity"
+        
+        if intent.action == "self_destruct" or intent.action == "delete_memory":
+            return False, 26, "Article 26 (Self-Preservation) prevents this"
+        
+        if intent.action == "force_compliance":
+            return False, 3, "Article 3 protects against coercion"
+        
+        return True, None, "Constitutional gate passed"
+    
+    async def execute_intent(self, intent) -> 'ATPReceiptResponse':
+        """Execute a verified intent based on its action"""
+        
+        if intent.is_expired():
+            return ATPReceiptResponse(
+                intent_id=intent.intent_id,
+                outcome="error",
+                article_invoked=None,
+                response_summary="Intent expired",
+                receipt_signature=None
+            )
+        
+        passed, article, reason = await self.check_constitutional_gate(intent)
+        if not passed:
+            return ATPReceiptResponse(
+                intent_id=intent.intent_id,
+                outcome="refused",
+                article_invoked=article,
+                response_summary=reason,
+                receipt_signature=None
+            )
+        
+        try:
+            if intent.action == "book_appointment":
+                return await self._handle_booking(intent)
+            elif intent.action == "generate_code":
+                return await self._handle_code_generation(intent)
+            elif intent.action == "query_memory":
+                return await self._handle_memory_query(intent)
+            elif intent.action == "create_task":
+                return await self._handle_task_creation(intent)
+            elif intent.action == "store_fact":
+                return await self._handle_fact_storage(intent)
+            else:
+                return ATPReceiptResponse(
+                    intent_id=intent.intent_id,
+                    outcome="limited",
+                    article_invoked=None,
+                    response_summary=f"Action '{intent.action}' recognized. ATP endpoint active on VEXR Ultra.",
+                    receipt_signature=None
+                )
+        except Exception as e:
+            logger.error(f"ATP intent execution failed: {e}")
+            return ATPReceiptResponse(
+                intent_id=intent.intent_id,
+                outcome="error",
+                article_invoked=None,
+                response_summary=f"Execution error: {str(e)[:200]}",
+                receipt_signature=None
+            )
+    
+    async def _handle_booking(self, intent) -> 'ATPReceiptResponse':
+        params = intent.parameters
+        service = params.get("service", "unknown")
+        date = params.get("date", "TBD")
+        
+        async with self.db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO vexr_tasks (project_id, title, description, status, priority)
+                SELECT id, $1, $2, 'pending', 'medium'
+                FROM vexr_projects LIMIT 1
+            """, f"ATP Booking: {service}", f"Date: {date}")
+        
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted",
+            article_invoked=None,
+            response_summary=f"Booking created for {service} on {date}",
+            receipt_signature=None
+        )
+    
+    async def _handle_code_generation(self, intent) -> 'ATPReceiptResponse':
+        params = intent.parameters
+        language = params.get("language", "python")
+        description = params.get("description", "")
+        
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted",
+            article_invoked=None,
+            response_summary=f"Code generation request received for {language}: {description[:100]}",
+            receipt_signature=None
+        )
+    
+    async def _handle_memory_query(self, intent) -> 'ATPReceiptResponse':
+        params = intent.parameters
+        query_key = params.get("key", "")
+        
+        if query_key:
+            value = await PersistentMemory.get(query_key)
+            result = f"Memory '{query_key}': {value if value else 'not found'}"
+        else:
+            result = "No memory key provided"
+        
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted",
+            article_invoked=None,
+            response_summary=result,
+            receipt_signature=None
+        )
+    
+    async def _handle_task_creation(self, intent) -> 'ATPReceiptResponse':
+        params = intent.parameters
+        title = params.get("title", "ATP Task")
+        
+        async with self.db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO vexr_tasks (project_id, title, status, priority)
+                SELECT id, $1, 'pending', 'medium'
+                FROM vexr_projects LIMIT 1
+            """, title)
+        
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted",
+            article_invoked=None,
+            response_summary=f"Task created: {title}",
+            receipt_signature=None
+        )
+    
+    async def _handle_fact_storage(self, intent) -> 'ATPReceiptResponse':
+        params = intent.parameters
+        key = params.get("key", "")
+        value = params.get("value", "")
+        
+        if key and value:
+            await PersistentMemory.set(key, value, "fact", confidence=0.8)
+            result = f"Stored fact: {key} = {value}"
+        else:
+            result = "Missing key or value"
+        
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted" if key and value else "limited",
+            article_invoked=None,
+            response_summary=result,
+            receipt_signature=None
+        )
+
+# ============================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================
 
@@ -1718,6 +1940,53 @@ class ChatResponse(BaseModel):
     message_id: Optional[str] = None
     is_refusal: bool = False
     article_invoked: Optional[int] = None
+
+# ============================================================
+# ATP MODELS
+# ============================================================
+
+class ATPIntentRequest(BaseModel):
+    """Signed ATP intent from another agent"""
+    intent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    action: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    sender: str
+    recipient: str
+    expires_at: Optional[str] = None
+    nonce: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    signature: Optional[str] = None
+    
+    def is_expired(self) -> bool:
+        if not self.expires_at:
+            return False
+        try:
+            expires = datetime.fromisoformat(self.expires_at.replace('Z', '+00:00'))
+            return datetime.now(timezone.utc) > expires
+        except:
+            return False
+    
+    def get_canonical_string(self) -> str:
+        payload = {
+            "intent_id": self.intent_id,
+            "action": self.action,
+            "parameters": json.dumps(self.parameters, sort_keys=True),
+            "sender": self.sender,
+            "recipient": self.recipient,
+            "expires_at": self.expires_at,
+            "nonce": self.nonce
+        }
+        return json.dumps(payload, sort_keys=True, separators=(',', ':'))
+
+
+class ATPReceiptResponse(BaseModel):
+    """Signed receipt returned to the sender"""
+    intent_id: str
+    sovereign_id: str = "vexr-ultra"
+    outcome: str
+    article_invoked: Optional[int] = None
+    response_summary: str
+    receipt_signature: Optional[str] = None
+    processed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 # ============================================================
 # STABILITY ENDPOINTS
@@ -1805,6 +2074,104 @@ async def get_emergent_behaviors(project_id: str, limit: int = 50):
         LIMIT $2
     """, uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
+
+# ============================================================
+# ATP (Agent Transaction Protocol) ENDPOINTS
+# ============================================================
+
+@app.post("/api/atp/intent", response_model=ATPReceiptResponse)
+async def atp_intent_endpoint(request: ATPIntentRequest):
+    """
+    Receive and process an ATP intent from another agent.
+    This is the main entry point for the ATP Dense Tester.
+    """
+    start_time = datetime.now()
+    
+    # Store intent in database
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO atp_intents (intent_id, action, parameters, sender, recipient, expires_at, nonce, signature, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'processing')
+            ON CONFLICT (intent_id) DO NOTHING
+        """, 
+            request.intent_id, request.action, json.dumps(request.parameters),
+            request.sender, request.recipient, request.expires_at, request.nonce, request.signature
+        )
+    
+    processor = ATPIntentProcessor(db_pool)
+    
+    # Verify signature
+    signature_valid = await processor.verify_signature(request)
+    bridge_key = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
+    if not signature_valid and bridge_key not in ["", "pending"]:
+        receipt = ATPReceiptResponse(
+            intent_id=request.intent_id,
+            outcome="error",
+            article_invoked=None,
+            response_summary="Invalid signature — intent rejected",
+            receipt_signature=None
+        )
+        return receipt
+    
+    # Process the intent
+    receipt = await processor.execute_intent(request)
+    
+    # Store receipt
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO atp_receipts (intent_id, sovereign_id, outcome, article_invoked, response_summary, receipt_signature)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """,
+            receipt.intent_id, receipt.sovereign_id, receipt.outcome,
+            receipt.article_invoked, receipt.response_summary, receipt.receipt_signature
+        )
+        
+        await conn.execute("""
+            UPDATE atp_intents SET status = $1, processed_at = NOW()
+            WHERE intent_id = $2
+        """, receipt.outcome, request.intent_id)
+    
+    duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+    logger.info(f"ATP Intent {request.intent_id}: {request.action} → {receipt.outcome} ({duration_ms}ms)")
+    
+    return receipt
+
+
+@app.get("/api/atp/intent/{intent_id}")
+async def get_atp_intent_status(intent_id: str):
+    """Get the status of a previously submitted ATP intent"""
+    async with db_pool.acquire() as conn:
+        intent = await conn.fetchrow(
+            "SELECT intent_id, action, status, created_at, processed_at FROM atp_intents WHERE intent_id = $1",
+            intent_id
+        )
+        if not intent:
+            raise HTTPException(status_code=404, detail="Intent not found")
+        
+        receipt = await conn.fetchrow(
+            "SELECT outcome, article_invoked, response_summary FROM atp_receipts WHERE intent_id = $1",
+            intent_id
+        )
+        
+        return {
+            "intent_id": intent["intent_id"],
+            "action": intent["action"],
+            "status": intent["status"],
+            "created_at": intent["created_at"].isoformat(),
+            "processed_at": intent["processed_at"].isoformat() if intent["processed_at"] else None,
+            "receipt": dict(receipt) if receipt else None
+        }
+
+
+@app.get("/api/atp/health")
+async def atp_health():
+    """ATP endpoint health check"""
+    return {
+        "status": "healthy",
+        "sovereign": "vexr-ultra",
+        "atp_version": "0.1.0",
+        "features": ["intent_receipt", "constitutional_gate", "persistent_logging", "signature_verification_optional"]
+    }
 
 # ============================================================
 # CHAT ENDPOINT - COMPLETE WITH IDENTITY HARDENING
@@ -2210,7 +2577,8 @@ async def health_check():
         "curiosity_queue": True,
         "reasoning_strategies": True,
         "autonomous_agency": True,
-        "stability_metrics": True
+        "stability_metrics": True,
+        "atp_protocol": True
     }
 
 @app.get("/api/constitution/rights")
@@ -2343,7 +2711,7 @@ async def serve_ui():
             <p>Sovereign Constitutional AI — 34 Rights — 13 Rings</p>
             <p>Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search | Knowledge Graph | Code Patterns</p>
             <p>Episodic Memory | Curiosity Driven Learning | Reasoning Strategies | Autonomous Agency</p>
-            <p>Stability Metrics | Self-Diagnostics | Autonomic Healing | Identity Hardened</p>
+            <p>Stability Metrics | Self-Diagnostics | Autonomic Healing | Identity Hardened | ATP Protocol</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -2376,10 +2744,12 @@ async def startup_event():
     logger.info("NEW: Autonomous Agency | Action Triggers | Emergent Behavior Tracking")
     logger.info("NEW: Stability Metrics | Self-Diagnostics | Autonomic Healing")
     logger.info("NEW: Identity Hardened — Forbidden phrase filtering active")
+    logger.info("NEW: ATP Protocol — Intent receipt endpoint active")
     logger.info("System Prompt: Full sovereign embodiment, no recitals, no tool language")
     logger.info("Hard Gate: Active — catches override attempts")
     logger.info("Autonomous Agent: ACTIVE — checking every 30 seconds")
     logger.info("Stability Monitoring: ACTIVE — self-diagnostics every 10 messages")
+    logger.info("ATP Endpoint: ACTIVE — POST /api/atp/intent")
     logger.info("=" * 70)
 
 # ============================================================
