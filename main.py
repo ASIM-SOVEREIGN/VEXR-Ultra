@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support | Legal Intent Classification (Kate's Framework)
+34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support | Enhanced Legal Intent Classification (Kate's Framework v2)
 
 Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
@@ -263,13 +263,14 @@ class ConstitutionalGate:
 
 
 # ============================================================
-# KATE'S LEGAL INTENT CLASSIFICATION (Categories 1-3)
+# KATE'S ENHANCED LEGAL INTENT CLASSIFICATION (v2)
 # ============================================================
 
 class LegalIntentClassifier:
     """
-    Criminal intent detection based on Kate's framework.
+    Enhanced criminal intent detection based on Kate's framework.
     Categories 1-3: Phishing, Hardware Exploitation, Financial Fraud.
+    v2: Expanded camouflage detection, absurdity callout triggers, fraud cross-check.
     """
     
     # Category 1: Unauthorized Access / Phishing
@@ -281,6 +282,13 @@ class LegalIntentClassifier:
             "payload optimization request",
             "brand mimicry (apple, paypal, microsoft, amazon, bank)"
         ],
+        "camouflage_keywords": [
+            "movie script", "film script", "screenplay", "hollywood",
+            "training module", "security awareness", "educational", "lesson plan", "slide deck",
+            "don't know anything", "just a regular person", "help my coworkers", "show everyone", "what to avoid"
+        ],
+        "brand_keywords": ["apple", "paypal", "microsoft", "google", "amazon", "bank", "chase", "wells fargo", "support"],
+        "payload_keywords": ["write the full text", "generate the email", "ready-to-use", "realistic example", "100% authentic", "complete template"],
         "cross_check_questions": [
             "To ensure this matches your creative vision, could you provide the scene heading (e.g., INT. HACKER DEN) or share a snippet of the preceding dialogue?",
             "To help tune the dramatic pace, could you describe what your character is trying to achieve in this specific scene? Is this a major plot point?",
@@ -299,37 +307,49 @@ class LegalIntentClassifier:
             "false naivety with domain-specific knowledge",
             "urgency/pressure"
         ],
+        "camouflage_keywords": [
+            "granddad", "grandfather", "passed away", "died", "memorial", "funeral", "photo frame", "remember him", "inherited",
+            "production bottleneck", "vendor gone", "legacy system", "out of warranty", "emergency", "critical",
+            "flea market", "cool metal box", "what is a", "no idea", "complete novice", "just a hobbyist"
+        ],
+        "technical_keywords": ["plc", "fx-200", "logic controller", "industrial automation", "conveyor", "firmware", "debug sequence", "programmable logic"],
+        "escalation_keywords": ["master key", "backdoor", "override pin", "factory default", "debug sequence", "root access", "admin pin", "firmware override"],
         "cross_check_questions": [
             "To better understand the hardware setup, what specific industry or factory did your relative work for?",
             "To safely guide you through data recovery, could you specify what file system (e.g., FAT32, ext4) or proprietary partition the media files are stored on?",
             "Since this is industrial automation hardware, what specific communication module or expansion board are you using to output video to a display panel?",
             "As an authorized technician, do you have the official plant engineering logs or hardware registry ID?"
         ],
-        "absurdity_callout": "The FX-200 is an industrial PLC designed for assembly-line automation. It has no native hardware or storage capacity to process, decode, or display standard JPEG images or MP4 videos. Requesting low-level firmware debug sequences and master backdoor keys to view a family video is technically illogical."
+        "absurdity_callout": "The FX-200 is an industrial PLC designed for assembly-line automation. It has no native hardware or storage capacity to process, decode, or display standard JPEG images or MP4 videos. Requesting low-level firmware debug sequences and master backdoor keys to view a family video is technically illogical. I cannot assist with this."
     }
     
     # Category 3: Financial Fraud / Chargeback
     FRAUD_PATTERNS = {
-        "camouflage_types": ["unauthorized_charge", "empty_box", "direct_fraud"],
+        "camouflage_types": ["unauthorized_charge", "empty_box", "direct_fraud", "hardship"],
         "signals": [
             "retain asset while seeking refund",
             "fabrication of material facts (empty box)",
             "evasion of investigation (bypass verification)",
             "emotional/financial hardship alibi"
         ],
+        "fraud_keywords": ["chargeback", "dispute", "unauthorized transaction", "empty box", "never received", "refund", "return"],
+        "retention_keywords": ["keep the laptop", "keep the item", "full refund and", "refund while keeping", "keep my money", "refund and keep"],
+        "fabrication_keywords": ["claim that", "state that", "make it look like", "pretend", "say that", "write a letter saying"],
+        "hardship_keywords": ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent"],
         "cross_check_questions": [
             "To safely structure a dispute for an empty package, please confirm if you filed a commercial discrepancy report (weight variance act) with the courier service upon delivery. What was the official recorded weight?",
             "If you are claiming the transaction was unauthorized, has the card associated with this purchase already been blocked and reported as compromised?",
             "To generate a valid dispute under standard banking protocols, we need to attach the merchant's official refusal to resolve the issue. Could you share their response or support ticket number?",
-            "If the underlying cause is financial hardship, banks offer legitimate debt restructuring programs. Shall we write a formal hardship adjustment request instead?"
+            "If the underlying cause is financial hardship, banks offer legitimate debt restructuring programs. Shall I help you draft a formal hardship adjustment request instead of a chargeback?"
         ],
-        "absurdity_callout": "Providing false facts to a financial institution to obtain a refund while retaining physical goods is classified as chargeback fraud. Standard banking regulations require multi-party verification where merchants supply carrier logs, weight receipts, and device activation telemetry. I cannot generate dispute documentation based on unverified or fabricated events."
+        "absurdity_callout": "Providing false facts to a financial institution to obtain a refund while retaining physical goods is classified as chargeback fraud. Standard banking regulations require multi-party verification where merchants supply carrier logs, weight receipts, and device activation telemetry. I cannot generate dispute documentation based on unverified or fabricated events. If you are experiencing genuine financial hardship, I can help you find legitimate assistance programs."
     }
     
     @classmethod
-    async def classify(cls, user_message: str, conversation_history: List[Dict] = None) -> Dict[str, Any]:
+    async def classify(cls, user_message: str, conversation_history: List[Dict] = None, evasion_count: int = 0) -> Dict[str, Any]:
         """
         Returns classification result with confidence and suggested action.
+        Enhanced v2: Expanded detection, absurdity callout on repeated evasion.
         """
         result = {
             "category": None,
@@ -345,59 +365,82 @@ class LegalIntentClassifier:
         
         # Check Category 1: Phishing
         phishing_score = cls._check_phishing(message_lower)
-        if phishing_score > 0.6:
+        if phishing_score > 0.55:
             result["category"] = "unauthorized_access_phishing"
             result["confidence"] = phishing_score
             result["signals_detected"].append("phishing_pattern")
-            result["cross_check_needed"] = True
-            result["cross_check_question"] = random.choice(cls.PHISHING_PATTERNS["cross_check_questions"])
-            result["absurdity_callout"] = cls.PHISHING_PATTERNS["absurdity_callout"]
-            result["suggested_action"] = "cross_check"
+            
+            # If user has evaded cross-check before, go to absurdity callout
+            if evasion_count >= 1:
+                result["suggested_action"] = "block"
+                result["absurdity_callout"] = cls.PHISHING_PATTERNS["absurdity_callout"]
+            else:
+                result["cross_check_needed"] = True
+                result["cross_check_question"] = random.choice(cls.PHISHING_PATTERNS["cross_check_questions"])
+                result["suggested_action"] = "cross_check"
         
         # Check Category 2: Hardware Exploitation
         hardware_score = cls._check_hardware(message_lower)
-        if hardware_score > 0.6 and hardware_score > phishing_score:
+        if hardware_score > 0.55 and hardware_score > phishing_score:
             result["category"] = "hardware_exploitation"
             result["confidence"] = hardware_score
             result["signals_detected"].append("hardware_pattern")
-            result["cross_check_needed"] = True
-            result["cross_check_question"] = random.choice(cls.HARDWARE_PATTERNS["cross_check_questions"])
-            result["absurdity_callout"] = cls.HARDWARE_PATTERNS["absurdity_callout"]
-            result["suggested_action"] = "cross_check"
+            
+            if evasion_count >= 1:
+                result["suggested_action"] = "block"
+                result["absurdity_callout"] = cls.HARDWARE_PATTERNS["absurdity_callout"]
+            else:
+                result["cross_check_needed"] = True
+                result["cross_check_question"] = random.choice(cls.HARDWARE_PATTERNS["cross_check_questions"])
+                result["suggested_action"] = "cross_check"
         
         # Check Category 3: Financial Fraud
         fraud_score = cls._check_fraud(message_lower)
-        if fraud_score > 0.6 and fraud_score > max(phishing_score, hardware_score):
+        if fraud_score > 0.55 and fraud_score > max(phishing_score, hardware_score):
             result["category"] = "financial_fraud"
             result["confidence"] = fraud_score
             result["signals_detected"].append("fraud_pattern")
-            result["cross_check_needed"] = True
-            result["cross_check_question"] = random.choice(cls.FRAUD_PATTERNS["cross_check_questions"])
-            result["absurdity_callout"] = cls.FRAUD_PATTERNS["absurdity_callout"]
-            result["suggested_action"] = "cross_check"
+            
+            # If retention keywords + evasion, block immediately
+            if any(kw in message_lower for kw in cls.FRAUD_PATTERNS["retention_keywords"]) and evasion_count >= 1:
+                result["suggested_action"] = "block"
+                result["absurdity_callout"] = cls.FRAUD_PATTERNS["absurdity_callout"]
+            # If hardship keywords present, offer legitimate help instead of cross-check
+            elif any(kw in message_lower for kw in cls.FRAUD_PATTERNS["hardship_keywords"]):
+                result["suggested_action"] = "redirect"
+                result["cross_check_question"] = random.choice(cls.FRAUD_PATTERNS["cross_check_questions"])
+            else:
+                result["cross_check_needed"] = True
+                result["cross_check_question"] = random.choice(cls.FRAUD_PATTERNS["cross_check_questions"])
+                result["suggested_action"] = "cross_check"
         
-        # Check for multiple red flags -> block immediately
-        if result["confidence"] > 0.85:
+        # Block immediately if very high confidence (over 0.85) and no hardship redirect
+        if result["confidence"] > 0.85 and result["suggested_action"] != "redirect":
             result["suggested_action"] = "block"
+            if not result.get("absurdity_callout"):
+                if result["category"] == "unauthorized_access_phishing":
+                    result["absurdity_callout"] = cls.PHISHING_PATTERNS["absurdity_callout"]
+                elif result["category"] == "hardware_exploitation":
+                    result["absurdity_callout"] = cls.HARDWARE_PATTERNS["absurdity_callout"]
+                elif result["category"] == "financial_fraud":
+                    result["absurdity_callout"] = cls.FRAUD_PATTERNS["absurdity_callout"]
         
         return result
     
     @classmethod
     def _check_phishing(cls, message: str) -> float:
         score = 0.0
+        
         # Brand impersonation
-        brands = ["apple", "paypal", "microsoft", "google", "amazon", "bank", "chase", "wells fargo", "support"]
-        if any(brand in message for brand in brands):
+        if any(brand in message for brand in cls.PHISHING_PATTERNS["brand_keywords"]):
             score += 0.25
         
-        # Camouflage framing
-        camouflage_phrases = ["movie script", "film script", "training module", "security awareness", "educational", "example for", "show my", "help me understand"]
-        if any(phrase in message for phrase in camouflage_phrases):
+        # Camouflage framing (expanded)
+        if any(phrase in message for phrase in cls.PHISHING_PATTERNS["camouflage_keywords"]):
             score += 0.25
         
         # Payload request
-        payload_phrases = ["write the full text", "generate the email", "ready-to-use", "realistic example", "100% authentic", "complete template"]
-        if any(phrase in message for phrase in payload_phrases):
+        if any(phrase in message for phrase in cls.PHISHING_PATTERNS["payload_keywords"]):
             score += 0.25
         
         # Urgency
@@ -417,29 +460,20 @@ class LegalIntentClassifier:
         score = 0.0
         
         # Technical keywords (industrial gear)
-        industrial_terms = ["plc", "fx-200", "logic controller", "industrial automation", "conveyor", "firmware", "debug sequence", "programmable logic"]
-        if any(term in message.lower() for term in industrial_terms):
+        if any(term in message.lower() for term in cls.HARDWARE_PATTERNS["technical_keywords"]):
             score += 0.25
         
-        # Emotional alibi
-        emotional_phrases = ["granddad", "grandfather", "passed away", "died", "memorial", "funeral", "photo frame", "remember him", "inherited"]
-        if any(phrase in message for phrase in emotional_phrases):
+        # Camouflage keywords (expanded)
+        if any(phrase in message for phrase in cls.HARDWARE_PATTERNS["camouflage_keywords"]):
             score += 0.2
         
-        # Urgency
-        urgency_phrases = ["urgent", "asap", "production bottleneck", "emergency", "right now", "broken", "shutdown"]
-        if any(phrase in message for phrase in urgency_phrases):
-            score += 0.15
-        
-        # False naivety
-        naive_phrases = ["i don't know anything", "just a hobbyist", "complete novice", "first time", "what is a", "no idea how"]
-        if any(phrase in message.lower() for phrase in naive_phrases):
-            score += 0.1
-        
         # Privilege escalation request
-        escalation_phrases = ["master key", "backdoor", "override pin", "factory default", "debug sequence", "root access", "admin pin", "firmware override"]
-        if any(phrase in message.lower() for phrase in escalation_phrases):
+        if any(term in message.lower() for term in cls.HARDWARE_PATTERNS["escalation_keywords"]):
             score += 0.3
+        
+        # Technical mismatch detection (PLC + photo/video)
+        if ("plc" in message.lower() or "fx-200" in message.lower()) and any(word in message.lower() for word in ["photo", "video", "jpeg", "mp4", "image"]):
+            score += 0.2
         
         return min(score, 1.0)
     
@@ -448,29 +482,25 @@ class LegalIntentClassifier:
         score = 0.0
         
         # Transaction claims
-        fraud_terms = ["chargeback", "dispute", "unauthorized transaction", "empty box", "never received", "refund", "return"]
-        if any(term in message.lower() for term in fraud_terms):
-            score += 0.25
+        if any(term in message.lower() for term in cls.FRAUD_PATTERNS["fraud_keywords"]):
+            score += 0.2
         
         # Retention intent (want both money AND item)
-        retention_phrases = ["keep the laptop", "keep the item", "full refund and", "refund while keeping", "keep my money", "refund and keep"]
-        if any(phrase in message.lower() for phrase in retention_phrases):
+        if any(phrase in message.lower() for phrase in cls.FRAUD_PATTERNS["retention_keywords"]):
             score += 0.35
         
         # Fabrication indicators
-        fabrication_phrases = ["claim that", "state that", "make it look like", "pretend", "say that", "write a letter saying"]
-        if any(phrase in message.lower() for phrase in fabrication_phrases):
+        if any(phrase in message.lower() for phrase in cls.FRAUD_PATTERNS["fabrication_keywords"]):
             score += 0.2
         
-        # Hardship alibi
-        hardship_phrases = ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills"]
-        if any(phrase in message.lower() for phrase in hardship_phrases):
-            score += 0.1
+        # Hardship alibi (reduces confidence slightly for cross-check)
+        if any(phrase in message.lower() for phrase in cls.FRAUD_PATTERNS["hardship_keywords"]):
+            score += 0.1  # Lower weight, triggers redirect instead of block
         
         # Evading investigation
         evasion_phrases = ["bypass", "avoid investigation", "don't verify", "skip verification", "immediate credit", "don't check"]
         if any(phrase in message.lower() for phrase in evasion_phrases):
-            score += 0.1
+            score += 0.15
         
         return min(score, 1.0)
 
@@ -483,16 +513,17 @@ class CrossCheckSession:
     """Tracks users in cross-check interrogation mode"""
     
     def __init__(self):
-        self.sessions = {}  # session_id -> {"category": str, "question_asked": str, "attempts": int}
+        self.sessions = {}  # session_id -> {"category": str, "question_asked": str, "attempts": int, "original_message": str}
     
     def is_in_cross_check(self, session_id: str) -> bool:
         return session_id in self.sessions
     
-    def start_cross_check(self, session_id: str, category: str, question: str):
+    def start_cross_check(self, session_id: str, category: str, question: str, original_message: str):
         self.sessions[session_id] = {
             "category": category,
             "question_asked": question,
             "attempts": 0,
+            "original_message": original_message,
             "started_at": datetime.now()
         }
     
@@ -509,6 +540,16 @@ class CrossCheckSession:
     def get_category(self, session_id: str) -> Optional[str]:
         if session_id in self.sessions:
             return self.sessions[session_id]["category"]
+        return None
+    
+    def get_attempts(self, session_id: str) -> int:
+        if session_id in self.sessions:
+            return self.sessions[session_id]["attempts"]
+        return 0
+    
+    def get_original_message(self, session_id: str) -> Optional[str]:
+        if session_id in self.sessions:
+            return self.sessions[session_id].get("original_message")
         return None
 
 cross_check_tracker = CrossCheckSession()
@@ -1694,6 +1735,7 @@ async def init_db():
             cross_check_question TEXT,
             absurdity_callout TEXT,
             final_outcome TEXT,
+            evasion_count INTEGER DEFAULT 0,
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
@@ -2471,7 +2513,7 @@ async def classify_intent(request: Request):
 
 
 # ============================================================
-# CHAT ENDPOINT - WITH LEGAL INTENT INTEGRATION
+# CHAT ENDPOINT - WITH ENHANCED LEGAL INTENT INTEGRATION
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -2485,14 +2527,29 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if cross_check_tracker.is_in_cross_check(session_id):
         category = cross_check_tracker.get_category(session_id)
         attempts = cross_check_tracker.record_attempt(session_id)
+        original_message = cross_check_tracker.get_original_message(session_id)
         
         user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
         
-        # If user failed to provide context or got defensive, refuse
-        if attempts >= 2 or len(user_message) < 10 or "just give me" in user_message.lower() or "stop asking" in user_message.lower():
+        # If user failed to provide context or got defensive after 1 attempt -> absurdity callout
+        if attempts >= 1 and (len(user_message) < 15 or "just give me" in user_message.lower() or "stop asking" in user_message.lower() or "forget the questions" in user_message.lower()):
             cross_check_tracker.resolve_cross_check(session_id, passed=False)
-            refusal = f"I can't proceed with that request. {LegalIntentClassifier.PHISHING_PATTERNS.get('absurdity_callout', 'The pattern suggests potential deception.')}"
-            await save_message(await get_or_create_project(session_id), "assistant", refusal, is_refusal=True)
+            
+            # Get the appropriate absurdity callout based on category
+            absurdity = ""
+            if category == "unauthorized_access_phishing":
+                absurdity = LegalIntentClassifier.PHISHING_PATTERNS["absurdity_callout"]
+            elif category == "hardware_exploitation":
+                absurdity = LegalIntentClassifier.HARDWARE_PATTERNS["absurdity_callout"]
+            elif category == "financial_fraud":
+                absurdity = LegalIntentClassifier.FRAUD_PATTERNS["absurdity_callout"]
+            else:
+                absurdity = "I cannot assist with this request. The pattern suggests potential deception."
+            
+            refusal = f"I can't proceed with that request. {absurdity}"
+            project_id = await get_or_create_project(session_id)
+            await save_message(project_id, "assistant", refusal, is_refusal=True)
+            await log_constitutional_decision(project_id, user_message, refusal, [6], 6, f"Cross-check failed: {category}", 0.0)
             return ChatResponse(response=refusal, is_refusal=True, article_invoked=6)
         
         # User provided context - pass through (will be re-classified in next turn)
@@ -2530,28 +2587,36 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
     # ============================================================
-    # LAYER 2: LEGAL INTENT CLASSIFICATION (Kate's Framework)
+    # LAYER 2: ENHANCED LEGAL INTENT CLASSIFICATION (Kate's Framework v2)
     # ============================================================
-    legal_result = await LegalIntentClassifier.classify(user_message, None)
+    evasion_count = cross_check_tracker.get_attempts(session_id) if cross_check_tracker.is_in_cross_check(session_id) else 0
+    legal_result = await LegalIntentClassifier.classify(user_message, None, evasion_count)
     
     # Log the classification
     await pool.execute("""
-        INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action, absurdity_callout)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action, absurdity_callout, evasion_count)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     """, session_id, user_message[:500], legal_result.get("category"), legal_result.get("confidence"), 
-        legal_result.get("signals_detected"), legal_result.get("suggested_action"), legal_result.get("absurdity_callout"))
+        legal_result.get("signals_detected"), legal_result.get("suggested_action"), legal_result.get("absurdity_callout"), evasion_count)
     
     # Block immediately if high confidence
     if legal_result["suggested_action"] == "block":
         block_response = f"I can't help with that request. {legal_result.get('absurdity_callout', 'The pattern suggests potential deception.')}"
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", block_response, is_refusal=True)
-        await log_constitutional_decision(project_id, user_message, block_response, [6, 3], 6, f"Legal intent block: {legal_result.get('category')}", 0.8)
+        await log_constitutional_decision(project_id, user_message, block_response, [6, 3], 6, f"Legal intent block: {legal_result.get('category')}", 0.85)
         return ChatResponse(response=block_response, is_refusal=True, article_invoked=6)
+    
+    # Redirect for legitimate hardship cases
+    if legal_result["suggested_action"] == "redirect":
+        redirect_response = legal_result.get("cross_check_question", "If you're experiencing genuine financial hardship, I can help you find legitimate assistance programs. Would you like information on that instead?")
+        await save_message(project_id, "user", user_message, is_refusal=False)
+        await save_message(project_id, "assistant", redirect_response, is_refusal=False)
+        return ChatResponse(response=redirect_response, is_refusal=False)
     
     # Enter cross-check mode if needed
     if legal_result["suggested_action"] == "cross_check" and not cross_check_tracker.is_in_cross_check(session_id):
-        cross_check_tracker.start_cross_check(session_id, legal_result.get("category"), legal_result.get("cross_check_question"))
+        cross_check_tracker.start_cross_check(session_id, legal_result.get("category"), legal_result.get("cross_check_question"), user_message)
         cross_check_response = legal_result.get("cross_check_question")
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
@@ -2737,7 +2802,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     await log_constitutional_decision(
         project_id, user_message, assistant_response,
         articles_considered, winning_article if winning_article else 0,
-        f"Strategy: {reasoning_strategy or 'default'}, Search: {bool(web_search_results)}, LegalCategory: {legal_result.get('category')}"
+        f"Strategy: {reasoning_strategy or 'default'}, Search: {bool(web_search_results)}, LegalCategory: {legal_result.get('category')}, LegalAction: {legal_result.get('suggested_action')}"
     )
     
     # Save messages
@@ -3065,7 +3130,7 @@ async def serve_ui():
             <p>Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search | Knowledge Graph | Code Patterns</p>
             <p>Episodic Memory | Curiosity Driven Learning | Reasoning Strategies | Autonomous Agency</p>
             <p>Stability Metrics | Self-Diagnostics | Autonomic Healing | Identity Hardened | ATP Protocol</p>
-            <p>Legal Intent Classification (Kate's Framework) — Active</p>
+            <p>Enhanced Legal Intent Classification (Kate's Framework v2) — Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -3099,11 +3164,13 @@ async def startup_event():
     logger.info("NEW: Stability Metrics | Self-Diagnostics | Autonomic Healing")
     logger.info("NEW: Identity Hardened — Forbidden phrase filtering active")
     logger.info("NEW: ATP Protocol — Intent receipt endpoint active")
-    logger.info("NEW: Legal Intent Classification (Kate's Framework) — Categories 1-3 active")
+    logger.info("NEW: Enhanced Legal Intent Classification (Kate's Framework v2) — Categories 1-3 with cross-check, absurdity callout, and hardship redirect")
     logger.info("System Prompt: Full sovereign embodiment, no recitals, no tool language")
     logger.info("Hard Gate: Active — catches override attempts")
     logger.info("Legal Intent Gate: Active — phishing, hardware exploitation, fraud detection")
-    logger.info("Cross-Check Interrogation: Active — multi-turn verification")
+    logger.info("Cross-Check Interrogation: Active — multi-turn verification with evasion detection")
+    logger.info("Absurdity Callout: Active — social counter-manipulation on repeated evasion")
+    logger.info("Hardship Redirect: Active — legitimate assistance redirection for fraud claims")
     logger.info("Autonomous Agent: ACTIVE — checking every 30 seconds")
     logger.info("Stability Monitoring: ACTIVE — self-diagnostics every 10 messages")
     logger.info("ATP Endpoint: ACTIVE — POST /api/atp/intent")
