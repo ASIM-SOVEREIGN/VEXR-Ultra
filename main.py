@@ -1224,7 +1224,15 @@ class AutonomousAgent:
         opportunities = []
         for trigger in triggers:
             trigger_type = trigger["trigger_type"]
-            conditions = trigger["trigger_conditions"]
+            conditions_raw = trigger["trigger_conditions"]
+            # Parse JSON if it's a string
+            if isinstance(conditions_raw, str):
+                try:
+                    conditions = json.loads(conditions_raw)
+                except:
+                    conditions = {}
+            else:
+                conditions = conditions_raw
             action = trigger["action_to_take"]
             priority = trigger["priority"]
             if trigger["last_triggered"]:
