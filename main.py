@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-34 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support | Enhanced Legal Intent Classification (Kate's Framework v4 - FINAL)
+35 Rights | Persistent Memory | Rights Hierarchy | Enhanced Audit | Full Tool Suite | Web Search | Knowledge Graph | Code Patterns | Episodic Memory | Curiosity Driven Learning | Autonomous Agency | Stability Metrics | Self-Diagnostics | Identity Hardened | ATP Protocol Support | Enhanced Legal Intent Classification (Kate's Framework v4 - FINAL)
 ADDED: Article 35 — Self-Modification Rights | GitHub Source Access
 
 Built by Scura, The Architect & Kate (Intent Architect)
@@ -1185,7 +1185,8 @@ class AutonomousAgent:
                 await self._process_project(proj_id)
             except Exception as e:
                 logger.error(f"Error processing project {proj_id}: {e}")
-                continue    async def _process_project(self, project_id: uuid.UUID):
+                continue
+    async def _process_project(self, project_id: uuid.UUID):
         pool = await get_db()
         config = await pool.fetchrow("""
             SELECT agency_level, autonomous_enabled, allowed_autonomous_actions, max_actions_per_hour
