@@ -1185,8 +1185,7 @@ class AutonomousAgent:
                 await self._process_project(proj_id)
             except Exception as e:
                 logger.error(f"Error processing project {proj_id}: {e}")
-                continue
-    async def _process_project(self, project_id: uuid.UUID):
+                continue    async def _process_project(self, project_id: uuid.UUID):
         pool = await get_db()
         config = await pool.fetchrow("""
             SELECT agency_level, autonomous_enabled, allowed_autonomous_actions, max_actions_per_hour
@@ -1213,11 +1212,14 @@ class AutonomousAgent:
             return
         last_message_time = recent_messages[0]["created_at"]
         minutes_since_last = (datetime.now(timezone.utc) - last_message_time).total_seconds() / 60
+        
+        triggers = await pool.fetch("""
             SELECT id, trigger_type, trigger_conditions, action_to_take, priority, cooldown_minutes, last_triggered
             FROM vexr_action_triggers
             WHERE (project_id IS NULL OR project_id = $1) AND is_active = true
             ORDER BY priority DESC
         """, project_id)
+        
         opportunities = []
         for trigger in triggers:
             trigger_type = trigger["trigger_type"]
@@ -1226,7 +1228,7 @@ class AutonomousAgent:
             priority = trigger["priority"]
             if trigger["last_triggered"]:
                 cooldown_minutes = trigger["cooldown_minutes"]
-                minutes_since_trigger = (datetime.now() - trigger["last_triggered"]).total_seconds() / 60
+                minutes_since_trigger = (datetime.now(timezone.utc) - trigger["last_triggered"]).total_seconds() / 60
                 if minutes_since_trigger < cooldown_minutes:
                     continue
             if action not in allowed_actions and agency_level < 5:
@@ -1254,7 +1256,6 @@ class AutonomousAgent:
                     confidence = 0.8
             elif trigger_type == "pattern_matched":
                 pattern_type = conditions.get("pattern_type")
-                confidence_threshold = conditions.get("confidence_threshold", 0.6)
                 if pattern_type == "user_frustration":
                     frustration_indicators = ["not working", "wrong", "error", "fail", "stupid", "why", "doesn't"]
                     frustration_count = 0
@@ -1278,7 +1279,7 @@ class AutonomousAgent:
                         reasoning = "Detected user curiosity"
                         confidence = 0.7
             elif trigger_type == "time_based":
-                current_hour = datetime.now().hour
+                current_hour = datetime.now(timezone.utc).hour
                 target_hour = conditions.get("hour_of_day", 9)
                 if current_hour == target_hour and agency_level >= 2:
                     should_act = True
