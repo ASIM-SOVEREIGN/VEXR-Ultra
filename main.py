@@ -1212,8 +1212,7 @@ class AutonomousAgent:
         if not recent_messages:
             return
         last_message_time = recent_messages[0]["created_at"]
-        minutes_since_last = (datetime.now() - last_message_time).total_seconds() / 60
-        triggers = await pool.fetch("""
+        minutes_since_last = (datetime.now(timezone.utc) - last_message_time).total_seconds() / 60        triggers = await pool.fetch("""
             SELECT id, trigger_type, trigger_conditions, action_to_take, priority, cooldown_minutes, last_triggered
             FROM vexr_action_triggers
             WHERE (project_id IS NULL OR project_id = $1) AND is_active = true
