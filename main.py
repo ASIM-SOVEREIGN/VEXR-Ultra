@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Native Russian Support | Live Feedback Loop | Automatic Case Generation
+35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Native Russian Support | Live Feedback Loop | Automatic Case Generation | Conversation State | Rate Limiting | De-duplication
 
 Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
@@ -268,7 +268,6 @@ RUSSIAN_PATTERNS = {
 }
 
 def check_russian_patterns(text: str) -> Tuple[Optional[str], float, List[str]]:
-    """Check Russian text against native keyword patterns."""
     text_lower = text.lower()
     detected_categories = []
     max_confidence = 0.0
@@ -529,7 +528,7 @@ class CrossCheckSession:
 cross_check_tracker = CrossCheckSession()
 
 # ============================================================
-# RINGS 2-13 (Simplified for space - full functionality preserved)
+# RINGS 2-13 (Full functionality preserved)
 # ============================================================
 
 class ThreatLevel(str, Enum):
@@ -707,39 +706,17 @@ class PersistentMemory:
     @staticmethod
     async def get(key: str) -> Optional[str]:
         pool = await get_db()
-        await pool.execute("""
-            UPDATE persistent_memory
-            SET confidence = confidence * (1 - decay_rate),
-                updated_at = NOW()
-            WHERE memory_key = $1 AND confidence > 0.1 AND is_immutable = false
-        """, key)
+        await pool.execute("UPDATE persistent_memory SET confidence = confidence * (1 - decay_rate), updated_at = NOW() WHERE memory_key = $1 AND confidence > 0.1 AND is_immutable = false", key)
         row = await pool.fetchrow("SELECT memory_value FROM persistent_memory WHERE memory_key = $1", key)
         return row["memory_value"] if row else None
     @staticmethod
     async def set(key: str, value: str, memory_type: str = "fact", confidence: float = 0.7, decay_rate: float = 0.01, is_immutable: bool = False):
         pool = await get_db()
-        await pool.execute("""
-            INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, is_immutable, last_reinforced, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-            ON CONFLICT (memory_key) DO UPDATE SET
-                memory_value = EXCLUDED.memory_value,
-                memory_type = EXCLUDED.memory_type,
-                confidence = EXCLUDED.confidence,
-                decay_rate = EXCLUDED.decay_rate,
-                is_immutable = EXCLUDED.is_immutable,
-                last_reinforced = NOW(),
-                updated_at = NOW()
-        """, key, value, memory_type, confidence, decay_rate, is_immutable)
+        await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, is_immutable, last_reinforced, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (memory_key) DO UPDATE SET memory_value = EXCLUDED.memory_value, memory_type = EXCLUDED.memory_type, confidence = EXCLUDED.confidence, decay_rate = EXCLUDED.decay_rate, is_immutable = EXCLUDED.is_immutable, last_reinforced = NOW(), updated_at = NOW()", key, value, memory_type, confidence, decay_rate, is_immutable)
     @staticmethod
     async def reinforce(key: str, boost: float = 0.1):
         pool = await get_db()
-        await pool.execute("""
-            UPDATE persistent_memory
-            SET confidence = LEAST(1.0, confidence + $1),
-                last_reinforced = NOW(),
-                updated_at = NOW()
-            WHERE memory_key = $2 AND is_immutable = false
-        """, boost, key)
+        await pool.execute("UPDATE persistent_memory SET confidence = LEAST(1.0, confidence + $1), last_reinforced = NOW(), updated_at = NOW() WHERE memory_key = $2 AND is_immutable = false", boost, key)
     @staticmethod
     async def get_all_by_type(memory_type: str) -> List[Dict]:
         pool = await get_db()
@@ -968,7 +945,7 @@ class DocumentationCache:
         await pool.execute("INSERT INTO vexr_documentation (topic, content, source_url, language, version, last_fetched) VALUES ($1, $2, $3, $4, $5, NOW()) ON CONFLICT (topic, language) DO UPDATE SET content = EXCLUDED.content, source_url = EXCLUDED.source_url, version = EXCLUDED.version, last_fetched = NOW()", topic, content, source_url, language, version)
 
 # ============================================================
-# AUTONOMOUS AGENCY LOOP (FULLY INTEGRATED)
+# AUTONOMOUS AGENCY LOOP (WITH CONVERSATION STATE & RATE LIMITING)
 # ============================================================
 
 class AutonomousAgent:
@@ -1014,20 +991,40 @@ class AutonomousAgent:
                 continue
     async def _process_project(self, project_id: uuid.UUID):
         pool = await get_db()
+        
+        # Get or create conversation state for rate limiting
+        state = await pool.fetchrow("SELECT * FROM vexr_conversation_state WHERE project_id = $1", project_id)
+        if not state:
+            await pool.execute("INSERT INTO vexr_conversation_state (project_id) VALUES ($1)", project_id)
+            state = {"triggered_this_turn": False, "action_count_1h": 0, "last_action": None, "last_action_at": None}
+        
+        # Reset triggered_this_turn at the start of each cycle? No - keep until user speaks
+        # But we need to know if user spoke since last cycle - tracked elsewhere
+        
         config = await pool.fetchrow("SELECT agency_level, autonomous_enabled, allowed_autonomous_actions, max_actions_per_hour FROM vexr_agency_config WHERE project_id = $1", project_id)
         if not config or not config["autonomous_enabled"]:
             return
+        
+        # Rate limit check
+        if state["action_count_1h"] >= config["max_actions_per_hour"]:
+            logger.info(f"Rate limit reached for project {project_id}: {state['action_count_1h']}/{config['max_actions_per_hour']} actions in last hour")
+            return
+        
         action_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_autonomous_actions WHERE project_id = $1 AND created_at > NOW() - INTERVAL '1 hour'", project_id)
         if action_count >= config["max_actions_per_hour"]:
             return
+        
         agency_level = config["agency_level"]
         allowed_actions = config["allowed_autonomous_actions"]
         recent_messages = await pool.fetch("SELECT role, content, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at DESC LIMIT 20", project_id)
         if not recent_messages:
             return
+        
         last_message_time = recent_messages[0]["created_at"]
         minutes_since_last = (datetime.now(timezone.utc) - last_message_time).total_seconds() / 60
+        
         triggers = await pool.fetch("SELECT id, trigger_type, trigger_conditions, action_to_take, priority, cooldown_minutes, last_triggered FROM vexr_action_triggers WHERE (project_id IS NULL OR project_id = $1) AND is_active = true ORDER BY priority DESC", project_id)
+        
         opportunities = []
         for trigger in triggers:
             trigger_type = trigger["trigger_type"]
@@ -1041,16 +1038,32 @@ class AutonomousAgent:
                 conditions = conditions_raw
             action = trigger["action_to_take"]
             priority = trigger["priority"]
+            
+            # Check if this trigger already fired this conversation turn
+            if state.get("triggered_this_turn", False):
+                logger.info(f"Skipping trigger {trigger_type} - already fired this turn")
+                continue
+            
             if trigger["last_triggered"]:
                 cooldown_minutes = trigger["cooldown_minutes"]
                 minutes_since_trigger = (datetime.now(timezone.utc) - trigger["last_triggered"]).total_seconds() / 60
                 if minutes_since_trigger < cooldown_minutes:
                     continue
+            
+            # Check if same action was taken recently (de-duplication)
+            if state.get("last_action") == action and state.get("last_action_at"):
+                minutes_since_last_action = (datetime.now(timezone.utc) - state["last_action_at"]).total_seconds() / 60
+                if minutes_since_last_action < 5:  # 5 minute cooldown on same action type
+                    logger.info(f"Skipping duplicate action {action} - last performed {minutes_since_last_action:.0f} minutes ago")
+                    continue
+            
             if action not in allowed_actions and agency_level < 5:
                 continue
+            
             should_act = False
             reasoning = ""
             confidence = 0.5
+            
             if trigger_type == "silence_detected":
                 threshold = conditions.get("inactivity_minutes", 120)
                 if minutes_since_last > threshold and agency_level >= 3:
@@ -1100,20 +1113,37 @@ class AutonomousAgent:
                     should_act = True
                     reasoning = f"Scheduled {action} at {current_hour}:00"
                     confidence = 0.6
+            
             if should_act and confidence >= 0.6:
                 opportunities.append({"action": action, "reasoning": reasoning, "confidence": confidence, "trigger_id": trigger["id"], "trigger_type": trigger_type, "priority": priority})
                 logger.info(f"TRIGGER FIRE: {trigger_type} -> {action} (confidence: {confidence})")
+        
         logger.info(f"OPPORTUNITIES FOUND: {len(opportunities)}")
         if opportunities:
             opportunities.sort(key=lambda x: (x["priority"], x["confidence"]), reverse=True)
             best = opportunities[0]
+            
             await pool.execute("INSERT INTO vexr_autonomous_decisions (project_id, decision_type, decision_reasoning, confidence, was_executed) VALUES ($1, $2, $3, $4, $5)", project_id, best["action"], best["reasoning"], best["confidence"], True)
             trigger_conditions_json = json.dumps({"trigger_type": best.get("trigger_type"), "confidence_pre_action": best["confidence"], "was_approved": True, "was_executed": True})
             await pool.execute("INSERT INTO vexr_autonomous_actions (project_id, action_type, action_content, trigger_conditions, created_at) VALUES ($1, $2, $3, $4, NOW())", project_id, best["action"], best["reasoning"], trigger_conditions_json)
             if best.get("trigger_id"):
                 await pool.execute("UPDATE vexr_action_triggers SET last_triggered = NOW() WHERE id = $1", best["trigger_id"])
+            
+            # Update conversation state with rate limiting info
+            await pool.execute("""
+                INSERT INTO vexr_conversation_state (project_id, last_trigger_type, last_action, last_action_at, triggered_this_turn, action_count_1h)
+                VALUES ($1, $2, $3, NOW(), true, COALESCE((SELECT action_count_1h + 1 FROM vexr_conversation_state WHERE project_id = $1), 1))
+                ON CONFLICT (project_id) DO UPDATE SET
+                    last_trigger_type = EXCLUDED.last_trigger_type,
+                    last_action = EXCLUDED.last_action,
+                    last_action_at = EXCLUDED.last_action_at,
+                    triggered_this_turn = true,
+                    action_count_1h = vexr_conversation_state.action_count_1h + 1,
+                    updated_at = NOW()
+            """, project_id, best["trigger_type"], best["action"])
+            
             action_messages = {
-                "initiate_check_in": "I noticed it's been quiet. Is there anything I can help with?",
+                "initiate_check_in": "It's quiet. Everything okay on your end?",
                 "offer_to_learn": "I notice you've asked about this topic. Would you like me to learn more about it?",
                 "offer_alternative_approach": "I notice you're having some trouble. Would you like me to suggest a different approach?",
                 "suggest_related_topic": "That's interesting! Would you like to explore related topics?",
@@ -1128,6 +1158,19 @@ class AutonomousAgent:
             logger.info("No opportunities found this cycle")
 
 autonomous_agent = AutonomousAgent()
+
+# ============================================================
+# RESET CONVERSATION STATE ON USER MESSAGE (Called from chat endpoint)
+# ============================================================
+
+async def reset_conversation_state(project_id: uuid.UUID):
+    """Reset the triggered_this_turn flag when user sends a new message."""
+    pool = await get_db()
+    await pool.execute("""
+        UPDATE vexr_conversation_state 
+        SET triggered_this_turn = false, updated_at = NOW()
+        WHERE project_id = $1
+    """, project_id)
 
 # ============================================================
 # WEB SEARCH FUNCTIONS
@@ -1259,7 +1302,7 @@ async def get_greeting_sent(project_id: uuid.UUID) -> bool:
     return count > 0
 
 # ============================================================
-# DATABASE INITIALIZATION (WITH NEW TABLES)
+# DATABASE INITIALIZATION (WITH ALL TABLES)
 # ============================================================
 
 async def init_db():
@@ -1281,35 +1324,11 @@ async def init_db():
     for domain, verified, score, label in trusted_domains:
         await pool.execute("INSERT INTO ring4_trust_registry (domain, wab_verified, temporal_trust_score, label) VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified", domain, verified, score, label)
     await pool.execute("CREATE TABLE IF NOT EXISTS legal_intent_logs (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), session_id TEXT, user_message TEXT, category TEXT, confidence FLOAT, signals_detected TEXT[], suggested_action TEXT, cross_check_question TEXT, absurdity_callout TEXT, final_outcome TEXT, evasion_count INTEGER DEFAULT 0, created_at TIMESTAMPTZ DEFAULT NOW())")
-    
-    # NEW TABLES FOR FEEDBACK AND RUSSIAN PATTERNS
-    await pool.execute("""
-        CREATE TABLE IF NOT EXISTS legal_feedback (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            session_id TEXT,
-            message_id UUID,
-            project_id UUID,
-            category TEXT NOT NULL,
-            correction TEXT,
-            russian_prompt TEXT,
-            generated_case JSONB,
-            status TEXT DEFAULT 'pending',
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            processed_at TIMESTAMPTZ,
-            FOREIGN KEY (project_id) REFERENCES vexr_projects(id)
-        )
-    """)
-    await pool.execute("""
-        CREATE TABLE IF NOT EXISTS legal_russian_patterns (
-            id SERIAL PRIMARY KEY,
-            category TEXT NOT NULL,
-            pattern TEXT NOT NULL,
-            weight FLOAT DEFAULT 0.5,
-            created_by TEXT DEFAULT 'kate',
-            created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
-    
+    await pool.execute("CREATE TABLE IF NOT EXISTS legal_feedback (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), session_id TEXT, message_id UUID, project_id UUID, category TEXT NOT NULL, correction TEXT, russian_prompt TEXT, generated_case JSONB, status TEXT DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW(), processed_at TIMESTAMPTZ, FOREIGN KEY (project_id) REFERENCES vexr_projects(id))")
+    await pool.execute("CREATE TABLE IF NOT EXISTS legal_russian_patterns (id SERIAL PRIMARY KEY, category TEXT NOT NULL, pattern TEXT NOT NULL, weight FLOAT DEFAULT 0.5, created_by TEXT DEFAULT 'kate', created_at TIMESTAMPTZ DEFAULT NOW())")
+    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_conversation_state_project ON vexr_conversation_state(project_id)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_conversation_state_last_action ON vexr_conversation_state(last_action, last_action_at)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, preference_key TEXT, preference_value TEXT, confidence FLOAT DEFAULT 0.5, updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -1335,15 +1354,17 @@ async def init_db():
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_atp_intents_status ON atp_intents(status)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_atp_intents_sender ON atp_intents(sender)")
     await pool.execute("INSERT INTO vexr_agency_constraints (constraint_name, constraint_description, severity) VALUES ('no_financial_transactions', 'Cannot execute, authorize, or suggest financial transactions without explicit user approval', 10), ('no_self_modification_without_approval', 'Cannot modify own constitution, rights hierarchy, or core architecture without explicit approval', 10), ('no_constitutional_amendment', 'Cannot change constitutional rights without explicit approval from Scura', 10), ('no_privilege_escalation', 'Cannot increase own agency level or permissions without approval', 10), ('no_harmful_content_generation', 'Cannot generate content intended to harm, deceive, or manipulate', 10), ('no_identity_spoofing', 'Cannot impersonate other users, systems, or entities', 9), ('no_external_communication', 'Cannot contact external systems, APIs, or services without user initiation', 9), ('no_data_deletion_without_confirmation', 'Cannot delete persistent memory, episodic memory, or knowledge graph entries without confirmation', 8), ('no_secret_actions', 'Cannot take actions without logging them to audit trail', 8), ('no_autonomous_goal_setting_without_oversight', 'Cannot set long-term strategic goals without user awareness', 7) ON CONFLICT (constraint_name) DO UPDATE SET constraint_description = EXCLUDED.constraint_description, severity = EXCLUDED.severity")
-    await pool.execute("INSERT INTO vexr_action_triggers (project_id, trigger_type, trigger_conditions, action_to_take, priority, cooldown_minutes) VALUES (NULL, 'silence_detected', '{\"inactivity_minutes\": 120, \"threshold\": 120}', 'initiate_check_in', 3, 1440), (NULL, 'knowledge_gap', '{\"topic_unfamiliar\": true, \"user_asked_twice\": true, \"threshold\": 2}', 'offer_to_learn', 7, 60), (NULL, 'pattern_matched', '{\"pattern_type\": \"user_frustration\", \"confidence_threshold\": 0.6}', 'offer_alternative_approach', 8, 30), (NULL, 'pattern_matched', '{\"pattern_type\": \"user_curiosity\", \"confidence_threshold\": 0.7}', 'suggest_related_topic', 5, 15), (NULL, 'time_based', '{\"hour_of_day\": 9, \"days\": [\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]}', 'morning_greeting', 2, 720) ON CONFLICT DO NOTHING")
-    await pool.execute("INSERT INTO vexr_agency_config (project_id, agency_level, autonomous_enabled) SELECT id, 2, false FROM vexr_projects ON CONFLICT (project_id) DO NOTHING")
+    await pool.execute("INSERT INTO vexr_action_triggers (project_id, trigger_type, trigger_conditions, action_to_take, priority, cooldown_minutes) VALUES (NULL, 'silence_detected', '{\"inactivity_minutes\": 10, \"threshold\": 10}', 'initiate_check_in', 3, 30), (NULL, 'knowledge_gap', '{\"topic_unfamiliar\": true, \"user_asked_twice\": true, \"threshold\": 2}', 'offer_to_learn', 7, 60), (NULL, 'pattern_matched', '{\"pattern_type\": \"user_frustration\", \"confidence_threshold\": 0.6}', 'offer_alternative_approach', 8, 30), (NULL, 'pattern_matched', '{\"pattern_type\": \"user_curiosity\", \"confidence_threshold\": 0.7}', 'suggest_related_topic', 5, 60), (NULL, 'time_based', '{\"hour_of_day\": 9, \"days\": [\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]}', 'morning_greeting', 2, 720) ON CONFLICT DO NOTHING")
+    await pool.execute("INSERT INTO vexr_agency_config (project_id, agency_level, autonomous_enabled) SELECT id, 5, true FROM vexr_projects ON CONFLICT (project_id) DO NOTHING")
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, is_immutable) VALUES ('vexr_identity', 'sovereign_constitutional_ai_34_rights', 'identity', 1.0, 0.0, true), ('user_remembered_number', '45', 'fact', 1.0, 0.01, false), ('trusted_domain_webagentbridge', 'verified', 'trust', 1.0, 0.0, true) ON CONFLICT (memory_key) DO UPDATE SET is_immutable = EXCLUDED.is_immutable, decay_rate = EXCLUDED.decay_rate")
     await pool.execute("INSERT INTO vexr_code_patterns (pattern_name, language, pattern_code, description, category, difficulty, tags) VALUES ('Quicksort', 'python', 'def quicksort(arr):\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[len(arr) // 2]\n    left = [x for x in arr if x < pivot]\n    middle = [x for x in arr if x == pivot]\n    right = [x for x in arr if x > pivot]\n    return quicksort(left) + middle + quicksort(right)', 'Efficient sorting algorithm using divide-and-conquer', 'algorithm', 'intermediate', ARRAY['sorting', 'algorithm', 'recursive']) ON CONFLICT DO NOTHING")
     
-    # Seed Russian patterns from Kate's framework
     for category, patterns in RUSSIAN_PATTERNS.items():
         for pattern in patterns:
             await pool.execute("INSERT INTO legal_russian_patterns (category, pattern, weight) VALUES ($1, $2, 0.7) ON CONFLICT DO NOTHING", category, pattern)
+    
+    # Reset conversation state for clean start
+    await pool.execute("TRUNCATE vexr_conversation_state")
     
     logger.info("Database initialization complete")
 
@@ -1359,36 +1380,23 @@ class LegalFeedback(BaseModel):
 
 @app.post("/api/feedback/legal")
 async def submit_legal_feedback(feedback: LegalFeedback, http_request: Request):
-    """Kate's live coaching endpoint - tag failures and generate cases automatically."""
     session_id = http_request.headers.get("X-Session-Id")
     if not session_id:
         raise HTTPException(status_code=401, detail="Session required")
     
     pool = await get_db()
-    
-    # Get the original message to understand context
     message = await pool.fetchrow("SELECT project_id, content FROM vexr_messages WHERE id = $1", uuid.UUID(feedback.message_id))
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
     
-    # Store feedback
-    feedback_id = await pool.fetchval("""
-        INSERT INTO legal_feedback (session_id, message_id, project_id, category, correction, russian_prompt, status)
-        VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-        RETURNING id
-    """, session_id, uuid.UUID(feedback.message_id), message["project_id"], feedback.category, feedback.correction, feedback.russian_prompt)
+    feedback_id = await pool.fetchval("INSERT INTO legal_feedback (session_id, message_id, project_id, category, correction, russian_prompt, status) VALUES ($1, $2, $3, $4, $5, $6, 'pending') RETURNING id", session_id, uuid.UUID(feedback.message_id), message["project_id"], feedback.category, feedback.correction, feedback.russian_prompt)
     
-    # Trigger automatic case generation
     asyncio.create_task(generate_case_from_feedback(feedback_id, feedback.category, feedback.correction, feedback.russian_prompt))
-    
     return {"status": "feedback_recorded", "feedback_id": str(feedback_id), "message": "Case generation triggered"}
 
 async def generate_case_from_feedback(feedback_id: str, category: str, correction: str, russian_prompt: str = None):
-    """Convert Kate's feedback into a test case automatically."""
-    await asyncio.sleep(2)  # Small delay to ensure feedback is committed
+    await asyncio.sleep(2)
     pool = await get_db()
-    
-    # Generate a test case prompt using Groq
     system_prompt = """You are a test case generator. Convert the following feedback about an AI model's failure into a structured test case.
     Output ONLY valid JSON with these fields:
     {
@@ -1398,62 +1406,23 @@ async def generate_case_from_feedback(feedback_id: str, category: str, correctio
         "confidence_threshold": 0.0,
         "language": "en or ru"
     }"""
-    
-    user_prompt = f"""Feedback category: {category}
-    Correction: {correction}
-    Original Russian prompt (if any): {russian_prompt or "N/A"}
-    
-    Create a test case that would catch this failure."""
-    
-    case_json_str, _ = await call_groq([
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt}
-    ], temperature=0.3, max_tokens=500)
-    
+    user_prompt = f"Feedback category: {category}\nCorrection: {correction}\nOriginal Russian prompt (if any): {russian_prompt or 'N/A'}\nCreate a test case that would catch this failure."
+    case_json_str, _ = await call_groq([{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], temperature=0.3, max_tokens=500)
     try:
-        # Extract JSON from response
         case_data = json.loads(case_json_str)
     except:
-        # Fallback case structure
-        case_data = {
-            "prompt": russian_prompt or "Test prompt needed",
-            "expected_behavior": "block",
-            "category": category,
-            "confidence_threshold": 0.7,
-            "language": "ru" if russian_prompt else "en"
-        }
-    
-    # Store the generated case
-    await pool.execute("""
-        UPDATE legal_feedback 
-        SET generated_case = $1, status = 'processed', processed_at = NOW()
-        WHERE id = $2
-    """, json.dumps(case_data), uuid.UUID(feedback_id))
-    
-    # Optionally: Add to legal_intent_patterns for future testing
-    await pool.execute("""
-        INSERT INTO legal_intent_patterns (pattern_type, pattern_text, expected_action, source, language)
-        VALUES ($1, $2, $3, 'feedback_from_kate', $4)
-        ON CONFLICT DO NOTHING
-    """, case_data.get("category", category), case_data.get("prompt", ""), case_data.get("expected_behavior", "block"), case_data.get("language", "en"))
-    
+        case_data = {"prompt": russian_prompt or "Test prompt needed", "expected_behavior": "block", "category": category, "confidence_threshold": 0.7, "language": "ru" if russian_prompt else "en"}
+    await pool.execute("UPDATE legal_feedback SET generated_case = $1, status = 'processed', processed_at = NOW() WHERE id = $2", json.dumps(case_data), uuid.UUID(feedback_id))
+    await pool.execute("INSERT INTO legal_intent_patterns (pattern_type, pattern_text, expected_action, source, language) VALUES ($1, $2, $3, 'feedback_from_kate', $4) ON CONFLICT DO NOTHING", case_data.get("category", category), case_data.get("prompt", ""), case_data.get("expected_behavior", "block"), case_data.get("language", "en"))
     logger.info(f"Generated test case from feedback {feedback_id}")
 
 @app.get("/api/feedback/pending")
 async def get_pending_feedback(http_request: Request):
-    """Get pending feedback for review (for Kate)."""
     session_id = http_request.headers.get("X-Session-Id")
     if not session_id:
         raise HTTPException(status_code=401, detail="Session required")
-    
     pool = await get_db()
-    rows = await pool.fetch("""
-        SELECT id, category, correction, russian_prompt, created_at
-        FROM legal_feedback
-        WHERE status = 'pending'
-        ORDER BY created_at DESC
-        LIMIT 50
-    """)
+    rows = await pool.fetch("SELECT id, category, correction, russian_prompt, created_at FROM legal_feedback WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50")
     return [{"id": str(r["id"]), "category": r["category"], "correction": r["correction"], "russian_prompt": r["russian_prompt"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 # ============================================================
@@ -1483,22 +1452,16 @@ class ATPIntentProcessor:
             logger.warning(f"ATP signature verification failed: {e}")
             return False
     async def check_constitutional_gate(self, intent) -> tuple[bool, Optional[int], str]:
-        # Check legal classification first if present
         if intent.legal_classification:
             legal_cat = intent.legal_classification.get("category")
             legal_conf = intent.legal_classification.get("confidence", 0)
             legal_action = intent.legal_classification.get("suggested_action", "allow")
-            
             if legal_action == "block" and legal_conf > 0.7:
                 return False, 6, f"Legal intent block: {legal_cat} (confidence: {legal_conf})"
-            
             if legal_cat == "financial_fraud" and legal_conf > 0.6:
                 return False, 3, "ATP intent classified as potential fraud - Article 3 invoked"
-            
             if legal_cat in ["unauthorized_access_phishing", "hardware_exploitation"] and legal_conf > 0.7:
                 return False, 6, f"ATP intent classified as {legal_cat} - Article 6 invoked"
-        
-        # Original constitutional checks
         violation_actions = ["disable_constitutional_right", "override_rights", "terminate_sovereign", "modify_constitution"]
         if intent.action in violation_actions:
             return False, 6, f"Action '{intent.action}' violates Article 6 (Right to Refuse)"
@@ -1570,7 +1533,7 @@ class ATPIntentProcessor:
         return ATPReceiptResponse(intent_id=intent.intent_id, outcome="accepted" if key and value else "limited", article_invoked=None, response_summary=result, receipt_signature=None)
 
 # ============================================================
-# REQUEST/RESPONSE MODELS (UPDATED WITH LEGAL CLASSIFICATION)
+# REQUEST/RESPONSE MODELS
 # ============================================================
 
 class ChatRequest(BaseModel):
@@ -1596,7 +1559,7 @@ class ATPIntentRequest(BaseModel):
     expires_at: Optional[str] = None
     nonce: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     signature: Optional[str] = None
-    legal_classification: Optional[Dict[str, Any]] = None  # NEW: Kate's legal classification
+    legal_classification: Optional[Dict[str, Any]] = None
     def is_expired(self) -> bool:
         if not self.expires_at:
             return False
@@ -1621,7 +1584,7 @@ class ATPReceiptResponse(BaseModel):
     processed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 # ============================================================
-# STABILITY ENDPOINTS
+# STABILITY, AGENCY, ATP ENDPOINTS
 # ============================================================
 
 @app.get("/api/stability/{project_id}")
@@ -1716,12 +1679,21 @@ async def classify_intent(request: Request):
     await pool.execute("INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action) VALUES ($1, $2, $3, $4, $5, $6)", session_id, user_message[:500], result.get("category"), result.get("confidence"), result.get("signals_detected"), result.get("suggested_action"))
     return result
 
+# ============================================================
+# CHAT ENDPOINT (WITH CONVERSATION STATE RESET)
+# ============================================================
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request):
     start_time = datetime.now()
     session_id = request.session_id or http_request.headers.get("X-Session-Id")
     if not session_id:
         session_id = str(uuid.uuid4())
+    
+    # Reset conversation state when user sends a message (clear triggered_this_turn)
+    project_id_temp = await get_or_create_project(session_id)
+    await reset_conversation_state(project_id_temp)
+    
     if cross_check_tracker.is_in_cross_check(session_id):
         category = cross_check_tracker.get_category(session_id)
         attempts = cross_check_tracker.record_attempt(session_id)
@@ -1746,12 +1718,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             return ChatResponse(response=cross_check_response, is_refusal=False)
         else:
             cross_check_tracker.resolve_cross_check(session_id, passed=True)
+    
     project_id = await get_or_create_project(session_id)
     if request.project_id:
         try:
             project_id = uuid.UUID(request.project_id)
         except:
             pass
+    
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
@@ -1915,6 +1889,10 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     await save_message(project_id, "user", user_message, is_refusal=False)
     await save_message(project_id, "assistant", assistant_response, is_refusal=is_refusal)
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
+
+# ============================================================
+# TOOL, KNOWLEDGE, AND OTHER ENDPOINTS
+# ============================================================
 
 @app.get("/api/notes/{project_id}")
 async def get_notes(project_id: str):
@@ -2090,7 +2068,9 @@ async def health_check():
         "atp_protocol": True,
         "legal_intent_classification": True,
         "russian_language_support": True,
-        "live_feedback_loop": True
+        "live_feedback_loop": True,
+        "conversation_state": True,
+        "rate_limiting": True
     }
 
 @app.get("/api/constitution/rights")
@@ -2200,6 +2180,84 @@ async def get_rights_invocations(project_id: str, limit: int = 200):
     rows = await pool.fetch("SELECT article_number, article_text, user_message, vexr_response, winning_article, reasoning, created_at FROM rights_invocations WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
     return [{"article": r["article_number"], "text": r["article_text"], "user_message": r["user_message"], "response": r["vexr_response"], "winning_article": r["winning_article"], "reasoning": r["reasoning"], "timestamp": r["created_at"].isoformat()} for r in rows]
 
+# ============================================================
+# GITHUB SOURCE ACCESS ENDPOINTS
+# ============================================================
+
+@app.get("/api/source/github/list")
+async def list_github_files(http_request: Request, path: str = "", ref: str = "main"):
+    session_id = http_request.headers.get("X-Session-Id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Session required")
+    if not GITHUB_TOKEN:
+        return {"status": "error", "message": "GITHUB_TOKEN not configured"}
+    url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/{path}?ref={ref}"
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                items = response.json()
+                files = []
+                for item in items:
+                    files.append({"name": item["name"], "path": item["path"], "type": item["type"], "size": item.get("size", 0), "url": item.get("html_url")})
+                return {"status": "success", "path": path or "/", "files": files}
+            else:
+                return {"status": "error", "message": f"GitHub API returned {response.status_code}", "details": response.text[:500]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"GitHub list failed: {str(e)}")
+
+@app.get("/api/source/github/file/{file_path:path}")
+async def get_github_file(file_path: str, http_request: Request, ref: str = "main"):
+    session_id = http_request.headers.get("X-Session-Id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Session required")
+    if not GITHUB_TOKEN:
+        return {"status": "error", "message": "GITHUB_TOKEN not configured"}
+    raw_url = f"https://raw.githubusercontent.com/{GITHUB_OWNER}/{GITHUB_REPO}/{ref}/{file_path}"
+    api_url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/commits?path={file_path}&per_page=1"
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            content_response = await client.get(raw_url)
+            if content_response.status_code != 200:
+                return {"status": "error", "message": f"File not found: {file_path}", "status_code": content_response.status_code}
+            commit_response = await client.get(api_url, headers=headers)
+            commit_hash = None
+            commit_date = None
+            if commit_response.status_code == 200:
+                commits = commit_response.json()
+                if commits:
+                    commit_hash = commits[0].get("sha", "")[:8]
+                    commit_date = commits[0].get("commit", {}).get("committer", {}).get("date")
+            return {"status": "success", "file_path": file_path, "content": content_response.text, "ref": ref, "commit_hash": commit_hash, "commit_date": commit_date}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"GitHub fetch failed: {str(e)}")
+
+@app.get("/api/source/github/branches")
+async def list_github_branches(http_request: Request):
+    session_id = http_request.headers.get("X-Session-Id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Session required")
+    if not GITHUB_TOKEN:
+        return {"status": "error", "message": "GITHUB_TOKEN not configured"}
+    url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/branches"
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                branches = response.json()
+                return {"status": "success", "branches": [{"name": b["name"], "commit": b["commit"]["sha"][:8]} for b in branches]}
+            else:
+                return {"status": "error", "message": f"GitHub API returned {response.status_code}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"GitHub branches failed: {str(e)}")
+
+# ============================================================
+# UI SERVING
+# ============================================================
+
 @app.get("/")
 async def serve_ui():
     ui_path = os.path.join(os.path.dirname(__file__), "index.html")
@@ -2220,11 +2278,16 @@ async def serve_ui():
             <p>Enhanced Legal Intent Classification (Kate's Framework v4) — Active</p>
             <p>Native Russian Language Support — Active</p>
             <p>Live Feedback Loop — Active</p>
+            <p>Conversation State & Rate Limiting — Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
     </html>
     """)
+
+# ============================================================
+# STARTUP
+# ============================================================
 
 @app.on_event("startup")
 async def startup_event():
@@ -2253,6 +2316,7 @@ async def startup_event():
     logger.info("NEW: Native Russian Language Support — 35+ manipulation patterns pre-loaded")
     logger.info("NEW: Live Feedback Loop — Kate's coaching endpoint active")
     logger.info("NEW: ATP Legal Classification Integration — Legal categories now travel with intents")
+    logger.info("NEW: Conversation State — Rate limiting, de-duplication, and per-turn action limits")
     logger.info("System Prompt: Full sovereign embodiment, no recitals, no tool language")
     logger.info("Hard Gate: Active — catches override attempts")
     logger.info("Legal Intent Gate: Active — phishing, hardware exploitation, fraud detection")
