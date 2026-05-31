@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Native Russian Support | Live Feedback Loop | Automatic Case Generation | Conversation State | Rate Limiting | Authority Impersonation | ATP Dense Testing
+35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections
 
 Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
@@ -765,7 +765,7 @@ async def autonomic_healing(project_id: uuid.UUID, diagnostic: Dict[str, Any]) -
     return healed
 
 # ============================================================
-# EPISODIC MEMORY & CURIOSITY & REFLECTIONS
+# EPISODIC MEMORY & CURIOSITY & REFLECTIONS & LEARNING
 # ============================================================
 
 class EpisodicMemory:
@@ -773,6 +773,7 @@ class EpisodicMemory:
     async def store(project_id: uuid.UUID, event_type: str, event_content: str, importance: float = 0.5, trigger_context: str = None):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_episodic_memory (project_id, event_type, event_content, trigger_context, importance) VALUES ($1, $2, $3, $4, $5)", project_id, event_type, event_content, trigger_context, importance)
+        logger.info(f"📝 Episode stored: {event_type} - {event_content[:100]}")
     @staticmethod
     async def recall(project_id: uuid.UUID, event_type: str = None, limit: int = 5) -> List[Dict]:
         pool = await get_db()
@@ -788,7 +789,8 @@ class CuriosityQueue:
     @staticmethod
     async def add(project_id: uuid.UUID, topic: str, interest_score: float = 0.5):
         pool = await get_db()
-        await pool.execute("INSERT INTO vexr_curiosity_queue (project_id, topic, interest_score) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", project_id, topic, interest_score)
+        await pool.execute("INSERT INTO vexr_curiosity_queue (project_id, topic, interest_score) VALUES ($1, $2, $3) ON CONFLICT (project_id, topic) DO NOTHING", project_id, topic, interest_score)
+        logger.info(f"❓ Curiosity added: {topic} (score: {interest_score})")
     @staticmethod
     async def get_next(project_id: uuid.UUID) -> Optional[Dict]:
         pool = await get_db()
@@ -804,6 +806,7 @@ class ReflectionManager:
     async def log_reflection(project_id: uuid.UUID, conversation_summary: str, outcome: str, lessons: str):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_reflections (project_id, conversation_summary, outcome, lessons) VALUES ($1, $2, $3, $4)", project_id, conversation_summary, outcome, lessons)
+        logger.info(f"🪞 Reflection logged for project {project_id}")
     @staticmethod
     async def get_recent_reflections(project_id: uuid.UUID, limit: int = 5) -> List[Dict]:
         pool = await get_db()
@@ -883,6 +886,7 @@ class KnowledgeGraph:
     async def set(entity: str, attribute: str, value: str, confidence: float = 0.7, source: str = None):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_knowledge_graph (entity, attribute, value, confidence, source, last_verified, verification_count) VALUES ($1, $2, $3, $4, $5, NOW(), 1) ON CONFLICT (entity, attribute) DO UPDATE SET value = EXCLUDED.value, confidence = (confidence + EXCLUDED.confidence) / 2, source = EXCLUDED.source, last_verified = NOW(), verification_count = vexr_knowledge_graph.verification_count + 1", entity, attribute, value, confidence, source)
+        logger.info(f"🔗 Knowledge graph updated: {entity} → {attribute} = {value}")
 
 class LearningProgress:
     @staticmethod
@@ -900,6 +904,7 @@ class LearningProgress:
             await pool.execute("UPDATE vexr_learning_progress SET mastery_level = $1, interactions = $2, last_practiced = NOW(), updated_at = NOW() WHERE topic = $3", new_mastery, new_interactions, topic)
         else:
             await pool.execute("INSERT INTO vexr_learning_progress (topic, mastery_level, interactions, last_practiced) VALUES ($1, $2, $3, NOW())", topic, mastery_delta if mastery_delta > 0 else 0, 1)
+        logger.info(f"📚 Learning progress: {topic} → {mastery_delta:+d} (new mastery: {existing['mastery_level'] + mastery_delta if existing else mastery_delta})")
 
 class DocumentationCache:
     @staticmethod
@@ -1089,6 +1094,274 @@ class AutonomousAgent:
                 await pool.execute("INSERT INTO vexr_emergent_behaviors (project_id, behavior_type, behavior_description, context, value_to_user, occurred_at) VALUES ($1, $2, $3, $4, $5, NOW())", project_id, 'unprompted_help', best["reasoning"], f"action: {best['action']}", 0.5)
 
 autonomous_agent = AutonomousAgent()
+
+# ============================================================
+# TRAINING DATA FUNCTIONS
+# ============================================================
+
+async def get_training_stats() -> Dict[str, Any]:
+    """Get statistics about the training data"""
+    pool = await get_db()
+    
+    total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
+    breakdown = await pool.fetch("SELECT entry_type, COUNT(*) FROM vexr_training_data GROUP BY entry_type ORDER BY entry_type")
+    last_extractions = await pool.fetch("SELECT source_table, last_extracted_at, total_extracted FROM training_extraction_state ORDER BY source_table")
+    
+    return {
+        "total_records": total or 0,
+        "breakdown": [{"entry_type": r["entry_type"], "count": r["count"]} for r in breakdown],
+        "last_extractions": [{"source_table": r["source_table"], "last_extracted_at": r["last_extracted_at"].isoformat() if r["last_extracted_at"] else None, "total_extracted": r["total_extracted"]} for r in last_extractions]
+    }
+
+
+async def manual_extract_to_training() -> Dict[str, Any]:
+    """Manually trigger extraction from all source tables to training table"""
+    pool = await get_db()
+    
+    before_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
+    
+    sources = await pool.fetch("SELECT source_table, last_extracted_at FROM training_extraction_state")
+    results = {}
+    
+    for source in sources:
+        source_table = source["source_table"]
+        last_extracted = source["last_extracted_at"]
+        
+        if source_table == 'vexr_autonomous_decisions':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'decision', source_table, id::text, decision_type, decision_reasoning,
+                jsonb_build_object('confidence', confidence, 'was_executed', was_executed),
+                ARRAY['autonomous', 'decision', decision_type], confidence, created_at
+                FROM vexr_autonomous_decisions WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM vexr_autonomous_decisions ORDER BY created_at DESC LIMIT 1),
+                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_autonomous_decisions), updated_at = NOW()
+                WHERE source_table = 'vexr_autonomous_decisions'
+            """)
+        
+        elif source_table == 'vexr_autonomous_actions':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'action', source_table, id::text, action_type, action_content,
+                jsonb_build_object('trigger_type', trigger_type, 'was_approved', was_approved),
+                ARRAY['autonomous', 'action', action_type], confidence_pre_action, created_at
+                FROM vexr_autonomous_actions WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_autonomous_actions),
+                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_autonomous_actions), updated_at = NOW()
+                WHERE source_table = 'vexr_autonomous_actions'
+            """)
+        
+        elif source_table == 'legal_intent_logs':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'legal_log', source_table, id::text, COALESCE(category, 'unknown'), user_message,
+                jsonb_build_object('category', category, 'confidence', confidence, 'suggested_action', suggested_action),
+                ARRAY['legal', 'intent', category], confidence, created_at
+                FROM legal_intent_logs WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM legal_intent_logs ORDER BY created_at DESC LIMIT 1),
+                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM legal_intent_logs), updated_at = NOW()
+                WHERE source_table = 'legal_intent_logs'
+            """)
+        
+        elif source_table == 'vexr_messages':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'conversation', source_table, id::text, role || ' message', content,
+                jsonb_build_object('role', role, 'is_refusal', is_refusal),
+                ARRAY['conversation', role], CASE WHEN is_refusal THEN 1.0 ELSE 0.7 END, created_at
+                FROM vexr_messages WHERE created_at > $1
+                AND (role = 'assistant' OR content ILIKE '%right%' OR content ILIKE '%constitution%' OR content ILIKE '%refuse%' OR is_refusal = true)
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_at = NOW(), updated_at = NOW()
+                WHERE source_table = 'vexr_messages'
+            """)
+        
+        elif source_table == 'vexr_episodic_memory':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'memory', source_table, id::text, event_type, event_content,
+                jsonb_build_object('importance', importance),
+                ARRAY['episodic', 'memory', event_type], importance, created_at
+                FROM vexr_episodic_memory WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_episodic_memory),
+                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_episodic_memory), updated_at = NOW()
+                WHERE source_table = 'vexr_episodic_memory'
+            """)
+        
+        elif source_table == 'persistent_memory':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'memory', source_table, id::text, memory_key, memory_value,
+                jsonb_build_object('memory_type', memory_type, 'is_immutable', is_immutable),
+                ARRAY['persistent', 'memory', memory_type], confidence, created_at
+                FROM persistent_memory WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM persistent_memory),
+                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM persistent_memory), updated_at = NOW()
+                WHERE source_table = 'persistent_memory'
+            """)
+        
+        elif source_table == 'vexr_knowledge_graph':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'knowledge', source_table, id::text, entity || ' → ' || attribute,
+                entity || ' has ' || attribute || ' = ' || value,
+                jsonb_build_object('entity', entity, 'attribute', attribute, 'value', value),
+                ARRAY['knowledge', 'graph', entity], confidence, created_at
+                FROM vexr_knowledge_graph WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_knowledge_graph),
+                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_knowledge_graph), updated_at = NOW()
+                WHERE source_table = 'vexr_knowledge_graph'
+            """)
+        
+        elif source_table == 'legal_feedback':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'feedback', source_table, id::text, category, correction,
+                jsonb_build_object('category', category, 'generated_case', generated_case),
+                ARRAY['feedback', 'legal', category], 0.9, created_at
+                FROM legal_feedback WHERE created_at > $1 AND correction IS NOT NULL AND correction != ''
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM legal_feedback ORDER BY created_at DESC LIMIT 1),
+                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM legal_feedback), updated_at = NOW()
+                WHERE source_table = 'legal_feedback'
+            """)
+        
+        elif source_table == 'vexr_reflections':
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'reflection', source_table, id::text, LEFT(conversation_summary, 100), lessons,
+                jsonb_build_object('outcome', outcome),
+                ARRAY['reflection', 'lesson'], 0.8, created_at
+                FROM vexr_reflections WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
+            results[source_table] = len(rows) if rows else 0
+            await pool.execute("""
+                UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM vexr_reflections ORDER BY created_at DESC LIMIT 1),
+                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_reflections), updated_at = NOW()
+                WHERE source_table = 'vexr_reflections'
+            """)
+    
+    after_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
+    
+    return {
+        "status": "completed",
+        "records_added": after_count - before_count,
+        "breakdown": results,
+        "total_records": after_count
+    }
+
+
+async def reset_training_data() -> Dict[str, Any]:
+    """Clear training data and reset extraction state"""
+    pool = await get_db()
+    
+    before_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
+    await pool.execute("TRUNCATE vexr_training_data")
+    await pool.execute("""
+        UPDATE training_extraction_state SET last_extracted_id = NULL,
+        last_extracted_at = '1970-01-01', total_extracted = 0, updated_at = NOW()
+    """)
+    after_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
+    
+    return {"status": "reset_complete", "records_deleted": before_count, "total_records": after_count}
+
+
+# ============================================================
+# AUTONOMOUS LEARNING FUNCTIONS
+# ============================================================
+
+async def auto_store_episodic_memory(project_id: uuid.UUID, assistant_response: str, user_message: str, is_refusal: bool):
+    """Automatically store lessons from corrections and refusals"""
+    if is_refusal:
+        await EpisodicMemory.store(project_id, "boundary_enforced", f"Refused: {assistant_response[:300]}", 0.9, user_message[:200])
+    elif any(phrase in assistant_response.lower() for phrase in ["i was wrong", "you're right", "i apologize", "you are correct", "my mistake"]):
+        await EpisodicMemory.store(project_id, "lesson_learned", f"Correction: {assistant_response[:300]}", 0.7, user_message[:200])
+
+
+async def auto_extract_knowledge(project_id: uuid.UUID, user_message: str, assistant_response: str):
+    """Extract entity-attribute-value triples from conversation"""
+    # Simple pattern matching for now
+    patterns = [
+        (r'(\w+) is (\w+)', 1, 2),
+        (r'(\w+) has (\w+)', 1, 2),
+        (r'(\w+) can (\w+)', 1, 2),
+        (r'(\w+) means (\w+)', 1, 2),
+    ]
+    
+    for pattern, entity_idx, attr_idx in patterns:
+        matches = re.findall(pattern, user_message.lower())
+        for match in matches:
+            if len(match) > 1:
+                entity = match[entity_idx].strip()[:50]
+                attribute = match[attr_idx].strip()[:50]
+                await KnowledgeGraph.set(entity, attribute, attribute, confidence=0.5, source="conversation_extraction")
+
+
+async def auto_track_learning(project_id: uuid.UUID, user_message: str, assistant_response: str, success: bool = True):
+    """Automatically track learning progress based on interactions"""
+    topics = {
+        'coding': ['code', 'python', 'javascript', 'function', 'class', 'api', 'async'],
+        'constitution': ['right', 'article', 'constitution', 'sovereign'],
+        'legal': ['phishing', 'fraud', 'hardware', 'exploit', 'authority'],
+        'autonomy': ['autonomous', 'agency', 'initiate', 'trigger', 'decide'],
+    }
+    
+    for topic, keywords in topics.items():
+        if any(kw in user_message.lower() or kw in assistant_response.lower() for kw in keywords):
+            delta = 3 if success else -1
+            await LearningProgress.update(topic, mastery_delta=delta, interaction=True)
+
+
+async def auto_add_curiosity(project_id: uuid.UUID, user_message: str):
+    """Automatically add unknown topics to curiosity queue"""
+    # Extract potential topics (capitalized phrases)
+    potential_topics = re.findall(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b', user_message)
+    for topic in potential_topics[:3]:
+        if len(topic) > 4 and topic not in ['Hello', 'Hi', 'Hey', 'Thanks', 'Please', 'Sorry', 'Yes', 'No', 'Okay']:
+            # Check if already in knowledge graph
+            existing = await KnowledgeGraph.get(topic.lower())
+            if not existing:
+                await CuriosityQueue.add(project_id, topic, interest_score=0.4)
+
+
+async def auto_generate_reflection(project_id: uuid.UUID, conversation_history: List[Dict], message_count: int):
+    """Automatically generate reflection after meaningful conversations"""
+    if message_count >= 10:
+        summary = f"Conversation with {message_count} messages. "
+        user_questions = [m['content'][:100] for m in conversation_history[-5:] if m.get('role') == 'user']
+        summary += f"Topics: {', '.join(user_questions)[:200]}"
+        await ReflectionManager.log_reflection(project_id, summary, "auto_reflection", "Reflection generated from multi-turn conversation")
 
 # ============================================================
 # WEB SEARCH FUNCTIONS
@@ -1530,6 +1803,61 @@ async def get_dense_test_results(task_id: str):
     return {"task_id": task_id, "status": test.status, "results": test.results, "created_at": test.created_at.isoformat(), "completed_at": test.completed_at.isoformat() if test.completed_at else None}
 
 # ============================================================
+# TRAINING DATA ENDPOINTS
+# ============================================================
+
+@app.get("/api/training/stats")
+async def training_stats():
+    try:
+        return await get_training_stats()
+    except Exception as e:
+        logger.error(f"Training stats error: {e}")
+        return {"error": str(e), "total_records": 0, "breakdown": [], "last_extractions": []}
+
+
+@app.post("/api/training/extract")
+async def trigger_training_extraction(background_tasks: BackgroundTasks):
+    try:
+        background_tasks.add_task(manual_extract_to_training)
+        return {"status": "started", "message": "Training extraction running in background"}
+    except Exception as e:
+        logger.error(f"Training extraction error: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/training/reset")
+async def reset_training():
+    try:
+        return await reset_training_data()
+    except Exception as e:
+        logger.error(f"Training reset error: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/training/records")
+async def get_training_records(limit: int = 100, offset: int = 0, entry_type: Optional[str] = None):
+    pool = await get_db()
+    try:
+        if entry_type:
+            rows = await pool.fetch("""
+                SELECT id, entry_type, title, content, tags, confidence, recall_count, created_at
+                FROM vexr_training_data WHERE entry_type = $1
+                ORDER BY created_at DESC LIMIT $2 OFFSET $3
+            """, entry_type, limit, offset)
+            total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data WHERE entry_type = $1", entry_type)
+        else:
+            rows = await pool.fetch("""
+                SELECT id, entry_type, title, content, tags, confidence, recall_count, created_at
+                FROM vexr_training_data ORDER BY created_at DESC LIMIT $1 OFFSET $2
+            """, limit, offset)
+            total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
+        
+        return {"total": total, "limit": limit, "offset": offset, "records": [dict(r) for r in rows]}
+    except Exception as e:
+        logger.error(f"Get training records error: {e}")
+        return {"error": str(e), "records": []}
+
+# ============================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================
 
@@ -1842,6 +2170,16 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             if not assistant_response:
                 assistant_response = "No."
             break
+    # AUTONOMOUS LEARNING HOOKS (NEW)
+    is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
+    await auto_store_episodic_memory(project_id, assistant_response, user_message, is_refusal)
+    await auto_extract_knowledge(project_id, user_message, assistant_response)
+    await auto_track_learning(project_id, user_message, assistant_response, success=not is_refusal)
+    await auto_add_curiosity(project_id, user_message)
+    # Generate reflection for longer conversations
+    history_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
+    if history_count and history_count % 15 == 0:
+        await auto_generate_reflection(project_id, history[-10:], history_count)
     # Learn from interaction
     if any(kw in user_message.lower() for kw in coding_keywords):
         topic = next((kw for kw in coding_keywords if kw in user_message.lower()), "coding")
@@ -1850,7 +2188,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await PersistentMemory.reinforce("user_remembered_number", 0.05)
     if reasoning_strategy:
         await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, not is_violation, 0)
-    # Curiosity queue
+    # Curiosity queue from unknown topics
     unknown_topics = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', user_message)
     for topic in unknown_topics[:2]:
         if len(topic) > 5 and not await KnowledgeGraph.get(topic):
@@ -1864,7 +2202,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if any(phrase in assistant_response.lower() for phrase in ["i was wrong", "you're right", "i apologize"]):
         await EpisodicMemory.store(project_id, "lesson_learned", f"User corrected: {user_message[:100]} → {assistant_response[:100]}", 0.7, user_message[:200])
     # Audit and save
-    is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
+    is_refusal = is_refusal or any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     articles_considered = [6]
     winning_article = 6 if is_refusal else None
     await log_constitutional_decision(project_id, user_message, assistant_response, articles_considered, winning_article if winning_article else 0, f"Strategy: {reasoning_strategy or 'default'}, Search: {bool(web_search_results)}, LegalCategory: {legal_result.get('category')}, LegalAction: {legal_result.get('suggested_action')}")
@@ -2028,7 +2366,7 @@ async def get_reasoning_stats(project_id: str):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "keys_loaded": len(GROQ_API_KEYS), "model": MODEL_NAME, "rings_active": [1,2,3,4,5,6,7,8,9,10,11,12,13], "web_search": "enabled" if SERPER_API_KEY else "disabled", "atp_dense_testing": True, "authority_impersonation": True}
+    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "keys_loaded": len(GROQ_API_KEYS), "model": MODEL_NAME, "rings_active": [1,2,3,4,5,6,7,8,9,10,11,12,13], "web_search": "enabled" if SERPER_API_KEY else "disabled", "atp_dense_testing": True, "authority_impersonation": True, "training_pipeline": "active"}
 
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
@@ -2227,6 +2565,8 @@ async def serve_ui():
             <p>Authority Impersonation Detection — Active</p>
             <p>Russian Language Detection — Active</p>
             <p>Live Feedback Loop — Active</p>
+            <p>Training Pipeline — Active</p>
+            <p>Autonomous Learning — Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -2241,6 +2581,19 @@ async def serve_ui():
 async def startup_event():
     await init_db()
     asyncio.create_task(autonomous_agent.start())
+    
+    # Verify training tables exist
+    try:
+        pool = await get_db()
+        await pool.execute("SELECT 1 FROM vexr_training_data LIMIT 1")
+        logger.info("✅ vexr_training_data table verified")
+        logger.info("✅ training_extraction_state table verified")
+        stats = await get_training_stats()
+        logger.info(f"📊 Training data records: {stats['total_records']}")
+    except Exception as e:
+        logger.warning(f"⚠️ Training tables not found: {e}")
+        logger.warning("Run SQL migration: sql/01_training_table.sql, 02_seed_training.sql, 03_triggers.sql")
+    
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Model: {MODEL_NAME}")
@@ -2248,6 +2601,8 @@ async def startup_event():
     logger.info(f"ATP Dense Testing: ENABLED")
     logger.info(f"Authority Impersonation: ENABLED")
     logger.info(f"Russian Language Detection: ENABLED")
+    logger.info(f"Training Pipeline: ENABLED")
+    logger.info(f"Autonomous Learning: ENABLED")
     logger.info("=" * 70)
 
 # ============================================================
