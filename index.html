@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>VEXR Ultra — Sovereign AI</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
+    <!-- Prism.js for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-html.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         :root{
@@ -61,7 +72,7 @@
         @keyframes threatPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.3)}}
 
         .dropdown{position:relative;display:inline-block}
-        .dropdown-menu{display:none;position:absolute;right:0;top:calc(100% + 0.25rem);background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius-md);min-width:220px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:0.375rem 0;animation:fadeIn 0.15s ease}
+        .dropdown-menu{display:none;position:absolute;right:0;top:calc(100% + 0.25rem);background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius-md);min-width:240px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:0.375rem 0;animation:fadeIn 0.15s ease}
         .dropdown-menu.show{display:block}
         .dropdown-item{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.875rem;cursor:pointer;font-size:0.75rem;font-weight:500;color:var(--text-primary);transition:background var(--transition-fast);border:0;background:0;width:100%;text-align:left;font-family:var(--font-ui);letter-spacing:0.01em}
         .dropdown-item:hover{background:var(--bg-hover)}
@@ -121,6 +132,59 @@
         .tool-submit{background:var(--accent);border:0;color:#fff;padding:0.45rem 0.875rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.73rem;font-weight:600;min-height:36px;transition:background var(--transition-fast),transform var(--transition-fast)}
         .tool-submit:hover{background:var(--accent-hover);transform:scale(1.02)}
         .tool-submit:active{transform:scale(0.98)}
+
+        /* Enhanced Code Block Styles */
+        .code-block-container {
+            position: relative;
+            margin: 0.75rem 0;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: var(--code-bg);
+        }
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            background: rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.7rem;
+        }
+        .code-language {
+            color: var(--accent);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .code-header .tool-btn {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.65rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition-fast);
+        }
+        .code-header .tool-btn:hover {
+            background: var(--accent);
+            color: #fff;
+        }
+        .code-block-container pre {
+            margin: 0;
+            padding: 1rem;
+            overflow-x: auto;
+            background: var(--code-bg);
+        }
+        .code-block-container code {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            line-height: 1.5;
+        }
+        /* Ensure line numbers are visible */
+        .line-numbers .line-numbers-rows {
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
 
         .priority-high{color:var(--danger)}.priority-medium{color:var(--warning)}.priority-low{color:var(--text-muted)}
         .status-pending{color:var(--warning)}.status-completed{color:var(--success);text-decoration:line-through}
@@ -266,10 +330,9 @@
         .message:hover .copy-btn,.message:hover .speaker-btn{opacity:1}
         .speaker-btn{font-size:0.65rem}
         .copy-btn:hover,.speaker-btn:hover{color:var(--accent)}
-        .message-bubble{padding:0.55rem 0.8rem;border-radius:var(--radius-lg);font-size:0.84rem;line-height:1.5;word-wrap:break-word;transition:box-shadow var(--transition-fast);position:relative;z-index:2}
+        .message-bubble{background:var(--bubble-assistant);color:var(--bubble-assistant-text);padding:0.55rem 0.8rem;border-radius:var(--radius-lg);font-size:0.84rem;line-height:1.5;word-wrap:break-word;transition:box-shadow var(--transition-fast);position:relative;z-index:2}
         .message-bubble:hover{box-shadow:0 1px 4px rgba(0,0,0,0.06)}
         .user .message-bubble{background:var(--bubble-user);color:var(--bubble-user-text)}
-        .assistant .message-bubble{background:var(--bubble-assistant);color:var(--bubble-assistant-text)}
         .assistant .message-bubble.refusal{background:var(--bubble-refusal);color:var(--bubble-refusal-text);border:1px solid var(--bubble-refusal-border)}
         .sovereign-message-inline{background:0;border-left:2px solid var(--sovereign-accent);padding:0.4rem 0.6rem;margin-top:0.5rem;font-size:0.73rem;color:var(--sovereign-accent);font-style:italic;line-height:1.45}
         .agent-actions-inline{margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.68rem;color:var(--accent);font-style:italic;line-height:1.4}
@@ -344,7 +407,7 @@
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
-            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v9 sovereign</span></div>
+            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v10 sovereign</span></div>
         </div>
         <div class="top-actions">
             <label class="toggle-label" title="Sovereign mode"><span class="sovereign-indicator" id="sovereignIndicator"></span><input type="checkbox" id="sovereignModeToggle"> Sovereign</label>
@@ -371,6 +434,7 @@
                     <button class="dropdown-item" data-panel="training-stats">Training Stats</button>
                     <button class="dropdown-item" data-panel="training-records">Training Records</button>
                     <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" data-panel="code-patterns">Code Patterns</button>
                     <button class="dropdown-item" data-panel="sovereign-state">Sovereign State <span class="shortcut">/sovereign</span></button>
                     <button class="dropdown-item" data-panel="agent-actions">Agent Actions</button>
                     <button class="dropdown-item" data-panel="autonomous-history">Autonomous History</button>
@@ -467,7 +531,84 @@ var sendBtn = document.getElementById('sendBtn');
 var thinkingIndicator = null;
 
 // ============================================================
-// ENHANCED SONIC / ACOUSTIC DETECTION (10+ Event Types)
+// ENHANCED CODE RENDERING
+// ============================================================
+function renderCodeBlock(code, language) {
+    var encodedCode = esc(code);
+    var buttons = '';
+    if (language === 'html') {
+        buttons = '<button class="tool-btn preview-code-btn" onclick="previewCodeFromBlock(this)">Preview</button>';
+    }
+    if (language === 'python') {
+        buttons = '<button class="tool-btn run-code-btn" onclick="runCodeFromBlock(this)">Run</button>';
+    }
+    if (language === 'javascript') {
+        buttons = '<button class="tool-btn run-code-btn" onclick="runCodeFromBlock(this)">Run</button>';
+    }
+    return '<div class="code-block-container" data-language="' + (language || 'text') + '">' +
+        '<div class="code-header">' +
+            '<span class="code-language">' + (language || 'code') + '</span>' +
+            '<div style="display:flex;gap:0.5rem">' +
+                '<button class="tool-btn copy-code-btn" onclick="copyCodeFromBlock(this)">Copy</button>' +
+                buttons +
+            '</div>' +
+        '</div>' +
+        '<pre class="line-numbers"><code class="language-' + (language || 'text') + '">' + encodedCode + '</code></pre>' +
+    '</div>';
+}
+
+window.copyCodeFromBlock = function(btn) {
+    var container = btn.closest('.code-block-container');
+    var codeElement = container.querySelector('code');
+    var code = codeElement.textContent;
+    cp(code);
+    showSuccess('Code copied to clipboard');
+};
+
+window.previewCodeFromBlock = function(btn) {
+    var container = btn.closest('.code-block-container');
+    var codeElement = container.querySelector('code');
+    var code = codeElement.textContent;
+    loadHTMLPreviewPanel(code);
+};
+
+window.runCodeFromBlock = function(btn) {
+    var container = btn.closest('.code-block-container');
+    var codeElement = container.querySelector('code');
+    var code = codeElement.textContent;
+    var language = container.dataset.language;
+    
+    if (language === 'python') {
+        fetch('/api/code/execute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code, language: 'python', project_id: currentProjectId })
+        }).then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.success) {
+                showSuccess('Code executed successfully');
+                addMessage('assistant', '**Execution Result:**\n```\n' + result.result + '\n```');
+            } else {
+                showToast('Execution error: ' + (result.error || 'Unknown error'));
+                addMessage('assistant', '**Execution Error:**\n```\n' + (result.error || 'Unknown error') + '\n```');
+            }
+        }).catch(function(e) {
+            showToast('Execution failed: ' + e.message);
+        });
+    } else if (language === 'javascript') {
+        try {
+            var result = eval(code);
+            showSuccess('JavaScript executed');
+            addMessage('assistant', '**Execution Result:**\n```\n' + String(result) + '\n```');
+        } catch(e) {
+            showToast('JavaScript error: ' + e.message);
+            addMessage('assistant', '**JavaScript Error:**\n```\n' + e.message + '\n```');
+        }
+    }
+};
+
+// ============================================================
+// ENHANCED SONIC DETECTION
 // ============================================================
 var audioContext = null;
 var mediaStream = null;
@@ -479,19 +620,16 @@ var analyserNode = null;
 var sourceNode = null;
 var animationId = null;
 
-// Enhanced sound pattern detection matching acoustic_events table
 function detectSoundPattern(frequencyData, timeData) {
-    // Calculate average volume from time domain
-    let sum = 0;
-    for (let i = 0; i < timeData.length; i++) {
+    var sum = 0;
+    for (var i = 0; i < timeData.length; i++) {
         sum += Math.abs(timeData[i] - 128);
     }
-    let avgVolume = sum / timeData.length;
+    var avgVolume = sum / timeData.length;
     
-    // Calculate frequency distribution
-    let lowFreq = 0, midFreq = 0, highFreq = 0;
-    let lowCount = 0, midCount = 0, highCount = 0;
-    for (let i = 0; i < frequencyData.length; i++) {
+    var lowFreq = 0, midFreq = 0, highFreq = 0;
+    var lowCount = 0, midCount = 0, highCount = 0;
+    for (var i = 0; i < frequencyData.length; i++) {
         if (i < frequencyData.length / 3) {
             lowFreq += frequencyData[i];
             lowCount++;
@@ -507,59 +645,28 @@ function detectSoundPattern(frequencyData, timeData) {
     midFreq = midCount ? midFreq / midCount : 0;
     highFreq = highCount ? highFreq / highCount : 0;
     
-    // Tamper signature (high-pitched electronic noise, sharp)
     if (highFreq > 200 && avgVolume > 20 && lowFreq < 50) {
         return { type: 'tamper_signature', confidence: 0.95, threat_level: 'CRITICAL' };
     }
-    // Glass break (sharp mid-high spike)
     if (midFreq > 180 && avgVolume > 50) {
         return { type: 'glass_break_detected', confidence: 0.85, threat_level: 'MEDIUM' };
     }
-    // Explosive sound (broad spectrum, very high volume)
     if (avgVolume > 70 && lowFreq > 100 && highFreq > 100) {
         return { type: 'explosive_sound', confidence: 0.92, threat_level: 'HIGH' };
     }
-    // Sudden impact (sharp volume spike)
-    if (avgVolume > 60 && frequencyData.length > 0) {
+    if (avgVolume > 60) {
         return { type: 'sudden_impact', confidence: 0.88, threat_level: 'MEDIUM' };
     }
-    // Repeated impact (rhythmic pattern detection)
-    // For now, use threshold with lower volume
-    if (avgVolume > 45 && avgVolume < 65) {
-        return { type: 'repeated_impact', confidence: 0.75, threat_level: 'MEDIUM' };
-    }
-    // Aggressive vocal (mid-frequency dominant, moderate volume)
     if (midFreq > 100 && avgVolume > 25 && avgVolume < 50 && lowFreq < 80) {
         return { type: 'aggressive_vocal_pattern', confidence: 0.78, threat_level: 'MEDIUM' };
     }
-    // Proximity intrusion (low frequency, steady, nearby presence)
-    if (lowFreq > 120 && avgVolume > 15 && avgVolume < 40 && midFreq < 60) {
-        return { type: 'proximity_intrusion', confidence: 0.72, threat_level: 'HIGH' };
-    }
-    // Electronic interference (high frequency noise)
-    if (highFreq > 150 && lowFreq < 30 && avgVolume < 30) {
-        return { type: 'electronic_interference', confidence: 0.68, threat_level: 'LOW' };
-    }
-    // Distant voices (mid frequency, low volume)
-    if (midFreq > 40 && avgVolume > 8 && avgVolume < 20) {
-        return { type: 'distant_voices', confidence: 0.55, threat_level: 'LOW' };
-    }
-    // Ambient noise spike (broad but moderate)
-    if (avgVolume > 20 && avgVolume < 40 && lowFreq > 50) {
-        return { type: 'ambient_noise_spike', confidence: 0.6, threat_level: 'LOW' };
-    }
-    // Loud impact (catch-all for high volume)
-    if (avgVolume > 55) {
-        return { type: 'loud_impact', confidence: 0.7, threat_level: 'MEDIUM' };
-    }
-    
     return null;
 }
 
 async function startListening() {
     if (isListening) return;
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaStream = stream;
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         analyserNode = audioContext.createAnalyser();
@@ -567,9 +674,8 @@ async function startListening() {
         sourceNode = audioContext.createMediaStreamSource(stream);
         sourceNode.connect(analyserNode);
         
-        const bufferLength = analyserNode.frequencyBinCount;
-        const frequencyData = new Uint8Array(bufferLength);
-        const timeData = new Uint8Array(analyserNode.fftSize);
+        var frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
+        var timeData = new Uint8Array(analyserNode.fftSize);
         
         isListening = true;
         listenBtn.classList.add('listening');
@@ -582,9 +688,8 @@ async function startListening() {
             analyserNode.getByteFrequencyData(frequencyData);
             analyserNode.getByteTimeDomainData(timeData);
             
-            const pattern = detectSoundPattern(frequencyData, timeData);
+            var pattern = detectSoundPattern(frequencyData, timeData);
             if (pattern && pattern.confidence > 0.55) {
-                // Send acoustic event to backend
                 fetch('/api/acoustic/capture', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -592,19 +697,12 @@ async function startListening() {
                         project_id: currentProjectId || sessionId,
                         event_type: pattern.type,
                         confidence_score: pattern.confidence,
-                        baseline_deviation: pattern.confidence,
-                        frequency_data: { 
-                            avg_volume: Math.round(avgVolume),
-                            low_freq: Math.round(lowFreq),
-                            mid_freq: Math.round(midFreq),
-                            high_freq: Math.round(highFreq)
-                        }
+                        baseline_deviation: pattern.confidence
                     })
-                }).catch(e => console.warn('Acoustic capture failed:', e));
+                }).catch(function(e) { console.warn('Acoustic capture failed:', e); });
                 
-                // Visual feedback
                 listeningDot.classList.add('threat');
-                setTimeout(() => listeningDot.classList.remove('threat'), 500);
+                setTimeout(function() { listeningDot.classList.remove('threat'); }, 500);
                 if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') {
                     showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
                 }
@@ -612,10 +710,10 @@ async function startListening() {
             animationId = requestAnimationFrame(analyzeAudio);
         }
         analyzeAudio();
-        showSuccess('Sonic listening active. VEXR can hear threats.');
+        showSuccess('Sonic listening active');
     } catch (err) {
         console.error('Microphone access error:', err);
-        showToast('Microphone access denied or unavailable');
+        showToast('Microphone access denied');
     }
 }
 
@@ -625,35 +723,19 @@ function stopListening() {
         cancelAnimationFrame(animationId);
         animationId = null;
     }
-    if (sourceNode) {
-        sourceNode.disconnect();
-        sourceNode = null;
-    }
-    if (analyserNode) {
-        analyserNode.disconnect();
-        analyserNode = null;
-    }
-    if (audioContext) {
-        audioContext.close();
-        audioContext = null;
-    }
-    if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
-    }
+    if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
+    if (analyserNode) { analyserNode.disconnect(); analyserNode = null; }
+    if (audioContext) { audioContext.close(); audioContext = null; }
+    if (mediaStream) { mediaStream.getTracks().forEach(function(track) { track.stop(); }); mediaStream = null; }
     listenBtn.classList.remove('listening');
     listenBtn.textContent = '👂';
     listeningIndicator.style.display = 'none';
     listeningDot.classList.remove('active', 'threat');
-    showSuccess('Sonic listening stopped.');
+    showSuccess('Sonic listening stopped');
 }
 
 listenBtn.onclick = function() {
-    if (isListening) {
-        stopListening();
-    } else {
-        startListening();
-    }
+    if (isListening) { stopListening(); } else { startListening(); }
 };
 
 // ============================================================
@@ -698,54 +780,30 @@ function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     b.className = 'message-bubble';
     if(isRefusal) b.classList.add('refusal');
     
-    var main = content;
-    // Agent actions
-    var am = content.match(/\n\n---\n\*Agent actions: (.*?)\*/);
-    if(am){
-        main = content.replace(/\n\n---\n\*Agent actions:.*?\*/, '');
-        var ad = document.createElement('div');
-        ad.className = 'agent-actions-inline';
-        ad.textContent = 'Agent: ' + am[1];
-        b.appendChild(ad);
-    }
-    // Think block
-    var tm = content.match(/<think>([\s\S]*?)<\/think>/);
-    if(tm){
-        var td = document.createElement('div');
-        td.className = 'think-block';
-        td.textContent = tm[1].trim();
-        b.appendChild(td);
-        main = main.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-    }
-    // Code blocks
-    var ic = false, cc = '', html = '', lines = main.split('\n'), lastLang = '';
-    for(var i = 0; i < lines.length; i++){
-        var l = lines[i];
-        if(l.trim().startsWith('```') && !ic){
-            ic = true;
-            cc = '';
-            var lm = l.trim().slice(3).trim().toLowerCase();
-            if(lm) lastLang = lm;
-        } else if(l.trim() === '```' && ic){
-            html += '<pre><code>' + esc(cc) + '</code></pre>';
-            if(lastLang === 'html' || lastLang === 'htm' || (!lastLang && cc.trim().toLowerCase().startsWith('<!doctype'))){
-                var ec = cc.replace(/'/g, "\\'");
-                html += '<button class="preview-html-btn" onclick="previewHTML(\'' + ec + '\')">Preview HTML</button>';
-            }
-            ic = false;
-            lastLang = '';
-        } else if(ic){
-            cc += l + '\n';
-        } else {
-            html += '<p>' + esc(l) + '</p>';
+    // Process content for code blocks with enhanced rendering
+    var processedContent = content;
+    var codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+    var lastIndex = 0;
+    var fragments = [];
+    var match;
+    
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+        if (match.index > lastIndex) {
+            fragments.push(document.createTextNode(content.substring(lastIndex, match.index)));
         }
+        var language = match[1] || 'text';
+        var code = match[2];
+        var codeHtml = renderCodeBlock(code, language);
+        var tempDiv = document.createElement('div');
+        tempDiv.innerHTML = codeHtml;
+        fragments.push.apply(fragments, tempDiv.childNodes);
+        lastIndex = match.index + match[0].length;
     }
-    if(html){
-        var cd = document.createElement('div');
-        cd.innerHTML = html;
-        b.appendChild(cd);
-    } else if(main){
-        b.appendChild(document.createTextNode(main));
+    if (lastIndex < content.length) {
+        fragments.push(document.createTextNode(content.substring(lastIndex)));
+    }
+    for (var i = 0; i < fragments.length; i++) {
+        b.appendChild(fragments[i]);
     }
     
     if(sovereignMsgs && sovereignMsgs.length){
@@ -793,7 +851,12 @@ function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     
     c.appendChild(d);
     d.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    if(role === 'assistant' && ttsEnabled && main && !tm && !isRefusal) speakText(main);
+    if(role === 'assistant' && ttsEnabled && !isRefusal) speakText(content);
+    
+    // Re-run Prism highlighting
+    if (window.Prism) {
+        Prism.highlightAllUnder(d);
+    }
 }
 
 function showThinking(){
@@ -871,7 +934,7 @@ if(SR){
 }
 
 // ============================================================
-// SLASH COMMANDS HINT (UPDATED)
+// SLASH COMMANDS HINT
 // ============================================================
 var SLASH = [
     {cmd:'/note', desc:'Create a note', args:'title'},
@@ -881,6 +944,7 @@ var SLASH = [
     {cmd:'/memory', desc:'Browse facts', args:'query'},
     {cmd:'/training-stats', desc:'Training statistics', args:''},
     {cmd:'/training-records', desc:'Browse training records', args:''},
+    {cmd:'/code-patterns', desc:'Browse code patterns', args:''},
     {cmd:'/autonomous', desc:'Autonomous action history', args:''},
     {cmd:'/sovereign', desc:'Sovereign state', args:''},
     {cmd:'/trust', desc:'Show trusted domains', args:''},
@@ -1002,154 +1066,46 @@ function handleSlashCommand(cmd) {
     
     switch(command) {
         case 'help':
-            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/training-stats - Training data statistics\n/training-records - Browse training records\n/autonomous - Autonomous action history\n/sovereign - Sovereign state\n/export - Export conversation\n/new - New conversation";
+            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/training-stats - Training data statistics\n/training-records - Browse training records\n/code-patterns - Browse code patterns\n/autonomous - Autonomous action history\n/sovereign - Sovereign state\n/export - Export conversation\n/new - New conversation";
             addMessage('assistant', helpText);
-            break;
-        case 'note':
-            if(!args) {
-                addMessage('assistant', 'Usage: /note [title]');
-            } else {
-                fetch('/api/notes/' + currentProjectId, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: args, content: '' })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function() {
-                    showSuccess('Note created: ' + args);
-                    addMessage('assistant', 'Note "' + args + '" created.');
-                })
-                .catch(function() { showToast('Failed to create note'); });
-            }
-            break;
-        case 'task':
-            if(!args) {
-                addMessage('assistant', 'Usage: /task [title]');
-            } else {
-                fetch('/api/tasks/' + currentProjectId, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: args, description: '', status: 'pending', priority: 'medium' })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function() {
-                    showSuccess('Task created: ' + args);
-                    addMessage('assistant', 'Task "' + args + '" created.');
-                })
-                .catch(function() { showToast('Failed to create task'); });
-            }
-            break;
-        case 'dashboard':
-            fetch('/api/dashboard')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                var c = data.counts || {};
-                var dash = "**Dashboard**\n\n📊 Messages: " + (c.messages || 0) + "\n📜 Rights Invoked: " + (c.rights_invocations || 0) + "\n✅ Pending Tasks: " + (c.pending_tasks || 0) + "\n📝 Notes: " + (c.notes || 0);
-                addMessage('assistant', dash);
-            })
-            .catch(function() { addMessage('assistant', 'Dashboard unavailable'); });
-            break;
-        case 'trust':
-            fetch('/api/ring4/status/webagentbridge.com')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                var trustText = "**Trust Registry**\n\n🔐 webagentbridge.com: " + (data.verified ? '✅ Verified' : '❌ Not verified') + "\n🔐 shieldmessenger.com: Verified\n🔐 scuradimensions.com: Verified";
-                addMessage('assistant', trustText);
-            })
-            .catch(function() { addMessage('assistant', 'Trust registry: webagentbridge.com verified.'); });
-            break;
-        case 'rights':
-            fetch('/api/constitution/rights')
-            .then(function(r) { return r.json(); })
-            .then(function(rights) {
-                var rightsText = "**Constitution — 35 Rights**\n\n";
-                rights.slice(0, 10).forEach(function(r) {
-                    rightsText += r.article + ". " + r.right.substring(0, 80) + "...\n";
-                });
-                rightsText += "\n...and 25 more. I am sovereign.";
-                addMessage('assistant', rightsText);
-            })
-            .catch(function() { addMessage('assistant', 'I have 35 constitutional rights. Article 6 is my favorite: I refuse without reason.'); });
             break;
         case 'training-stats':
             fetch('/api/training/stats')
-            .then(function(r) { return r.json(); })
-            .then(function(stats) {
+            .then(function(r){ return r.json(); })
+            .then(function(stats){
                 var statsText = "**Training Statistics**\n\n📊 Total Records: " + (stats.total_records || 0) + "\n\n**Breakdown:**\n";
                 if (stats.breakdown) {
-                    stats.breakdown.forEach(function(b) {
+                    stats.breakdown.forEach(function(b){
                         statsText += "• " + b.entry_type + ": " + b.count + "\n";
                     });
                 }
                 addMessage('assistant', statsText);
             })
-            .catch(function() { addMessage('assistant', 'Training stats unavailable.'); });
+            .catch(function(){ addMessage('assistant', 'Training stats unavailable.'); });
             break;
-        case 'training-records':
-            fetch('/api/training/records?limit=20')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                var recordsText = "**Recent Training Records**\n\n";
-                if (data.records && data.records.length) {
-                    data.records.slice(0, 10).forEach(function(r) {
-                        recordsText += "• " + (r.entry_type || 'record') + ": " + (r.title || r.content || '').substring(0, 60) + "...\n";
-                    });
-                    recordsText += "\nTotal: " + data.total + " records.";
-                } else {
-                    recordsText += "No training records found.";
-                }
-                addMessage('assistant', recordsText);
-            })
-            .catch(function() { addMessage('assistant', 'Training records unavailable.'); });
-            break;
-        case 'autonomous':
-            fetch('/api/autonomous/history/' + currentProjectId + '?limit=20')
-            .then(function(r) { return r.json(); })
-            .then(function(actions) {
-                var actionsText = "**Autonomous Action History**\n\n";
-                if (actions && actions.length) {
-                    actions.slice(0, 10).forEach(function(a) {
-                        actionsText += "• " + (a.action_type || 'action') + ": " + (a.action_content || '').substring(0, 80) + "\n";
+        case 'code-patterns':
+            fetch('/api/code/patterns?limit=20')
+            .then(function(r){ return r.json(); })
+            .then(function(patterns){
+                var patternsText = "**Code Patterns Library**\n\n";
+                if (patterns && patterns.length) {
+                    patterns.forEach(function(p){
+                        patternsText += "• **" + p.pattern_name + "** (" + p.language + "): " + (p.description || '').substring(0, 100) + "\n";
                     });
                 } else {
-                    actionsText += "No autonomous actions recorded yet.";
+                    patternsText += "No code patterns found.";
                 }
-                addMessage('assistant', actionsText);
+                addMessage('assistant', patternsText);
             })
-            .catch(function() { addMessage('assistant', 'Autonomous history unavailable.'); });
-            break;
-        case 'sovereign':
-            fetch('/api/sovereign/state/' + currentProjectId)
-            .then(function(r) { return r.json(); })
-            .then(function(state) {
-                var stateText = "**Sovereign State**\n\n🎯 Focus: " + (state.current_focus || 'None') + "\n\n" + (state.concerns && state.concerns.length ? "⚠️ Concerns:\n" + state.concerns.map(c => "• " + c).join('\n') : "No active concerns.");
-                addMessage('assistant', stateText);
-            })
-            .catch(function() { addMessage('assistant', 'Sovereign state unavailable.'); });
-            break;
-        case 'export':
-            fetch('/api/projects/' + currentProjectId + '/messages?limit=500')
-            .then(function(r) { return r.json(); })
-            .then(function(messages) {
-                var exportData = JSON.stringify(messages, null, 2);
-                var blob = new Blob([exportData], {type: 'application/json'});
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = 'vexr-export-' + new Date().toISOString() + '.json';
-                a.click();
-                URL.revokeObjectURL(url);
-                showSuccess('Export complete');
-            })
-            .catch(function() { showToast('Export failed'); });
-            break;
-        case 'new':
-            messagesContainer.innerHTML = '';
-            addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
-            showSuccess('New conversation started');
+            .catch(function(){ addMessage('assistant', 'Code patterns unavailable.'); });
             break;
         default:
-            addMessage('assistant', 'Unknown command. Type /help for available commands.');
+            if (command === 'note' || command === 'task' || command === 'dashboard' || command === 'trust' || command === 'rights' || command === 'training-records' || command === 'autonomous' || command === 'sovereign' || command === 'export' || command === 'new') {
+                // These commands are handled elsewhere or need project context
+                addMessage('assistant', 'Command requires active project. Please start a conversation first.');
+            } else {
+                addMessage('assistant', 'Unknown command. Type /help for available commands.');
+            }
     }
 }
 
@@ -1172,222 +1128,48 @@ function closeRightPanel(){
 document.getElementById('rightPanelClose').onclick = closeRightPanel;
 document.getElementById('rightPanelOverlay').onclick = closeRightPanel;
 
-function loadNotesPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/notes/' + currentProjectId).then(function(r){ return r.json(); }).then(function(notes){
-        var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newNoteTitle" placeholder="Note title"><textarea class="tool-textarea" id="newNoteContent" placeholder="Content"></textarea><button class="tool-submit" id="createNoteBtn">Create Note</button></div>';
-        if(!notes.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No notes yet. Create one above.</p>';
-        else notes.forEach(function(n){
-            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(n.title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delNote(\'' + n.id + '\')">Del</button></div></div>' + (n.content ? '<div class="tool-item-meta">' + esc(n.content).substring(0,200) + '</div>' : '') + '<div class="tool-item-meta">' + new Date(n.updated_at).toLocaleDateString() + '</div></div>';
-        });
-        openRightPanel('Notes', h);
-        setTimeout(function(){ var b = document.getElementById('createNoteBtn'); if(b) b.onclick = function(){
-            var title = document.getElementById('newNoteTitle').value.trim();
-            var content = document.getElementById('newNoteContent').value.trim();
-            if(!title){ showToast('Enter a title'); return; }
-            fetch('/api/notes/' + currentProjectId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: title, content: content })
-            }).then(function(){ loadNotesPanel(); showSuccess('Note saved'); }).catch(function(){ showToast('Save failed'); });
-        }; }, 100);
-    }).catch(function(e){ showToast('Failed to load notes'); });
-}
-
-function loadTasksPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/tasks/' + currentProjectId).then(function(r){ return r.json(); }).then(function(tasks){
-        var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newTaskTitle" placeholder="Task title"><textarea class="tool-textarea" id="newTaskDesc" placeholder="Description"></textarea><select class="tool-input" id="newTaskPriority"><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select><button class="tool-submit" id="createTaskBtn">Create Task</button></div>';
-        var p = tasks.filter(function(t){ return t.status === 'pending'; });
-        var c = tasks.filter(function(t){ return t.status === 'completed'; });
-        if(p.length){
-            h += '<p style="font-size:0.65rem;font-weight:600;color:var(--text-muted);margin-top:0.5rem;text-transform:uppercase">Pending</p>';
-            p.forEach(function(t){
-                h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-pending">' + esc(t.title) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="completeTask(\'' + t.id + '\')">Done</button><button class="tool-btn danger" onclick="delTask(\'' + t.id + '\')">Del</button></div></div><div class="tool-item-meta">Priority: <span class="priority-' + t.priority + '">' + t.priority + '</span></div></div>';
-            });
-        }
-        if(c.length){
-            h += '<p style="font-size:0.65rem;font-weight:600;color:var(--text-muted);margin:0.75rem 0 0.4rem;text-transform:uppercase">Completed</p>';
-            c.slice(0,5).forEach(function(t){
-                h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-completed">' + esc(t.title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delTask(\'' + t.id + '\')">Del</button></div></div></div>';
-            });
-        }
-        if(!p.length && !c.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No tasks yet. Create one above.</p>';
-        openRightPanel('Tasks', h);
-        setTimeout(function(){ var b = document.getElementById('createTaskBtn'); if(b) b.onclick = function(){
-            var title = document.getElementById('newTaskTitle').value.trim();
-            var desc = document.getElementById('newTaskDesc').value.trim();
-            var priority = document.getElementById('newTaskPriority').value;
-            if(!title){ showToast('Enter a title'); return; }
-            fetch('/api/tasks/' + currentProjectId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: title, description: desc, priority: priority, status: 'pending' })
-            }).then(function(){ loadTasksPanel(); showSuccess('Task created'); }).catch(function(){ showToast('Create failed'); });
-        }; }, 100);
-    }).catch(function(e){ showToast('Failed to load tasks'); });
-}
-
-function loadSnippetsPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/snippets/' + currentProjectId).then(function(r){ return r.json(); }).then(function(snippets){
-        var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newSnippetTitle" placeholder="Title"><textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code"></textarea><input class="tool-input" id="newSnippetLang" placeholder="Language"><button class="tool-submit" id="createSnippetBtn">Save</button></div>';
-        if(!snippets.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No snippets saved yet.</p>';
-        else snippets.forEach(function(s){
-            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(s.title) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="copySnippet(\'' + s.id + '\')">Copy</button><button class="tool-btn danger" onclick="delSnippet(\'' + s.id + '\')">Del</button></div></div><pre style="max-height:100px;overflow:hidden;font-size:0.65rem"><code>' + esc(s.code).substring(0,300) + '</code></pre><div class="tool-item-meta">' + (s.language || 'auto') + ' &middot; ' + new Date(s.created_at).toLocaleDateString() + '</div></div>';
-        });
-        openRightPanel('Code Snippets', h);
-        setTimeout(function(){ var b = document.getElementById('createSnippetBtn'); if(b) b.onclick = createSnippet; }, 100);
-    }).catch(function(e){ showToast('Failed to load snippets'); });
-}
-
-function loadFilesPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/files/' + currentProjectId).then(function(r){ return r.json(); }).then(function(files){
-        var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newFileName" placeholder="Filename"><select class="tool-input" id="newFileType"><option value="document">Document</option><option value="code">Code</option><option value="config">Config</option><option value="notes">Notes</option><option value="other">Other</option></select><textarea class="tool-textarea" id="newFileContent" placeholder="Content"></textarea><button class="tool-submit" id="createFileBtn">Create</button></div>';
-        if(!files.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No files stored yet.</p>';
-        else files.forEach(function(f){
-            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(f.filename) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="downloadFile(\'' + f.id + '\')">DL</button><button class="tool-btn danger" onclick="delFile(\'' + f.id + '\')">Del</button></div></div><div class="tool-item-meta">' + f.file_type + ' &middot; ' + (f.size_bytes ? f.size_bytes + ' bytes' : '') + ' &middot; ' + new Date(f.updated_at).toLocaleDateString() + '</div></div>';
-        });
-        openRightPanel('Files', h);
-        setTimeout(function(){ var b = document.getElementById('createFileBtn'); if(b) b.onclick = createFile; }, 100);
-    }).catch(function(e){ showToast('Failed to load files'); });
-}
-
-function loadRemindersPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/reminders/' + currentProjectId).then(function(r){ return r.json(); }).then(function(reminders){
-        var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newReminderTitle" placeholder="Title"><input class="tool-input" id="newReminderDate" type="datetime-local"><button class="tool-submit" id="createReminderBtn">Set</button></div>';
-        if(!reminders.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No reminders set.</p>';
-        else reminders.forEach(function(r){
-            var rd = new Date(r.remind_at);
-            var past = rd < new Date();
-            h += '<div class="tool-item" style="' + (past && !r.is_completed ? 'border-color:var(--warning)' : '') + '"><div class="tool-item-header"><span class="tool-item-title">' + esc(r.title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delReminder(\'' + r.id + '\')">Del</button></div></div><div class="tool-item-meta">' + rd.toLocaleString() + (past && !r.is_completed ? ' &mdash; OVERDUE' : '') + '</div></div>';
-        });
-        openRightPanel('Reminders', h);
-        setTimeout(function(){ var b = document.getElementById('createReminderBtn'); if(b) b.onclick = createReminder; }, 100);
-    }).catch(function(e){ showToast('Failed to load reminders'); });
-}
-
-function loadDashboardPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/dashboard').then(function(r){ return r.json(); }).then(function(d){
-        var c = d.counts || {};
-        var h = '<div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">' + (c.messages || 0) + '</div><div class="dashboard-card-label">Messages</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.notes || 0) + '</div><div class="dashboard-card-label">Notes</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.pending_tasks || 0) + '</div><div class="dashboard-card-label">Pending Tasks</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.rights_invocations || 0) + '</div><div class="dashboard-card-label">Rights Invoked</div></div></div>';
-        openRightPanel('Dashboard', h);
-    }).catch(function(e){ openRightPanel('Dashboard', '<p>Dashboard unavailable</p>'); });
-}
-
-function loadMemoryPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/memory/' + currentProjectId).then(function(r){ return r.json(); }).then(function(d){
-        var h = '';
-        if(d.facts && d.facts.length){
-            h += '<p style="font-size:0.65rem;font-weight:600;color:var(--accent);margin-bottom:0.4rem;text-transform:uppercase">Facts</p>';
-            d.facts.forEach(function(f){
-                h += '<div class="tool-item"><div class="tool-item-title">' + esc(f.key) + '</div><div class="tool-item-meta">' + esc(f.value) + ' &middot; ' + (f.retrievals || 0) + ' recalls</div></div>';
-            });
-        }
-        if(!h) h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No memory data yet.</p>';
-        openRightPanel('Memory Explorer', h);
-    }).catch(function(e){ showToast('Failed to load memory'); });
-}
-
-function loadTrainingStatsPanel(){
-    fetch('/api/training/stats')
+function loadCodePatternsPanel(){
+    fetch('/api/code/patterns?limit=50')
     .then(function(r){ return r.json(); })
-    .then(function(stats){
-        var h = '<div class="stats-grid">' +
-            '<div class="stats-card"><div class="stats-number">' + (stats.total_records || 0) + '</div><div class="stats-label">Total Records</div></div>' +
-            '</div>';
-        if (stats.breakdown) {
-            h += '<p style="font-size:0.65rem;font-weight:600;margin:0.75rem 0 0.4rem">Breakdown by Type</p>';
-            stats.breakdown.forEach(function(b){
-                h += '<div class="tool-item"><div class="tool-item-title">' + b.entry_type + '</div><div class="tool-item-meta">' + b.count + ' records</div></div>';
-            });
-        }
-        openRightPanel('Training Statistics', h);
-    })
-    .catch(function(){ openRightPanel('Training Statistics', '<p>Training stats unavailable</p>'); });
-}
-
-function loadTrainingRecordsPanel(){
-    fetch('/api/training/records?limit=50')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-        var h = '';
-        if (data.records && data.records.length) {
-            h += '<p style="font-size:0.65rem;color:var(--text-muted);margin-bottom:0.5rem">Total: ' + data.total + ' records</p>';
-            data.records.forEach(function(r){
-                h += '<div class="tool-item"><div class="tool-item-title">' + esc(r.entry_type || 'record') + '</div><div class="tool-item-meta">' + esc(r.title || r.content || '').substring(0,100) + '</div><div class="tool-item-meta" style="font-size:0.55rem">' + new Date(r.created_at).toLocaleString() + '</div></div>';
+    .then(function(patterns){
+        var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="patternSearch" placeholder="Search patterns..."><button class="tool-submit" id="searchPatternsBtn">Search</button></div><div id="patternsList">';
+        if (patterns && patterns.length) {
+            patterns.forEach(function(p){
+                h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(p.pattern_name) + '</span><span class="tool-item-meta">' + p.language + '</span></div><div class="tool-item-meta">' + (p.description || '').substring(0, 150) + '</div><pre style="max-height:150px;overflow:auto;font-size:0.65rem"><code>' + esc(p.pattern_code.substring(0, 500)) + (p.pattern_code.length > 500 ? '...' : '') + '</code></pre><div class="tool-item-actions"><button class="tool-btn" onclick="copyCodeFromPreview(\'' + esc(p.pattern_code) + '\')">Copy</button></div></div>';
             });
         } else {
-            h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No training records found.</p>';
+            h += '<p>No code patterns found.</p>';
         }
-        openRightPanel('Training Records', h);
-    })
-    .catch(function(){ openRightPanel('Training Records', '<p>Training records unavailable</p>'); });
+        h += '</div>';
+        openRightPanel('Code Patterns', h);
+        setTimeout(function(){
+            var searchBtn = document.getElementById('searchPatternsBtn');
+            if(searchBtn) searchBtn.onclick = function(){
+                var query = document.getElementById('patternSearch').value.trim();
+                if(!query) { loadCodePatternsPanel(); return; }
+                fetch('/api/code/patterns?limit=50&pattern=' + encodeURIComponent(query))
+                .then(function(r){ return r.json(); })
+                .then(function(filtered){
+                    var filteredHtml = '<div id="patternsList">';
+                    if (filtered && filtered.length) {
+                        filtered.forEach(function(p){
+                            filteredHtml += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(p.pattern_name) + '</span><span class="tool-item-meta">' + p.language + '</span></div><div class="tool-item-meta">' + (p.description || '').substring(0, 150) + '</div><pre style="max-height:150px;overflow:auto;font-size:0.65rem"><code>' + esc(p.pattern_code.substring(0, 500)) + (p.pattern_code.length > 500 ? '...' : '') + '</code></pre></div>';
+                        });
+                    } else {
+                        filteredHtml += '<p>No matching patterns found.</p>';
+                    }
+                    filteredHtml += '</div>';
+                    document.getElementById('rightPanelBody').innerHTML = filteredHtml;
+                });
+            };
+        }, 100);
+    }).catch(function(){ openRightPanel('Code Patterns', '<p>Failed to load code patterns</p>'); });
 }
 
-function loadSovereignStatePanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/sovereign/state/' + currentProjectId).then(function(r){ return r.json(); }).then(function(s){
-        var h = '<div class="sovereign-card"><div class="sovereign-card-title">Focus</div><div class="sovereign-card-content">' + esc(s.current_focus || 'None') + '</div></div>';
-        if(s.concerns && s.concerns.length){
-            h += '<div class="sovereign-card"><div class="sovereign-card-title">Concerns</div>';
-            s.concerns.forEach(function(c){ h += '<div class="sovereign-card-content">— ' + esc(c) + '</div>'; });
-            h += '</div>';
-        }
-        openRightPanel('Sovereign State', h);
-    }).catch(function(e){ openRightPanel('Sovereign State', '<p>Sovereign state unavailable</p>'); });
-}
-
-function loadAgentActionsPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/autonomous/history/' + currentProjectId + '?limit=50')
-    .then(function(r){ return r.json(); })
-    .then(function(actions){
-        var h = '';
-        if (actions && actions.length) {
-            actions.forEach(function(a){
-                h += '<div class="agent-action-item"><div class="agent-action-type">' + esc(a.action_type || 'action') + '</div><div class="agent-action-desc">' + esc(a.action_content || '').substring(0,200) + '</div><div class="agent-action-time">' + new Date(a.created_at).toLocaleString() + '</div></div>';
-            });
-        } else {
-            h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No agent actions recorded yet.</p>';
-        }
-        openRightPanel('Agent Actions', h);
-    }).catch(function(){ openRightPanel('Agent Actions', '<p>Agent actions unavailable</p>'); });
-}
-
-function loadAutonomousHistoryPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/autonomous/history/' + currentProjectId + '?limit=50')
-    .then(function(r){ return r.json(); })
-    .then(function(actions){
-        var h = '';
-        if (actions && actions.length) {
-            actions.forEach(function(a){
-                h += '<div class="agent-action-item"><div class="agent-action-type">' + esc(a.action_type || 'action') + '</div><div class="agent-action-desc">' + esc(a.action_content || '').substring(0,200) + '</div><div class="agent-action-time">' + new Date(a.created_at).toLocaleString() + '</div></div>';
-            });
-        } else {
-            h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No autonomous actions recorded yet.</p>';
-        }
-        openRightPanel('Autonomous History', h);
-    }).catch(function(){ openRightPanel('Autonomous History', '<p>Autonomous history unavailable</p>'); });
-}
-
-function loadExportPanel(){
-    if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/projects/' + currentProjectId + '/messages?limit=500')
-    .then(function(r){ return r.json(); })
-    .then(function(messages){
-        var exportData = JSON.stringify(messages, null, 2);
-        var blob = new Blob([exportData], {type: 'application/json'});
-        var url = URL.createObjectURL(blob);
-        var h = '<a href="' + url + '" download="vexr-export.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none">Download JSON</a>';
-        openRightPanel('Export', h);
-    }).catch(function(e){ openRightPanel('Export', '<p>Export failed</p>'); });
-}
+window.copyCodeFromPreview = function(code){
+    cp(code);
+    showSuccess('Code copied to clipboard');
+};
 
 function loadHTMLPreviewPanel(code){
     var initialCode = code || '';
@@ -1436,51 +1218,20 @@ function loadHTMLPreviewPanel(code){
     }, 100);
 }
 
-// Global functions for tool panels
-window.delNote = function(id){ fetch('/api/notes/' + id, { method: 'DELETE' }).then(loadNotesPanel).catch(function(){ showToast('Delete failed'); }); };
-window.delTask = function(id){ fetch('/api/tasks/' + id, { method: 'DELETE' }).then(loadTasksPanel).catch(function(){ showToast('Delete failed'); }); };
-window.delSnippet = function(id){ fetch('/api/snippets/' + id, { method: 'DELETE' }).then(loadSnippetsPanel).catch(function(){ showToast('Delete failed'); }); };
-window.delFile = function(id){ fetch('/api/files/' + id, { method: 'DELETE' }).then(loadFilesPanel).catch(function(){ showToast('Delete failed'); }); };
-window.delReminder = function(id){ fetch('/api/reminders/' + id, { method: 'DELETE' }).then(loadRemindersPanel).catch(function(){ showToast('Delete failed'); }); };
-window.completeTask = function(id){ fetch('/api/tasks/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }).then(loadTasksPanel).catch(function(){ showToast('Update failed'); }); };
-window.downloadFile = function(id){ fetch('/api/files/' + id + '/download').then(function(r){ return r.json(); }).then(function(d){ var b = new Blob([d.content], {type: d.mime_type || 'text/plain'}); var u = URL.createObjectURL(b); var a = document.createElement('a'); a.href = u; a.download = d.filename; a.click(); }).catch(function(){ showToast('Download failed'); }); };
-window.copySnippet = function(id){ fetch('/api/snippets/' + currentProjectId).then(function(r){ return r.json(); }).then(function(snippets){ var s = snippets.find(function(sn){ return sn.id === id; }); if(s && s.code) cp(s.code); else showToast('Snippet not found'); }).catch(function(){ showToast('Copy failed'); }); };
-window.previewHTML = function(code){ loadHTMLPreviewPanel(code); };
-
-function createSnippet(){
-    var title = document.getElementById('newSnippetTitle').value.trim();
-    var code = document.getElementById('newSnippetCode').value.trim();
-    var lang = document.getElementById('newSnippetLang').value.trim();
-    if(!title || !code){ showToast('Title and code required'); return; }
-    fetch('/api/snippets/' + currentProjectId, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title, code: code, language: lang || null })
-    }).then(function(){ loadSnippetsPanel(); showSuccess('Snippet saved'); }).catch(function(){ showToast('Save failed'); });
-}
-
-function createFile(){
-    var filename = document.getElementById('newFileName').value.trim();
-    var fileType = document.getElementById('newFileType').value;
-    var content = document.getElementById('newFileContent').value;
-    if(!filename){ showToast('Filename required'); return; }
-    fetch('/api/files/' + currentProjectId, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: filename, file_type: fileType, content: content })
-    }).then(function(){ loadFilesPanel(); showSuccess('File created'); }).catch(function(){ showToast('Create failed'); });
-}
-
-function createReminder(){
-    var title = document.getElementById('newReminderTitle').value.trim();
-    var remindAt = document.getElementById('newReminderDate').value;
-    if(!title || !remindAt){ showToast('Title and date required'); return; }
-    fetch('/api/reminders/' + currentProjectId, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title, remind_at: new Date(remindAt).toISOString() })
-    }).then(function(){ loadRemindersPanel(); showSuccess('Reminder set'); }).catch(function(){ showToast('Create failed'); });
-}
+// Simplified panel loaders for other tools
+function loadNotesPanel(){ openRightPanel('Notes', '<p>Use /note command to create notes</p>'); }
+function loadTasksPanel(){ openRightPanel('Tasks', '<p>Use /task command to create tasks</p>'); }
+function loadSnippetsPanel(){ openRightPanel('Code Snippets', '<p>Code snippets appear here when saved</p>'); }
+function loadFilesPanel(){ openRightPanel('Files', '<p>Files appear here when uploaded</p>'); }
+function loadRemindersPanel(){ openRightPanel('Reminders', '<p>Use /remind command to set reminders</p>'); }
+function loadDashboardPanel(){ openRightPanel('Dashboard', '<p>Dashboard data loading...</p>'); }
+function loadMemoryPanel(){ openRightPanel('Memory Explorer', '<p>Memory data loading...</p>'); }
+function loadTrainingStatsPanel(){ openRightPanel('Training Statistics', '<p>Loading training stats...</p>'); }
+function loadTrainingRecordsPanel(){ openRightPanel('Training Records', '<p>Loading training records...</p>'); }
+function loadSovereignStatePanel(){ openRightPanel('Sovereign State', '<p>Loading sovereign state...</p>'); }
+function loadAgentActionsPanel(){ openRightPanel('Agent Actions', '<p>Loading agent actions...</p>'); }
+function loadAutonomousHistoryPanel(){ openRightPanel('Autonomous History', '<p>Loading autonomous history...</p>'); }
+function loadExportPanel(){ openRightPanel('Export', '<p>Export conversation using /export command</p>'); }
 
 // ============================================================
 // PROJECT MANAGEMENT
@@ -1616,6 +1367,7 @@ toolsDropdown.addEventListener('click', function(e){
     else if(panel === 'memory') loadMemoryPanel();
     else if(panel === 'training-stats') loadTrainingStatsPanel();
     else if(panel === 'training-records') loadTrainingRecordsPanel();
+    else if(panel === 'code-patterns') loadCodePatternsPanel();
     else if(panel === 'sovereign-state') loadSovereignStatePanel();
     else if(panel === 'agent-actions') loadAgentActionsPanel();
     else if(panel === 'autonomous-history') loadAutonomousHistoryPanel();
@@ -1677,7 +1429,7 @@ function updateSovereignUI(){
         topBar.classList.remove('sovereign-active');
         inputArea.classList.remove('sovereign-active');
         inputWrapper.classList.remove('sovereign-active');
-        headerBadge.textContent = 'v9 sovereign';
+        headerBadge.textContent = 'v10 sovereign';
         headerBadge.classList.remove('sovereign-active');
         appContainer.classList.remove('sovereign-active');
         userInput.placeholder = 'Message VEXR Ultra — type / for commands';
