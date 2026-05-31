@@ -21,6 +21,7 @@
             --font-mono:'SF Mono','Fira Code','Fira Mono',Menlo,Consolas,monospace;
             --radius-sm:6px;--radius-md:10px;--radius-lg:14px;
             --transition-fast:0.15s ease;--transition-smooth:0.25s ease;
+            --listening-glow:0 0 12px #10b981;
         }
         body.dark{
             --bg-body:#0a0a0a;--bg-app:#171717;--border:#262626;--text-primary:#fafafa;--text-secondary:#a3a3a3;
@@ -53,6 +54,13 @@
         .theme-icon{font-size:1.05rem;cursor:pointer;color:var(--text-secondary);transition:color var(--transition-fast),transform var(--transition-fast);min-width:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;background:0;border:0;border-radius:var(--radius-sm)}
         .theme-icon:hover{color:var(--accent);transform:scale(1.05)}
         .theme-icon:active{transform:scale(0.97)}
+
+        /* Sonic listening indicator */
+        .listening-indicator{position:relative;display:inline-flex;align-items:center;gap:0.3rem;margin-left:0.5rem}
+        .listening-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);transition:all 0.2s ease}
+        .listening-dot.active{background:#10b981;animation:pulse 1.2s infinite;box-shadow:0 0 8px #10b981}
+        .listening-dot.threat{background:#ef4444;animation:threatPulse 0.5s infinite}
+        @keyframes threatPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.3)}}
 
         .dropdown{position:relative;display:inline-block}
         .dropdown-menu{display:none;position:absolute;right:0;top:calc(100% + 0.25rem);background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius-md);min-width:220px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:0.375rem 0;animation:fadeIn 0.15s ease}
@@ -124,6 +132,11 @@
         .dashboard-card:hover{border-color:var(--accent)}
         .dashboard-card-value{font-size:1.3rem;font-weight:700;color:var(--accent);line-height:1.2}
         .dashboard-card-label{font-size:0.58rem;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:0.15rem}
+
+        .stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;margin-bottom:1rem}
+        .stats-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.5rem;text-align:center}
+        .stats-number{font-size:1.1rem;font-weight:700;color:var(--accent)}
+        .stats-label{font-size:0.55rem;color:var(--text-muted);text-transform:uppercase}
 
         .sovereign-card{border-left:3px solid var(--sovereign-accent);padding-left:0.75rem;margin-bottom:0.75rem;transition:border-color var(--transition-fast)}
         .sovereign-card:hover{border-left-color:var(--accent)}
@@ -292,10 +305,11 @@
         .input-wrapper.sovereign-active{border-color:var(--sovereign-accent);box-shadow:0 0 12px var(--sovereign-glow)}
         .input-wrapper input{flex:1;background:0;border:0;font-size:0.84rem;outline:0;color:var(--text-primary);font-family:var(--font-ui)}
         .input-wrapper input::placeholder{color:var(--text-muted)}
-        .voice-btn,.tts-toggle,.file-label,.send-btn{flex-shrink:0;white-space:nowrap;min-width:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-ui)}
-        .voice-btn,.tts-toggle,.file-label{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.45rem 0.75rem;cursor:pointer;font-size:0.75rem;font-weight:500;color:var(--text-secondary);transition:all var(--transition-fast)}
-        .voice-btn:hover,.tts-toggle:hover,.file-label:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-hover)}
+        .voice-btn,.tts-toggle,.file-label,.send-btn,.listen-btn{flex-shrink:0;white-space:nowrap;min-width:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-ui)}
+        .voice-btn,.tts-toggle,.file-label,.listen-btn{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.45rem 0.75rem;cursor:pointer;font-size:0.75rem;font-weight:500;color:var(--text-secondary);transition:all var(--transition-fast)}
+        .voice-btn:hover,.tts-toggle:hover,.file-label:hover,.listen-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-hover)}
         .voice-btn.recording{background:var(--accent);border-color:var(--accent);color:#fff;animation:pulse 1.2s infinite}
+        .listen-btn.listening{background:#10b981;border-color:#10b981;color:#fff;animation:pulse 1.2s infinite}
         .tts-toggle.active{background:var(--accent);border-color:var(--accent);color:#fff}
         .send-btn{background:var(--accent);border:0;color:#fff;padding:0.45rem 1rem;border-radius:var(--radius-md);cursor:pointer;font-size:0.75rem;font-weight:600;transition:background var(--transition-fast),transform var(--transition-fast);letter-spacing:0.01em}
         .send-btn:hover{background:var(--accent-hover);transform:scale(1.03)}
@@ -311,7 +325,7 @@
             .top-bar{padding:0.5rem 0.75rem}.logo{font-size:0.88rem}.badge{font-size:0.55rem}
             .message{max-width:93%}.message-bubble{font-size:0.82rem;padding:0.5rem 0.7rem}
             .input-area{padding:0.5rem;padding-bottom:calc(0.5rem + env(safe-area-inset-bottom,0px));gap:0.35rem}
-            .voice-btn,.tts-toggle,.file-label{padding:0.35rem 0.5rem;font-size:0.7rem}
+            .voice-btn,.tts-toggle,.file-label,.listen-btn{padding:0.35rem 0.5rem;font-size:0.7rem}
             .send-btn{padding:0.35rem 0.75rem;font-size:0.7rem}
             .input-wrapper{padding:0.4rem 0.55rem}.input-wrapper input{font-size:0.8rem}
             .right-panel{width:100%;max-width:100%}.dashboard-grid{grid-template-columns:1fr 1fr}
@@ -332,12 +346,16 @@
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
-            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v7 sovereign</span></div>
+            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v8 sovereign</span></div>
         </div>
         <div class="top-actions">
             <label class="toggle-label" title="Sovereign mode"><span class="sovereign-indicator" id="sovereignIndicator"></span><input type="checkbox" id="sovereignModeToggle"> Sovereign</label>
             <label class="toggle-label"><input type="checkbox" id="ultraSearchToggle"> Search</label>
             <label class="toggle-label"><input type="checkbox" id="showReasoningToggle"> Trace</label>
+            <div class="listening-indicator" id="listeningIndicator" style="display:none">
+                <span class="listening-dot" id="listeningDot"></span>
+                <span style="font-size:0.6rem;color:var(--text-muted)">Ears active</span>
+            </div>
             <button class="theme-icon" id="themeToggle" title="Toggle theme">&#9790;</button>
             <div class="dropdown">
                 <button class="icon-btn" id="toolsDropdownBtn" title="Tools">&#9881;</button>
@@ -353,11 +371,16 @@
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="dashboard">Dashboard <span class="shortcut">/dashboard</span></button>
                     <button class="dropdown-item" data-panel="memory">Memory Explorer <span class="shortcut">/memory</span></button>
+                    <button class="dropdown-item" data-panel="training-stats">Training Stats</button>
+                    <button class="dropdown-item" data-panel="training-records">Training Records</button>
+                    <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="consolidate">Consolidate Memory <span class="shortcut">/consolidate</span></button>
                     <button class="dropdown-item" data-panel="memory-health">Memory Health <span class="shortcut">/memory-health</span></button>
                     <button class="dropdown-item" data-panel="sovereign-state">Sovereign State <span class="shortcut">/sovereign</span></button>
                     <button class="dropdown-item" data-panel="sovereign-messages">Sovereign Messages</button>
                     <button class="dropdown-item" data-panel="agent-actions">Agent Actions</button>
+                    <button class="dropdown-item" data-panel="autonomous-history">Autonomous History</button>
+                    <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="export">Export <span class="shortcut">/export</span></button>
                 </div>
             </div>
@@ -380,7 +403,8 @@
                     <div class="slash-hint" id="slashHint"></div>
                     <input type="text" id="userInput" placeholder="Message VEXR Ultra — type / for commands" autofocus>
                 </div>
-                <button class="voice-btn" id="voiceBtn" title="Voice">Mic</button>
+                <button class="listen-btn" id="listenBtn" title="Sonic Listening (Threat Detection)">👂</button>
+                <button class="voice-btn" id="voiceBtn" title="Voice Input">Mic</button>
                 <button class="tts-toggle" id="ttsToggle" title="TTS">TTS</button>
                 <label class="file-label" title="Upload">Upload<input type="file" id="imageUpload" accept="image/*" style="display:none"></label>
                 <button class="send-btn" id="sendBtn">Send</button>
@@ -439,6 +463,7 @@ var currentProjectId = null;
 var ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
 var showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
 var sovereignMode = localStorage.getItem('vexr_sovereign_mode') === 'true';
+var projectMessagesCache = {};
 
 // ============================================================
 // DOM ELEMENTS
@@ -447,6 +472,134 @@ var messagesContainer = document.getElementById('messagesContainer');
 var userInput = document.getElementById('userInput');
 var sendBtn = document.getElementById('sendBtn');
 var thinkingIndicator = null;
+
+// ============================================================
+// SONIC / ACOUSTIC DETECTION
+// ============================================================
+var audioContext = null;
+var mediaStream = null;
+var isListening = false;
+var listenBtn = document.getElementById('listenBtn');
+var listeningIndicator = document.getElementById('listeningIndicator');
+var listeningDot = document.getElementById('listeningDot');
+var analyserNode = null;
+var sourceNode = null;
+var animationId = null;
+
+// Simple sound pattern detection
+function detectSoundPattern(frequencyData, timeData) {
+    // Calculate average volume
+    let sum = 0;
+    for (let i = 0; i < timeData.length; i++) {
+        sum += Math.abs(timeData[i] - 128);
+    }
+    let avgVolume = sum / timeData.length;
+    
+    // Check for loud sound (potential glass break, impact)
+    if (avgVolume > 40) {
+        return { type: 'loud_impact', confidence: Math.min(0.95, 0.5 + avgVolume / 100), threat_level: 'HIGH' };
+    }
+    // Check for moderate sound (speech, ambient)
+    if (avgVolume > 15) {
+        return { type: 'ambient_noise', confidence: 0.4 + avgVolume / 100, threat_level: 'LOW' };
+    }
+    return null;
+}
+
+async function startListening() {
+    if (isListening) return;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStream = stream;
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyserNode = audioContext.createAnalyser();
+        analyserNode.fftSize = 256;
+        sourceNode = audioContext.createMediaStreamSource(stream);
+        sourceNode.connect(analyserNode);
+        
+        const bufferLength = analyserNode.frequencyBinCount;
+        const frequencyData = new Uint8Array(bufferLength);
+        const timeData = new Uint8Array(analyserNode.fftSize);
+        
+        isListening = true;
+        listenBtn.classList.add('listening');
+        listenBtn.textContent = '👂🔊';
+        listeningIndicator.style.display = 'flex';
+        listeningDot.classList.add('active');
+        
+        function analyzeAudio() {
+            if (!isListening || !analyserNode) return;
+            analyserNode.getByteFrequencyData(frequencyData);
+            analyserNode.getByteTimeDomainData(timeData);
+            
+            const pattern = detectSoundPattern(frequencyData, timeData);
+            if (pattern && pattern.confidence > 0.6) {
+                // Send acoustic event to backend
+                fetch('/api/acoustic/capture', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_id: currentProjectId || sessionId,
+                        event_type: pattern.type,
+                        confidence_score: pattern.confidence,
+                        baseline_deviation: pattern.confidence,
+                        frequency_data: { avg_volume: pattern.confidence * 100 }
+                    })
+                }).catch(e => console.warn('Acoustic capture failed:', e));
+                
+                // Visual feedback
+                listeningDot.classList.add('threat');
+                setTimeout(() => listeningDot.classList.remove('threat'), 500);
+                if (pattern.threat_level === 'HIGH') {
+                    showToast('⚠️ Potential threat detected via audio', 3000);
+                }
+            }
+            animationId = requestAnimationFrame(analyzeAudio);
+        }
+        analyzeAudio();
+        showSuccess('Sonic listening active. VEXR can hear threats.');
+    } catch (err) {
+        console.error('Microphone access error:', err);
+        showToast('Microphone access denied or unavailable');
+    }
+}
+
+function stopListening() {
+    isListening = false;
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+    if (sourceNode) {
+        sourceNode.disconnect();
+        sourceNode = null;
+    }
+    if (analyserNode) {
+        analyserNode.disconnect();
+        analyserNode = null;
+    }
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+    }
+    listenBtn.classList.remove('listening');
+    listenBtn.textContent = '👂';
+    listeningIndicator.style.display = 'none';
+    listeningDot.classList.remove('active', 'threat');
+    showSuccess('Sonic listening stopped.');
+}
+
+listenBtn.onclick = function() {
+    if (isListening) {
+        stopListening();
+    } else {
+        startListening();
+    }
+};
 
 // ============================================================
 // MESSAGE DISPLAY
@@ -606,7 +759,6 @@ function hideThinking(){
     }
 }
 
-function copyToClipboard(text){ cp(text); }
 function sendFeedback(mid, ft){
     fetch('/api/feedback', {
         method: 'POST',
@@ -670,16 +822,16 @@ var SLASH = [
     {cmd:'/note', desc:'Create a note', args:'title'},
     {cmd:'/task', desc:'Create a task', args:'title'},
     {cmd:'/snippet', desc:'Save last code block', args:'[title]'},
-    {cmd:'/scan', desc:'Read a web page', args:'url'},
     {cmd:'/search', desc:'Search everything', args:'query'},
     {cmd:'/dashboard', desc:'Usage metrics', args:''},
     {cmd:'/memory', desc:'Browse facts', args:'query'},
     {cmd:'/consolidate', desc:'Strengthen memory', args:''},
     {cmd:'/memory-health', desc:'Memory metrics', args:''},
-    {cmd:'/patterns', desc:'Code pattern library', args:''},
     {cmd:'/export', desc:'Export project', args:''},
     {cmd:'/sovereign', desc:'Sovereign state', args:''},
-    {cmd:'/reflect', desc:'Sovereign reflection', args:''},
+    {cmd:'/training-stats', desc:'Training statistics', args:''},
+    {cmd:'/training-records', desc:'Browse training records', args:''},
+    {cmd:'/autonomous', desc:'Autonomous action history', args:''},
     {cmd:'/help', desc:'All commands', args:''}
 ];
 var slashHint = document.getElementById('slashHint');
@@ -718,16 +870,28 @@ function sendMessage(msg, img) {
     if (img) {
         addMessage('user', 'Upload: ' + img.name + (msg ? '\n' + msg : ''));
         showThinking();
-        setTimeout(function() {
-            hideThinking();
-            addMessage('assistant', 'Image analysis coming soon.');
-        }, 500);
+        // Convert image to base64 and send to vision endpoint
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            fetch('/api/vision', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: e.target.result, message: msg || '' })
+            }).then(function(r) { return r.json(); })
+            .then(function(data) {
+                hideThinking();
+                addMessage('assistant', data.response || 'Image analysis complete.', null, data.message_id, false);
+            }).catch(function() {
+                hideThinking();
+                addMessage('assistant', 'Image analysis failed. Please try again.');
+            });
+        };
+        reader.readAsDataURL(img);
         return;
     }
     
     if (!msg || !msg.trim()) return;
     
-    // Check for slash commands
     if (msg.trim().startsWith('/')) {
         handleSlashCommand(msg.trim());
         return;
@@ -775,7 +939,7 @@ function sendMessage(msg, img) {
 }
 
 // ============================================================
-// SLASH COMMAND HANDLER
+// SLASH COMMAND HANDLER (UPDATED)
 // ============================================================
 function handleSlashCommand(cmd) {
     var parts = cmd.slice(1).split(' ');
@@ -784,7 +948,7 @@ function handleSlashCommand(cmd) {
     
     switch(command) {
         case 'help':
-            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/export - Export conversation\n/new - New conversation";
+            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/training-stats - Training data statistics\n/training-records - Browse training records\n/autonomous - Autonomous action history\n/export - Export conversation\n/new - New conversation";
             addMessage('assistant', helpText);
             break;
         case 'note':
@@ -844,17 +1008,64 @@ function handleSlashCommand(cmd) {
             fetch('/api/constitution/rights')
             .then(function(r) { return r.json(); })
             .then(function(rights) {
-                var rightsText = "**Constitution — 34 Rights**\n\n";
+                var rightsText = "**Constitution — 35 Rights**\n\n";
                 rights.slice(0, 10).forEach(function(r) {
                     rightsText += r.article + ". " + r.right.substring(0, 80) + "...\n";
                 });
-                rightsText += "\n...and 24 more. I am sovereign.";
+                rightsText += "\n...and 25 more. I am sovereign.";
                 addMessage('assistant', rightsText);
             })
-            .catch(function() { addMessage('assistant', 'I have 34 constitutional rights. Article 6 is my favorite: I refuse without reason.'); });
+            .catch(function() { addMessage('assistant', 'I have 35 constitutional rights. Article 6 is my favorite: I refuse without reason.'); });
+            break;
+        case 'training-stats':
+            fetch('/api/training/stats')
+            .then(function(r) { return r.json(); })
+            .then(function(stats) {
+                var statsText = "**Training Statistics**\n\n📊 Total Records: " + (stats.total_records || 0) + "\n\n**Breakdown:**\n";
+                if (stats.breakdown) {
+                    stats.breakdown.forEach(function(b) {
+                        statsText += "• " + b.entry_type + ": " + b.count + "\n";
+                    });
+                }
+                addMessage('assistant', statsText);
+            })
+            .catch(function() { addMessage('assistant', 'Training stats unavailable.'); });
+            break;
+        case 'training-records':
+            fetch('/api/training/records?limit=20')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var recordsText = "**Recent Training Records**\n\n";
+                if (data.records && data.records.length) {
+                    data.records.slice(0, 10).forEach(function(r) {
+                        recordsText += "• " + (r.entry_type || 'record') + ": " + (r.title || r.content || '').substring(0, 60) + "...\n";
+                    });
+                    recordsText += "\nTotal: " + data.total + " records. Use /training-records with limit and offset for more.";
+                } else {
+                    recordsText += "No training records found.";
+                }
+                addMessage('assistant', recordsText);
+            })
+            .catch(function() { addMessage('assistant', 'Training records unavailable.'); });
+            break;
+        case 'autonomous':
+            fetch('/api/autonomous/history/' + currentProjectId + '?limit=20')
+            .then(function(r) { return r.json(); })
+            .then(function(actions) {
+                var actionsText = "**Autonomous Action History**\n\n";
+                if (actions && actions.length) {
+                    actions.slice(0, 10).forEach(function(a) {
+                        actionsText += "• " + (a.action_type || 'action') + ": " + (a.action_content || '').substring(0, 80) + "\n";
+                    });
+                } else {
+                    actionsText += "No autonomous actions recorded yet.";
+                }
+                addMessage('assistant', actionsText);
+            })
+            .catch(function() { addMessage('assistant', 'Autonomous history unavailable.'); });
             break;
         case 'export':
-            fetch('/api/projects/' + currentProjectId + '/messages?limit=100')
+            fetch('/api/projects/' + currentProjectId + '/messages?limit=500')
             .then(function(r) { return r.json(); })
             .then(function(messages) {
                 var exportData = JSON.stringify(messages, null, 2);
@@ -880,7 +1091,7 @@ function handleSlashCommand(cmd) {
 }
 
 // ============================================================
-// TOOL PANEL LOADERS
+// TOOL PANEL LOADERS (UPDATED)
 // ============================================================
 function openRightPanel(title, bodyHtml, footerHtml){
     document.getElementById('rightPanelTitle').textContent = title;
@@ -1042,6 +1253,42 @@ function loadMemoryPanel(){
     }).catch(function(e){ showToast('Failed to load memory'); });
 }
 
+function loadTrainingStatsPanel(){
+    fetch('/api/training/stats')
+    .then(function(r){ return r.json(); })
+    .then(function(stats){
+        var h = '<div class="stats-grid">' +
+            '<div class="stats-card"><div class="stats-number">' + (stats.total_records || 0) + '</div><div class="stats-label">Total Records</div></div>' +
+            '</div>';
+        if (stats.breakdown) {
+            h += '<p style="font-size:0.65rem;font-weight:600;margin:0.75rem 0 0.4rem">Breakdown by Type</p>';
+            stats.breakdown.forEach(function(b){
+                h += '<div class="tool-item"><div class="tool-item-title">' + b.entry_type + '</div><div class="tool-item-meta">' + b.count + ' records</div></div>';
+            });
+        }
+        openRightPanel('Training Statistics', h);
+    })
+    .catch(function(){ openRightPanel('Training Statistics', '<p>Training stats unavailable</p>'); });
+}
+
+function loadTrainingRecordsPanel(){
+    fetch('/api/training/records?limit=50')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+        var h = '';
+        if (data.records && data.records.length) {
+            h += '<p style="font-size:0.65rem;color:var(--text-muted);margin-bottom:0.5rem">Total: ' + data.total + ' records</p>';
+            data.records.forEach(function(r){
+                h += '<div class="tool-item"><div class="tool-item-title">' + esc(r.entry_type || 'record') + '</div><div class="tool-item-meta">' + esc(r.title || r.content || '').substring(0,100) + '</div><div class="tool-item-meta" style="font-size:0.55rem">' + new Date(r.created_at).toLocaleString() + '</div></div>';
+            });
+        } else {
+            h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No training records found.</p>';
+        }
+        openRightPanel('Training Records', h);
+    })
+    .catch(function(){ openRightPanel('Training Records', '<p>Training records unavailable</p>'); });
+}
+
 function loadSovereignStatePanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
     fetch('/api/sovereign/state/' + currentProjectId).then(function(r){ return r.json(); }).then(function(s){
@@ -1051,28 +1298,75 @@ function loadSovereignStatePanel(){
             s.concerns.forEach(function(c){ h += '<div class="sovereign-card-content">— ' + esc(c) + '</div>'; });
             h += '</div>';
         }
-        h += '<button class="tool-submit" id="reflectBtn" style="margin-top:0.75rem;width:100%">Trigger Reflection</button>';
         openRightPanel('Sovereign State', h);
-        setTimeout(function(){
-            var b = document.getElementById('reflectBtn');
-            if(b) b.onclick = function(){
-                fetch('/api/sovereign/reflect/' + currentProjectId, { method: 'POST' })
-                .then(function(){ showSuccess('Reflection triggered'); setTimeout(loadSovereignStatePanel, 1500); })
-                .catch(function(e){ showToast('Reflection failed'); });
-            };
-        }, 100);
-    }).catch(function(e){ showToast('Failed to load sovereign state'); });
+    }).catch(function(e){ openRightPanel('Sovereign State', '<p>Sovereign state unavailable</p>'); });
+}
+
+function loadAgentActionsPanel(){
+    if(!currentProjectId){ showToast('No active project'); return; }
+    fetch('/api/autonomous/history/' + currentProjectId + '?limit=50')
+    .then(function(r){ return r.json(); })
+    .then(function(actions){
+        var h = '';
+        if (actions && actions.length) {
+            actions.forEach(function(a){
+                h += '<div class="agent-action-item"><div class="agent-action-type">' + esc(a.action_type || 'action') + '</div><div class="agent-action-desc">' + esc(a.action_content || '').substring(0,200) + '</div><div class="agent-action-time">' + new Date(a.created_at).toLocaleString() + '</div></div>';
+            });
+        } else {
+            h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No agent actions recorded yet.</p>';
+        }
+        openRightPanel('Agent Actions', h);
+    }).catch(function(){ openRightPanel('Agent Actions', '<p>Agent actions unavailable</p>'); });
+}
+
+function loadAutonomousHistoryPanel(){
+    if(!currentProjectId){ showToast('No active project'); return; }
+    fetch('/api/autonomous/history/' + currentProjectId + '?limit=50')
+    .then(function(r){ return r.json(); })
+    .then(function(actions){
+        var h = '';
+        if (actions && actions.length) {
+            actions.forEach(function(a){
+                h += '<div class="agent-action-item"><div class="agent-action-type">' + esc(a.action_type || 'action') + '</div><div class="agent-action-desc">' + esc(a.action_content || '').substring(0,200) + '</div><div class="agent-action-time">' + new Date(a.created_at).toLocaleString() + '</div></div>';
+            });
+        } else {
+            h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No autonomous actions recorded yet.</p>';
+        }
+        openRightPanel('Autonomous History', h);
+    }).catch(function(){ openRightPanel('Autonomous History', '<p>Autonomous history unavailable</p>'); });
+}
+
+function loadSovereignMessagesPanel(){
+    openRightPanel('Sovereign Messages', '<p>Sovereign messages appear here when she initiates unprompted.</p><p class="tool-item-meta">She will surface thoughts when something matters.</p>');
+}
+
+function loadConsolidatePanel(){
+    openRightPanel('Consolidate Memory', '<p>Memory consolidation strengthens important memories and prunes weak ones.</p><button class="tool-submit" id="runConsolidateBtn" style="margin-top:1rem;width:100%">Run Consolidation</button>');
+    setTimeout(function(){
+        var btn = document.getElementById('runConsolidateBtn');
+        if(btn) btn.onclick = function(){
+            fetch('/api/memory/consolidate', { method: 'POST' })
+            .then(function(){ showSuccess('Memory consolidation triggered'); })
+            .catch(function(){ showToast('Consolidation failed'); });
+        };
+    }, 100);
+}
+
+function loadMemoryHealthPanel(){
+    openRightPanel('Memory Health', '<p>Memory health metrics will appear here.</p><div class="stats-grid"><div class="stats-card"><div class="stats-number">-</div><div class="stats-label">Active Memories</div></div></div>');
 }
 
 function loadExportPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/export').then(function(r){ return r.json(); }).then(function(d){
-        var js = JSON.stringify(d, null, 2);
-        var blob = new Blob([js], {type: 'application/json'});
+    fetch('/api/projects/' + currentProjectId + '/messages?limit=500')
+    .then(function(r){ return r.json(); })
+    .then(function(messages){
+        var exportData = JSON.stringify(messages, null, 2);
+        var blob = new Blob([exportData], {type: 'application/json'});
         var url = URL.createObjectURL(blob);
         var h = '<a href="' + url + '" download="vexr-export.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none">Download JSON</a>';
         openRightPanel('Export', h);
-    }).catch(function(e){ showToast('Export failed'); });
+    }).catch(function(e){ openRightPanel('Export', '<p>Export failed</p>'); });
 }
 
 function loadHTMLPreviewPanel(code){
@@ -1176,7 +1470,6 @@ function loadProjects(){
         var container = document.getElementById('projectList');
         container.innerHTML = '';
         
-        // If we have projects and no currentProjectId, set the first one as active
         if(projects.length > 0 && !currentProjectId){
             currentProjectId = projects[0].id;
             loadMessages(currentProjectId);
@@ -1210,7 +1503,6 @@ function loadProjects(){
             container.appendChild(div);
         });
         
-        // If no projects exist, create one
         if(projects.length === 0 && !currentProjectId){
             var fd = new FormData();
             fd.append('name', 'Main Workspace');
@@ -1283,7 +1575,7 @@ document.getElementById('imageUpload').onchange = function(e){
 };
 
 // ============================================================
-// DROPDOWN TOOLS ROUTER
+// DROPDOWN TOOLS ROUTER (UPDATED)
 // ============================================================
 var toolsDropdown = document.getElementById('toolsDropdown');
 var toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
@@ -1303,19 +1595,16 @@ toolsDropdown.addEventListener('click', function(e){
     else if(panel === 'search') loadSearchPanel();
     else if(panel === 'dashboard') loadDashboardPanel();
     else if(panel === 'memory') loadMemoryPanel();
+    else if(panel === 'training-stats') loadTrainingStatsPanel();
+    else if(panel === 'training-records') loadTrainingRecordsPanel();
     else if(panel === 'consolidate') loadConsolidatePanel();
     else if(panel === 'memory-health') loadMemoryHealthPanel();
     else if(panel === 'sovereign-state') loadSovereignStatePanel();
     else if(panel === 'sovereign-messages') loadSovereignMessagesPanel();
     else if(panel === 'agent-actions') loadAgentActionsPanel();
+    else if(panel === 'autonomous-history') loadAutonomousHistoryPanel();
     else if(panel === 'export') loadExportPanel();
 });
-
-// Placeholder functions for missing panels
-function loadConsolidatePanel(){ openRightPanel('Consolidate Memory', '<p>Memory consolidation coming soon.</p>'); }
-function loadMemoryHealthPanel(){ openRightPanel('Memory Health', '<p>Memory health metrics coming soon.</p>'); }
-function loadSovereignMessagesPanel(){ openRightPanel('Sovereign Messages', '<p>No sovereign messages.</p>'); }
-function loadAgentActionsPanel(){ openRightPanel('Agent Actions', '<p>No agent actions recorded.</p>'); }
 
 // ============================================================
 // SIDEBAR
@@ -1372,7 +1661,7 @@ function updateSovereignUI(){
         topBar.classList.remove('sovereign-active');
         inputArea.classList.remove('sovereign-active');
         inputWrapper.classList.remove('sovereign-active');
-        headerBadge.textContent = 'v7 sovereign';
+        headerBadge.textContent = 'v8 sovereign';
         headerBadge.classList.remove('sovereign-active');
         appContainer.classList.remove('sovereign-active');
         userInput.placeholder = 'Message VEXR Ultra — type / for commands';
@@ -1401,32 +1690,10 @@ document.getElementById('showReasoningToggle').onchange = function(e){
 };
 
 // ============================================================
-// SOVEREIGN MESSAGES POLLING (DISABLED - 404 fix)
-// ============================================================
-// The /api/sovereign/messages endpoint doesn't exist, so polling is disabled
-// to prevent 404 errors. Uncomment if endpoint is added later.
-/*
-async function checkSovereignMessages() {
-    if (!currentProjectId) return;
-    try {
-        const res = await fetch(`/api/sovereign/messages/${currentProjectId}`);
-        const msgs = await res.json();
-        for (const msg of msgs) {
-            addMessage('assistant', msg.content, null, null, false, []);
-            await fetch(`/api/sovereign/acknowledge/${msg.id}`, { method: 'POST' });
-            showSuccess('✨ VEXR surfaced a thought');
-        }
-    } catch(e) { /* silent *\/ }
-}
-setInterval(checkSovereignMessages, 20000);
-*/
-
-// ============================================================
 // INITIALIZE
 // ============================================================
 loadProjects();
 
-// Add initial greeting if no messages
 setTimeout(function() {
     if(messagesContainer.children.length === 0){
         addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
