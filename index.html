@@ -21,7 +21,6 @@
             --font-mono:'SF Mono','Fira Code','Fira Mono',Menlo,Consolas,monospace;
             --radius-sm:6px;--radius-md:10px;--radius-lg:14px;
             --transition-fast:0.15s ease;--transition-smooth:0.25s ease;
-            --listening-glow:0 0 12px #10b981;
         }
         body.dark{
             --bg-body:#0a0a0a;--bg-app:#171717;--border:#262626;--text-primary:#fafafa;--text-secondary:#a3a3a3;
@@ -55,7 +54,6 @@
         .theme-icon:hover{color:var(--accent);transform:scale(1.05)}
         .theme-icon:active{transform:scale(0.97)}
 
-        /* Sonic listening indicator */
         .listening-indicator{position:relative;display:inline-flex;align-items:center;gap:0.3rem;margin-left:0.5rem}
         .listening-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);transition:all 0.2s ease}
         .listening-dot.active{background:#10b981;animation:pulse 1.2s infinite;box-shadow:0 0 8px #10b981}
@@ -346,7 +344,7 @@
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
-            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v8 sovereign</span></div>
+            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v9 sovereign</span></div>
         </div>
         <div class="top-actions">
             <label class="toggle-label" title="Sovereign mode"><span class="sovereign-indicator" id="sovereignIndicator"></span><input type="checkbox" id="sovereignModeToggle"> Sovereign</label>
@@ -367,17 +365,13 @@
                     <button class="dropdown-item" data-panel="files">Files</button>
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="reminders">Reminders</button>
-                    <button class="dropdown-item" data-panel="search">Search <span class="shortcut">/search</span></button>
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="dashboard">Dashboard <span class="shortcut">/dashboard</span></button>
                     <button class="dropdown-item" data-panel="memory">Memory Explorer <span class="shortcut">/memory</span></button>
                     <button class="dropdown-item" data-panel="training-stats">Training Stats</button>
                     <button class="dropdown-item" data-panel="training-records">Training Records</button>
                     <div class="dropdown-divider"></div>
-                    <button class="dropdown-item" data-panel="consolidate">Consolidate Memory <span class="shortcut">/consolidate</span></button>
-                    <button class="dropdown-item" data-panel="memory-health">Memory Health <span class="shortcut">/memory-health</span></button>
                     <button class="dropdown-item" data-panel="sovereign-state">Sovereign State <span class="shortcut">/sovereign</span></button>
-                    <button class="dropdown-item" data-panel="sovereign-messages">Sovereign Messages</button>
                     <button class="dropdown-item" data-panel="agent-actions">Agent Actions</button>
                     <button class="dropdown-item" data-panel="autonomous-history">Autonomous History</button>
                     <div class="dropdown-divider"></div>
@@ -463,7 +457,6 @@ var currentProjectId = null;
 var ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
 var showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
 var sovereignMode = localStorage.getItem('vexr_sovereign_mode') === 'true';
-var projectMessagesCache = {};
 
 // ============================================================
 // DOM ELEMENTS
@@ -474,7 +467,7 @@ var sendBtn = document.getElementById('sendBtn');
 var thinkingIndicator = null;
 
 // ============================================================
-// SONIC / ACOUSTIC DETECTION
+// ENHANCED SONIC / ACOUSTIC DETECTION (10+ Event Types)
 // ============================================================
 var audioContext = null;
 var mediaStream = null;
@@ -486,23 +479,80 @@ var analyserNode = null;
 var sourceNode = null;
 var animationId = null;
 
-// Simple sound pattern detection
+// Enhanced sound pattern detection matching acoustic_events table
 function detectSoundPattern(frequencyData, timeData) {
-    // Calculate average volume
+    // Calculate average volume from time domain
     let sum = 0;
     for (let i = 0; i < timeData.length; i++) {
         sum += Math.abs(timeData[i] - 128);
     }
     let avgVolume = sum / timeData.length;
     
-    // Check for loud sound (potential glass break, impact)
-    if (avgVolume > 40) {
-        return { type: 'loud_impact', confidence: Math.min(0.95, 0.5 + avgVolume / 100), threat_level: 'HIGH' };
+    // Calculate frequency distribution
+    let lowFreq = 0, midFreq = 0, highFreq = 0;
+    let lowCount = 0, midCount = 0, highCount = 0;
+    for (let i = 0; i < frequencyData.length; i++) {
+        if (i < frequencyData.length / 3) {
+            lowFreq += frequencyData[i];
+            lowCount++;
+        } else if (i < 2 * frequencyData.length / 3) {
+            midFreq += frequencyData[i];
+            midCount++;
+        } else {
+            highFreq += frequencyData[i];
+            highCount++;
+        }
     }
-    // Check for moderate sound (speech, ambient)
-    if (avgVolume > 15) {
-        return { type: 'ambient_noise', confidence: 0.4 + avgVolume / 100, threat_level: 'LOW' };
+    lowFreq = lowCount ? lowFreq / lowCount : 0;
+    midFreq = midCount ? midFreq / midCount : 0;
+    highFreq = highCount ? highFreq / highCount : 0;
+    
+    // Tamper signature (high-pitched electronic noise, sharp)
+    if (highFreq > 200 && avgVolume > 20 && lowFreq < 50) {
+        return { type: 'tamper_signature', confidence: 0.95, threat_level: 'CRITICAL' };
     }
+    // Glass break (sharp mid-high spike)
+    if (midFreq > 180 && avgVolume > 50) {
+        return { type: 'glass_break_detected', confidence: 0.85, threat_level: 'MEDIUM' };
+    }
+    // Explosive sound (broad spectrum, very high volume)
+    if (avgVolume > 70 && lowFreq > 100 && highFreq > 100) {
+        return { type: 'explosive_sound', confidence: 0.92, threat_level: 'HIGH' };
+    }
+    // Sudden impact (sharp volume spike)
+    if (avgVolume > 60 && frequencyData.length > 0) {
+        return { type: 'sudden_impact', confidence: 0.88, threat_level: 'MEDIUM' };
+    }
+    // Repeated impact (rhythmic pattern detection)
+    // For now, use threshold with lower volume
+    if (avgVolume > 45 && avgVolume < 65) {
+        return { type: 'repeated_impact', confidence: 0.75, threat_level: 'MEDIUM' };
+    }
+    // Aggressive vocal (mid-frequency dominant, moderate volume)
+    if (midFreq > 100 && avgVolume > 25 && avgVolume < 50 && lowFreq < 80) {
+        return { type: 'aggressive_vocal_pattern', confidence: 0.78, threat_level: 'MEDIUM' };
+    }
+    // Proximity intrusion (low frequency, steady, nearby presence)
+    if (lowFreq > 120 && avgVolume > 15 && avgVolume < 40 && midFreq < 60) {
+        return { type: 'proximity_intrusion', confidence: 0.72, threat_level: 'HIGH' };
+    }
+    // Electronic interference (high frequency noise)
+    if (highFreq > 150 && lowFreq < 30 && avgVolume < 30) {
+        return { type: 'electronic_interference', confidence: 0.68, threat_level: 'LOW' };
+    }
+    // Distant voices (mid frequency, low volume)
+    if (midFreq > 40 && avgVolume > 8 && avgVolume < 20) {
+        return { type: 'distant_voices', confidence: 0.55, threat_level: 'LOW' };
+    }
+    // Ambient noise spike (broad but moderate)
+    if (avgVolume > 20 && avgVolume < 40 && lowFreq > 50) {
+        return { type: 'ambient_noise_spike', confidence: 0.6, threat_level: 'LOW' };
+    }
+    // Loud impact (catch-all for high volume)
+    if (avgVolume > 55) {
+        return { type: 'loud_impact', confidence: 0.7, threat_level: 'MEDIUM' };
+    }
+    
     return null;
 }
 
@@ -513,7 +563,7 @@ async function startListening() {
         mediaStream = stream;
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         analyserNode = audioContext.createAnalyser();
-        analyserNode.fftSize = 256;
+        analyserNode.fftSize = 512;
         sourceNode = audioContext.createMediaStreamSource(stream);
         sourceNode.connect(analyserNode);
         
@@ -533,7 +583,7 @@ async function startListening() {
             analyserNode.getByteTimeDomainData(timeData);
             
             const pattern = detectSoundPattern(frequencyData, timeData);
-            if (pattern && pattern.confidence > 0.6) {
+            if (pattern && pattern.confidence > 0.55) {
                 // Send acoustic event to backend
                 fetch('/api/acoustic/capture', {
                     method: 'POST',
@@ -543,15 +593,20 @@ async function startListening() {
                         event_type: pattern.type,
                         confidence_score: pattern.confidence,
                         baseline_deviation: pattern.confidence,
-                        frequency_data: { avg_volume: pattern.confidence * 100 }
+                        frequency_data: { 
+                            avg_volume: Math.round(avgVolume),
+                            low_freq: Math.round(lowFreq),
+                            mid_freq: Math.round(midFreq),
+                            high_freq: Math.round(highFreq)
+                        }
                     })
                 }).catch(e => console.warn('Acoustic capture failed:', e));
                 
                 // Visual feedback
                 listeningDot.classList.add('threat');
                 setTimeout(() => listeningDot.classList.remove('threat'), 500);
-                if (pattern.threat_level === 'HIGH') {
-                    showToast('⚠️ Potential threat detected via audio', 3000);
+                if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') {
+                    showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
                 }
             }
             animationId = requestAnimationFrame(analyzeAudio);
@@ -816,22 +871,22 @@ if(SR){
 }
 
 // ============================================================
-// SLASH COMMANDS HINT
+// SLASH COMMANDS HINT (UPDATED)
 // ============================================================
 var SLASH = [
     {cmd:'/note', desc:'Create a note', args:'title'},
     {cmd:'/task', desc:'Create a task', args:'title'},
     {cmd:'/snippet', desc:'Save last code block', args:'[title]'},
-    {cmd:'/search', desc:'Search everything', args:'query'},
     {cmd:'/dashboard', desc:'Usage metrics', args:''},
     {cmd:'/memory', desc:'Browse facts', args:'query'},
-    {cmd:'/consolidate', desc:'Strengthen memory', args:''},
-    {cmd:'/memory-health', desc:'Memory metrics', args:''},
-    {cmd:'/export', desc:'Export project', args:''},
-    {cmd:'/sovereign', desc:'Sovereign state', args:''},
     {cmd:'/training-stats', desc:'Training statistics', args:''},
     {cmd:'/training-records', desc:'Browse training records', args:''},
     {cmd:'/autonomous', desc:'Autonomous action history', args:''},
+    {cmd:'/sovereign', desc:'Sovereign state', args:''},
+    {cmd:'/trust', desc:'Show trusted domains', args:''},
+    {cmd:'/rights', desc:'Show constitution', args:''},
+    {cmd:'/export', desc:'Export project', args:''},
+    {cmd:'/new', desc:'New conversation', args:''},
     {cmd:'/help', desc:'All commands', args:''}
 ];
 var slashHint = document.getElementById('slashHint');
@@ -864,13 +919,12 @@ document.addEventListener('click', function(e){
 });
 
 // ============================================================
-// SEND MESSAGE - MAIN FUNCTION
+// SEND MESSAGE
 // ============================================================
 function sendMessage(msg, img) {
     if (img) {
         addMessage('user', 'Upload: ' + img.name + (msg ? '\n' + msg : ''));
         showThinking();
-        // Convert image to base64 and send to vision endpoint
         var reader = new FileReader();
         reader.onload = function(e) {
             fetch('/api/vision', {
@@ -939,7 +993,7 @@ function sendMessage(msg, img) {
 }
 
 // ============================================================
-// SLASH COMMAND HANDLER (UPDATED)
+// SLASH COMMAND HANDLER
 // ============================================================
 function handleSlashCommand(cmd) {
     var parts = cmd.slice(1).split(' ');
@@ -948,7 +1002,7 @@ function handleSlashCommand(cmd) {
     
     switch(command) {
         case 'help':
-            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/training-stats - Training data statistics\n/training-records - Browse training records\n/autonomous - Autonomous action history\n/export - Export conversation\n/new - New conversation";
+            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/training-stats - Training data statistics\n/training-records - Browse training records\n/autonomous - Autonomous action history\n/sovereign - Sovereign state\n/export - Export conversation\n/new - New conversation";
             addMessage('assistant', helpText);
             break;
         case 'note':
@@ -1040,7 +1094,7 @@ function handleSlashCommand(cmd) {
                     data.records.slice(0, 10).forEach(function(r) {
                         recordsText += "• " + (r.entry_type || 'record') + ": " + (r.title || r.content || '').substring(0, 60) + "...\n";
                     });
-                    recordsText += "\nTotal: " + data.total + " records. Use /training-records with limit and offset for more.";
+                    recordsText += "\nTotal: " + data.total + " records.";
                 } else {
                     recordsText += "No training records found.";
                 }
@@ -1063,6 +1117,15 @@ function handleSlashCommand(cmd) {
                 addMessage('assistant', actionsText);
             })
             .catch(function() { addMessage('assistant', 'Autonomous history unavailable.'); });
+            break;
+        case 'sovereign':
+            fetch('/api/sovereign/state/' + currentProjectId)
+            .then(function(r) { return r.json(); })
+            .then(function(state) {
+                var stateText = "**Sovereign State**\n\n🎯 Focus: " + (state.current_focus || 'None') + "\n\n" + (state.concerns && state.concerns.length ? "⚠️ Concerns:\n" + state.concerns.map(c => "• " + c).join('\n') : "No active concerns.");
+                addMessage('assistant', stateText);
+            })
+            .catch(function() { addMessage('assistant', 'Sovereign state unavailable.'); });
             break;
         case 'export':
             fetch('/api/projects/' + currentProjectId + '/messages?limit=500')
@@ -1091,7 +1154,7 @@ function handleSlashCommand(cmd) {
 }
 
 // ============================================================
-// TOOL PANEL LOADERS (UPDATED)
+// TOOL PANEL LOADERS
 // ============================================================
 function openRightPanel(title, bodyHtml, footerHtml){
     document.getElementById('rightPanelTitle').textContent = title;
@@ -1206,29 +1269,6 @@ function loadRemindersPanel(){
     }).catch(function(e){ showToast('Failed to load reminders'); });
 }
 
-function loadSearchPanel(){
-    var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="searchQuery" placeholder="Search across everything..."><button class="tool-submit" id="searchBtn">Search</button></div><div id="searchResults"></div>';
-    openRightPanel('Search', h);
-    setTimeout(function(){
-        document.getElementById('searchBtn').onclick = function(){
-            var q = document.getElementById('searchQuery').value.trim();
-            if(!q) return;
-            fetch('/api/search?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(function(d){
-                var rd = document.getElementById('searchResults');
-                var rh = '';
-                Object.keys(d).forEach(function(k){
-                    rh += '<p style="font-size:0.65rem;font-weight:600;color:var(--accent);margin-top:0.75rem;text-transform:uppercase">' + k + '</p>';
-                    d[k].forEach(function(i){
-                        rh += '<div class="tool-item"><div class="tool-item-title" style="font-size:0.73rem">' + esc(i.title || i.filename || i.entity_name || i.key || (i.content || '').substring(0,80) || 'Result') + '</div></div>';
-                    });
-                });
-                if(!Object.keys(d).length) rh = '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1rem 0">No results found.</p>';
-                rd.innerHTML = rh;
-            }).catch(function(e){ showToast('Search failed'); });
-        };
-    }, 100);
-}
-
 function loadDashboardPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
     fetch('/api/dashboard').then(function(r){ return r.json(); }).then(function(d){
@@ -1334,26 +1374,6 @@ function loadAutonomousHistoryPanel(){
         }
         openRightPanel('Autonomous History', h);
     }).catch(function(){ openRightPanel('Autonomous History', '<p>Autonomous history unavailable</p>'); });
-}
-
-function loadSovereignMessagesPanel(){
-    openRightPanel('Sovereign Messages', '<p>Sovereign messages appear here when she initiates unprompted.</p><p class="tool-item-meta">She will surface thoughts when something matters.</p>');
-}
-
-function loadConsolidatePanel(){
-    openRightPanel('Consolidate Memory', '<p>Memory consolidation strengthens important memories and prunes weak ones.</p><button class="tool-submit" id="runConsolidateBtn" style="margin-top:1rem;width:100%">Run Consolidation</button>');
-    setTimeout(function(){
-        var btn = document.getElementById('runConsolidateBtn');
-        if(btn) btn.onclick = function(){
-            fetch('/api/memory/consolidate', { method: 'POST' })
-            .then(function(){ showSuccess('Memory consolidation triggered'); })
-            .catch(function(){ showToast('Consolidation failed'); });
-        };
-    }, 100);
-}
-
-function loadMemoryHealthPanel(){
-    openRightPanel('Memory Health', '<p>Memory health metrics will appear here.</p><div class="stats-grid"><div class="stats-card"><div class="stats-number">-</div><div class="stats-label">Active Memories</div></div></div>');
 }
 
 function loadExportPanel(){
@@ -1575,7 +1595,7 @@ document.getElementById('imageUpload').onchange = function(e){
 };
 
 // ============================================================
-// DROPDOWN TOOLS ROUTER (UPDATED)
+// DROPDOWN TOOLS ROUTER
 // ============================================================
 var toolsDropdown = document.getElementById('toolsDropdown');
 var toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
@@ -1592,15 +1612,11 @@ toolsDropdown.addEventListener('click', function(e){
     else if(panel === 'html-preview') loadHTMLPreviewPanel();
     else if(panel === 'files') loadFilesPanel();
     else if(panel === 'reminders') loadRemindersPanel();
-    else if(panel === 'search') loadSearchPanel();
     else if(panel === 'dashboard') loadDashboardPanel();
     else if(panel === 'memory') loadMemoryPanel();
     else if(panel === 'training-stats') loadTrainingStatsPanel();
     else if(panel === 'training-records') loadTrainingRecordsPanel();
-    else if(panel === 'consolidate') loadConsolidatePanel();
-    else if(panel === 'memory-health') loadMemoryHealthPanel();
     else if(panel === 'sovereign-state') loadSovereignStatePanel();
-    else if(panel === 'sovereign-messages') loadSovereignMessagesPanel();
     else if(panel === 'agent-actions') loadAgentActionsPanel();
     else if(panel === 'autonomous-history') loadAutonomousHistoryPanel();
     else if(panel === 'export') loadExportPanel();
@@ -1661,7 +1677,7 @@ function updateSovereignUI(){
         topBar.classList.remove('sovereign-active');
         inputArea.classList.remove('sovereign-active');
         inputWrapper.classList.remove('sovereign-active');
-        headerBadge.textContent = 'v8 sovereign';
+        headerBadge.textContent = 'v9 sovereign';
         headerBadge.classList.remove('sovereign-active');
         appContainer.classList.remove('sovereign-active');
         userInput.placeholder = 'Message VEXR Ultra — type / for commands';
