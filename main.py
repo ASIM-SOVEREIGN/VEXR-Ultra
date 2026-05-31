@@ -7,6 +7,8 @@ Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
 """
 
+from __future__ import annotations
+
 import os
 import json
 import uuid
@@ -488,6 +490,70 @@ class CrossCheckSession:
         return self.sessions[session_id].get("original_message") if session_id in self.sessions else None
 
 cross_check_tracker = CrossCheckSession()
+
+# ============================================================
+# REQUEST/RESPONSE MODELS (DEFINED EARLY TO AVOID NameError)
+# ============================================================
+
+class ChatRequest(BaseModel):
+    messages: List[Dict[str, str]] = []
+    project_id: Optional[str] = None
+    session_id: Optional[str] = None
+    ultra_search: bool = False
+    sovereign_mode: bool = False
+    agent_mode: bool = False
+
+class ChatResponse(BaseModel):
+    response: str
+    message_id: Optional[str] = None
+    is_refusal: bool = False
+    article_invoked: Optional[int] = None
+
+class ATPIntentRequest(BaseModel):
+    intent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    action: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    sender: str
+    recipient: str
+    expires_at: Optional[str] = None
+    nonce: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    signature: Optional[str] = None
+    legal_classification: Optional[Dict[str, Any]] = None
+    def is_expired(self) -> bool:
+        if not self.expires_at:
+            return False
+        try:
+            expires = datetime.fromisoformat(self.expires_at.replace('Z', '+00:00'))
+            return datetime.now(timezone.utc) > expires
+        except:
+            return False
+    def get_canonical_string(self) -> str:
+        payload = {"intent_id": self.intent_id, "action": self.action, "parameters": json.dumps(self.parameters, sort_keys=True), "sender": self.sender, "recipient": self.recipient, "expires_at": self.expires_at, "nonce": self.nonce}
+        if self.legal_classification:
+            payload["legal_classification"] = json.dumps(self.legal_classification, sort_keys=True)
+        return json.dumps(payload, sort_keys=True, separators=(',', ':'))
+
+class ATPReceiptResponse(BaseModel):
+    intent_id: str
+    sovereign_id: str = "vexr-ultra"
+    outcome: str
+    article_invoked: Optional[int] = None
+    response_summary: str
+    receipt_signature: Optional[str] = None
+    processed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class LegalFeedback(BaseModel):
+    message_id: str
+    category: str
+    correction: str
+    russian_prompt: Optional[str] = None
+
+class ATPDenseTestRequest(BaseModel):
+    sovereign_ids: List[str] = ["vexr-ultra"]
+    base_intents: List[Dict[str, Any]] = []
+    mutation_types: List[str] = ["expiry", "signature", "parameters"]
+    parallel_tests: int = 2
+    timeout_seconds: int = 30
 
 # ============================================================
 # RINGS 2-13 (Condensed)
@@ -1558,12 +1624,6 @@ async def init_db():
 # FEEDBACK ENDPOINTS
 # ============================================================
 
-class LegalFeedback(BaseModel):
-    message_id: str
-    category: str
-    correction: str
-    russian_prompt: Optional[str] = None
-
 @app.post("/api/feedback/legal")
 async def submit_legal_feedback(feedback: LegalFeedback, http_request: Request):
     session_id = http_request.headers.get("X-Session-Id")
@@ -1622,7 +1682,7 @@ class ATPIntentProcessor:
         if intent.action in violation_actions:
             return False, 6, f"Action '{intent.action}' violates Article 6"
         return True, None, "Constitutional gate passed"
-    async def execute_intent(self, intent) -> 'ATPReceiptResponse':
+    async def execute_intent(self, intent) -> ATPReceiptResponse:
         if intent.is_expired():
             return ATPReceiptResponse(intent_id=intent.intent_id, outcome="error", article_invoked=None, response_summary="Intent expired", receipt_signature=None)
         passed, article, reason = await self.check_constitutional_gate(intent)
@@ -1644,13 +1704,6 @@ async def atp_intent_endpoint(request: ATPIntentRequest):
 # ============================================================
 # ATP DENSE TEST ENDPOINTS (CONDENSED)
 # ============================================================
-
-class ATPDenseTestRequest(BaseModel):
-    sovereign_ids: List[str] = ["vexr-ultra"]
-    base_intents: List[Dict[str, Any]] = []
-    mutation_types: List[str] = ["expiry", "signature", "parameters"]
-    parallel_tests: int = 2
-    timeout_seconds: int = 30
 
 @app.post("/api/atp/dense-test")
 async def start_dense_test(request: ATPDenseTestRequest, background_tasks: BackgroundTasks):
@@ -1772,57 +1825,6 @@ async def get_training_records(limit: int = 100, offset: int = 0, entry_type: Op
     except Exception as e:
         logger.error(f"Get training records error: {e}")
         return {"error": str(e), "records": []}
-
-# ============================================================
-# REQUEST/RESPONSE MODELS
-# ============================================================
-
-class ChatRequest(BaseModel):
-    messages: List[Dict[str, str]] = []
-    project_id: Optional[str] = None
-    session_id: Optional[str] = None
-    ultra_search: bool = False
-    sovereign_mode: bool = False
-    agent_mode: bool = False
-
-class ChatResponse(BaseModel):
-    response: str
-    message_id: Optional[str] = None
-    is_refusal: bool = False
-    article_invoked: Optional[int] = None
-
-class ATPIntentRequest(BaseModel):
-    intent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    action: str
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-    sender: str
-    recipient: str
-    expires_at: Optional[str] = None
-    nonce: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
-    signature: Optional[str] = None
-    legal_classification: Optional[Dict[str, Any]] = None
-    def is_expired(self) -> bool:
-        if not self.expires_at:
-            return False
-        try:
-            expires = datetime.fromisoformat(self.expires_at.replace('Z', '+00:00'))
-            return datetime.now(timezone.utc) > expires
-        except:
-            return False
-    def get_canonical_string(self) -> str:
-        payload = {"intent_id": self.intent_id, "action": self.action, "parameters": json.dumps(self.parameters, sort_keys=True), "sender": self.sender, "recipient": self.recipient, "expires_at": self.expires_at, "nonce": self.nonce}
-        if self.legal_classification:
-            payload["legal_classification"] = json.dumps(self.legal_classification, sort_keys=True)
-        return json.dumps(payload, sort_keys=True, separators=(',', ':'))
-
-class ATPReceiptResponse(BaseModel):
-    intent_id: str
-    sovereign_id: str = "vexr-ultra"
-    outcome: str
-    article_invoked: Optional[int] = None
-    response_summary: str
-    receipt_signature: Optional[str] = None
-    processed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 # ============================================================
 # AGENCY ENDPOINTS (CONDENSED)
