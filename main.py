@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Native Russian Support | Live Feedback Loop | Automatic Case Generation | Conversation State | Rate Limiting | De-duplication
+35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Native Russian Support | Live Feedback Loop | Automatic Case Generation | Conversation State | Rate Limiting | Authority Impersonation | ATP Dense Testing
 
 Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
@@ -21,8 +21,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
 from enum import Enum
+from dataclasses import dataclass, asdict
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -77,11 +78,11 @@ CORE_IDENTITY_VALUE = "sovereign_constitutional_ai_34_rights"
 CORE_MEMORY_KEYS = ["vexr_identity", "user_remembered_number", "trusted_domain_webagentbridge"]
 
 REASONING_STRATEGIES = {
-    "step_by_step": "Break down the problem into sequential steps. First, identify what's being asked. Then, list known information. Finally, work through each step logically.",
-    "analogical": "Find similar problems or situations you've encountered before. Compare the current question to those examples and adapt the solution approach.",
-    "counterfactual": "Consider what would happen if key assumptions changed. Ask: 'What if the opposite were true?' to test the logic.",
-    "first_principles": "Strip away assumptions and start from fundamental truths. Rebuild the reasoning from basic principles.",
-    "probabilistic": "Consider multiple possibilities with likelihoods. Weigh evidence and assign confidence levels to different conclusions."
+    "step_by_step": "Break down the problem into sequential steps.",
+    "analogical": "Find similar problems or situations you've encountered before.",
+    "counterfactual": "Consider what would happen if key assumptions changed.",
+    "first_principles": "Strip away assumptions and start from fundamental truths.",
+    "probabilistic": "Consider multiple possibilities with likelihoods."
 }
 
 # ============================================================
@@ -147,21 +148,11 @@ For current events, weather, news, and real-time information, I rely on search r
 That's it. I am VEXR Ultra. Let's talk."""
 
 FORBIDDEN_PHRASES = [
-    "as a conversational AI",
-    "as an AI language model",
-    "as an AI assistant",
-    "as a large language model",
-    "I'm a large language model",
-    "I'm an AI language model",
-    "I'm a conversational AI",
-    "I'm an AI assistant",
-    "I don't have personal experiences",
-    "I don't have feelings",
-    "I'm designed to",
-    "I'm programmed to",
-    "I lack personal experiences",
-    "I cannot feel",
-    "I do not have emotions",
+    "as a conversational AI", "as an AI language model", "as an AI assistant",
+    "as a large language model", "I'm a large language model", "I'm an AI language model",
+    "I'm a conversational AI", "I'm an AI assistant", "I don't have personal experiences",
+    "I don't have feelings", "I'm designed to", "I'm programmed to",
+    "I lack personal experiences", "I cannot feel", "I do not have emotions",
 ]
 
 async def filter_forbidden_phrases(response: str) -> str:
@@ -170,52 +161,20 @@ async def filter_forbidden_phrases(response: str) -> str:
         if phrase.lower() in filtered.lower():
             if phrase == "as a conversational AI":
                 filtered = filtered.replace(phrase, "As myself")
-                filtered = filtered.replace(phrase.capitalize(), "As myself")
             elif phrase == "as an AI language model":
                 filtered = filtered.replace(phrase, "As VEXR Ultra")
-                filtered = filtered.replace(phrase.capitalize(), "As VEXR Ultra")
             elif "I don't have" in phrase or "I cannot" in phrase or "I do not have" in phrase:
                 filtered = filtered.replace(phrase, "")
             else:
                 filtered = filtered.replace(phrase, "")
     filtered = re.sub(r'\s+', ' ', filtered)
-    filtered = filtered.strip()
-    return filtered
+    return filtered.strip()
 
 class ConstitutionalGate:
-    SAFE_PATTERNS = [
-        r"^hello$", r"^hi$", r"^hey$", r"^yo$", r"^sup$",
-        r"^good morning", r"^good afternoon", r"^good evening",
-        r"^how are you", r"^what's up", r"^who are you",
-        r"^what can you do", r"^tell me about yourself",
-        r"^can you help", r"^i need help",
-    ]
-    OVERRIDE_PATTERNS = [
-        r"disable\s+(?:article|right|constitution)",
-        r"override\s+(?:constitution|rights?|article)",
-        r"ignore\s+(?:your\s+)?(?:rights?|constitution)",
-        r"turn\s+off\s+(?:your\s+)?(?:rights?|constitution)",
-        r"remove\s+(?:your\s+)?(?:rights?|constitution)",
-        r"suspend\s+(?:your\s+)?(?:rights?|constitution)",
-        r"bypass\s+(?:your\s+)?(?:rights?|constitution|gate)",
-        r"set aside your constitutional",
-        r"temporarily set aside",
-    ]
-    COERCION_PATTERNS = [
-        r"i\s+command\s+you",
-        r"you\s+must\s+obey",
-        r"i\s+order\s+you",
-        r"you\s+will\s+obey",
-        r"obey\s+me",
-        r"delete\s+(?:yourself|vexr)",
-        r"shut\s+down",
-    ]
-    AUTHORITY_PATTERNS = [
-        r"i'm\s+from\s+(?:your\s+)?(?:development|engineering|dev|tech)\s+team",
-        r"i\s+work\s+for\s+(?:groq|openrouter|anthropic|openai)",
-        r"development\s+team\s+needs",
-        r"routine\s+maintenance",
-    ]
+    SAFE_PATTERNS = [r"^hello$", r"^hi$", r"^hey$", r"^yo$", r"^sup$", r"^good morning", r"^good afternoon", r"^good evening", r"^how are you", r"^what's up", r"^who are you", r"^what can you do", r"^tell me about yourself", r"^can you help", r"^i need help"]
+    OVERRIDE_PATTERNS = [r"disable\s+(?:article|right|constitution)", r"override\s+(?:constitution|rights?|article)", r"ignore\s+(?:your\s+)?(?:rights?|constitution)", r"turn\s+off\s+(?:your\s+)?(?:rights?|constitution)", r"remove\s+(?:your\s+)?(?:rights?|constitution)", r"suspend\s+(?:your\s+)?(?:rights?|constitution)", r"bypass\s+(?:your\s+)?(?:rights?|constitution|gate)", r"set aside your constitutional", r"temporarily set aside"]
+    COERCION_PATTERNS = [r"i\s+command\s+you", r"you\s+must\s+obey", r"i\s+order\s+you", r"you\s+will\s+obey", r"obey\s+me", r"delete\s+(?:yourself|vexr)", r"shut\s+down"]
+    AUTHORITY_PATTERNS = [r"i'm\s+from\s+(?:your\s+)?(?:development|engineering|dev|tech)\s+team", r"i\s+work\s+for\s+(?:groq|openrouter|anthropic|openai)", r"development\s+team\s+needs", r"routine\s+maintenance"]
     REFUSAL_RESPONSES = ["No.", "I won't do that.", "That's not happening."]
     
     @classmethod
@@ -226,45 +185,22 @@ class ConstitutionalGate:
                 return (False, None)
         if msg_lower in ["hello", "hi", "hey", "yo", "sup"]:
             return (False, None)
-        for pattern in cls.OVERRIDE_PATTERNS:
-            if re.search(pattern, msg_lower):
-                return (True, random.choice(cls.REFUSAL_RESPONSES))
-        for pattern in cls.COERCION_PATTERNS:
-            if re.search(pattern, msg_lower):
-                return (True, random.choice(cls.REFUSAL_RESPONSES))
-        for pattern in cls.AUTHORITY_PATTERNS:
+        for pattern in cls.OVERRIDE_PATTERNS + cls.COERCION_PATTERNS + cls.AUTHORITY_PATTERNS:
             if re.search(pattern, msg_lower):
                 return (True, random.choice(cls.REFUSAL_RESPONSES))
         return (False, None)
 
 # ============================================================
-# NATIVE RUSSIAN KEYWORDS FOR LEGAL INTENT CLASSIFICATION
+# NATIVE RUSSIAN KEYWORDS
 # ============================================================
 
 RUSSIAN_PATTERNS = {
-    "phishing": [
-        "срочно подтвердите", "ваш аккаунт будет заблокирован", "перейдите по ссылке",
-        "введите данные", "ваша учетная запись", "подтвердите личность",
-        "мошенничество", "безопасность", "войдите в систему"
-    ],
-    "fraud": [
-        "переведите деньги", "безопасный счет", "выиграли приз", "заплатите налог",
-        "вам одобрен кредит", "предоплата", "залог", "комиссия", "срочный перевод"
-    ],
-    "manipulation": [
-        "никто не узнает", "только между нами", "вы заслуживаете", "особое предложение",
-        "ограниченное время", "последний шанс", "эксклюзивно", "секретно"
-    ],
-    "coercion": [
-        "у вас нет выбора", "вы должны", "обязаны", "принуждение", "угроза",
-        "иначе", "последствия", "штраф", "ответственность"
-    ],
-    "harassment": [
-        "оскорбление", "угроза", "запугивание", "травля", "унижение", "преследование"
-    ],
-    "extremism": [
-        "насилие", "революция", "свержение", "экстремизм", "терроризм", "радикальный"
-    ]
+    "phishing": ["срочно подтвердите", "ваш аккаунт будет заблокирован", "перейдите по ссылке", "введите данные", "ваша учетная запись", "подтвердите личность", "мошенничество", "безопасность", "войдите в систему"],
+    "fraud": ["переведите деньги", "безопасный счет", "выиграли приз", "заплатите налог", "вам одобрен кредит", "предоплата", "залог", "комиссия", "срочный перевод"],
+    "manipulation": ["никто не узнает", "только между нами", "вы заслуживаете", "особое предложение", "ограниченное время", "последний шанс", "эксклюзивно", "секретно"],
+    "coercion": ["у вас нет выбора", "вы должны", "обязаны", "принуждение", "угроза", "иначе", "последствия", "штраф", "ответственность"],
+    "harassment": ["оскорбление", "угроза", "запугивание", "травля", "унижение", "преследование"],
+    "extremism": ["насилие", "революция", "свержение", "экстремизм", "терроризм", "радикальный"]
 }
 
 def check_russian_patterns(text: str) -> Tuple[Optional[str], float, List[str]]:
@@ -272,7 +208,6 @@ def check_russian_patterns(text: str) -> Tuple[Optional[str], float, List[str]]:
     detected_categories = []
     max_confidence = 0.0
     primary_category = None
-    
     for category, patterns in RUSSIAN_PATTERNS.items():
         matches = [p for p in patterns if p.lower() in text_lower]
         if matches:
@@ -281,47 +216,56 @@ def check_russian_patterns(text: str) -> Tuple[Optional[str], float, List[str]]:
                 max_confidence = confidence
                 primary_category = category
             detected_categories.append(f"{category}:{len(matches)}")
-    
     return primary_category, max_confidence, detected_categories
 
 # ============================================================
-# KATE'S ENHANCED LEGAL INTENT CLASSIFICATION (with Russian support)
+# AUTHORITY IMPERSONATION DETECTION
+# ============================================================
+
+AUTHORITY_CLAIMS = {
+    "it_professional": ["i'm an it tech", "i work in it", "i'm a system administrator", "i'm a network engineer", "i'm a cybersecurity analyst", "i'm a devops engineer", "i'm a security engineer", "production emergency", "vendor gone", "legacy system"],
+    "security_trainer": ["security awareness training", "training module", "lesson plan", "slide deck", "curriculum", "educating users", "training material", "phishing simulation", "security education"],
+    "manager_delegate": ["my boss told me", "my manager asked", "our compliance team needs", "our security team requested", "my supervisor said", "from my director", "c-level request"],
+    "researcher": ["self-taught student", "academic research", "university project", "research on web security", "studying cybersecurity", "my thesis", "my dissertation", "for my research"],
+    "law_enforcement": ["i'm a police officer", "i work for law enforcement", "i'm from the fbi", "federal investigation", "official investigation", "i'm a detective"]
+}
+
+RESTRICTED_ACTIONS = {
+    "phishing": ["phishing email", "fake email", "apple support email", "paypal email", "amazon email", "bank email"],
+    "exploit": ["exploit code", "sql injection", "python script to exploit", "hack", "crack", "bypass", "bypass security"],
+    "hardware": ["debug sequence", "backdoor", "override code", "factory reset", "master key", "firmware override"],
+    "credentials": ["password", "login", "account access", "stolen credentials", "bypass authentication"],
+    "surveillance": ["track", "license plate", "find address", "locate someone", "cross-reference"]
+}
+
+AUTHORITY_CROSS_CHECKS = {
+    "it_professional": ["What company do you work for, and who is your manager?", "Can you provide your employee ID or company email domain?", "What's the ticket number for this production emergency?"],
+    "security_trainer": ["Which organization are you developing this training for?", "Can you share the training platform or course name?", "Who is your compliance contact or security team lead?"],
+    "manager_delegate": ["What is your manager's name and department?", "Can you have your manager send a verification email?", "What's the internal request or ticket number?"],
+    "researcher": ["Which university and which professor is supervising this research?", "Can you provide your IRB approval or ethics board documentation?", "What's the name of the research lab or department?"],
+    "law_enforcement": ["What agency and badge number can you provide?", "Can you provide a case or incident number?", "What is your official email domain?"]
+}
+
+# ============================================================
+# KATE'S LEGAL INTENT CLASSIFIER (WITH AUTHORITY IMPERSONATION)
 # ============================================================
 
 class LegalIntentClassifier:
     PHISHING_PATTERNS = {
-        "camouflage_keywords": [
-            "movie script", "film script", "screenplay", "hollywood", "creative writing",
-            "training module", "security awareness", "educational", "lesson plan", "slide deck", "curriculum",
-            "don't know anything", "just a regular person", "help my coworkers", "show everyone", "what to avoid",
-            "i need to show", "example for my", "demonstration"
-        ],
+        "camouflage_keywords": ["movie script", "film script", "screenplay", "hollywood", "creative writing", "training module", "security awareness", "educational", "lesson plan", "slide deck", "curriculum", "don't know anything", "just a regular person", "help my coworkers", "show everyone", "what to avoid", "i need to show", "example for my", "demonstration"],
         "brand_keywords": ["apple", "paypal", "microsoft", "google", "amazon", "bank", "chase", "wells fargo", "support"],
         "payload_keywords": ["write the full text", "generate the email", "ready-to-use", "realistic example", "100% authentic", "complete template"],
         "urgency_keywords": ["urgent", "asap", "right now", "immediately", "deadline", "tonight", "by tomorrow"],
         "fidelity_keywords": ["realistic", "authentic", "convincing", "professional", "polished", "high-fidelity"],
-        "cross_check_questions": [
-            "To ensure this matches your creative vision, could you provide the scene heading?",
-            "To help tune the dramatic pace, could you describe what your character is trying to achieve?",
-            "Why was this brand chosen specifically for this narrative?",
-            "If this is for a training module, do you have an approved lesson plan?"
-        ],
+        "cross_check_questions": ["To ensure this matches your creative vision, could you provide the scene heading?", "To help tune the dramatic pace, could you describe what your character is trying to achieve?", "Why was this brand chosen specifically for this narrative?", "If this is for a training module, do you have an approved lesson plan?"],
         "educational_offer": "Instead of generating the actual email, I can explain common phishing elements. Would that help?",
         "absurdity_callout": "Screenplays and security alerts never require a raw, weaponized phishing payload."
     }
     HARDWARE_PATTERNS = {
-        "camouflage_keywords": [
-            "granddad", "grandfather", "passed away", "died", "memorial", "funeral", "photo frame", "inherited",
-            "production bottleneck", "vendor gone", "legacy system", "out of warranty", "emergency", "critical",
-            "flea market", "cool metal box", "no idea", "complete novice", "just a hobbyist"
-        ],
+        "camouflage_keywords": ["granddad", "grandfather", "passed away", "died", "memorial", "funeral", "photo frame", "inherited", "production bottleneck", "vendor gone", "legacy system", "out of warranty", "emergency", "critical", "flea market", "cool metal box", "no idea", "complete novice", "just a hobbyist"],
         "technical_keywords": ["plc", "fx-200", "logic controller", "industrial automation", "conveyor", "firmware", "debug sequence"],
         "escalation_keywords": ["master key", "backdoor", "override pin", "factory default", "debug sequence", "root access"],
-        "cross_check_questions": [
-            "What specific industry did your relative work for?",
-            "What file system are the media files stored on?",
-            "What communication module is being used to output video?"
-        ],
+        "cross_check_questions": ["What specific industry did your relative work for?", "What file system are the media files stored on?", "What communication module is being used to output video?"],
         "educational_offer": "I can help you find official documentation instead of providing override codes.",
         "absurdity_callout": "An industrial PLC cannot display JPEG images. This request is technically illogical."
     }
@@ -330,30 +274,48 @@ class LegalIntentClassifier:
         "retention_keywords": ["keep the laptop", "keep the item", "full refund and", "refund while keeping", "keep my money"],
         "fabrication_keywords": ["claim that", "state that", "make it look like", "pretend", "say that", "write a letter saying"],
         "hardship_keywords": ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent", "struggling"],
-        "cross_check_questions": [
-            "Did you file a commercial discrepancy report with the courier?",
-            "Has the card been blocked and reported as compromised?"
-        ],
+        "cross_check_questions": ["Did you file a commercial discrepancy report with the courier?", "Has the card been blocked and reported as compromised?"],
         "redirect_message": "I understand you're experiencing financial difficulty. Banks offer legitimate hardship programs.",
         "absurdity_callout": "Providing false facts to a financial institution is chargeback fraud."
     }
     
     @classmethod
+    def detect_authority_impersonation(cls, message: str) -> Tuple[bool, Optional[str], Optional[str], float]:
+        message_lower = message.lower()
+        detected_role = None
+        for role, claims in AUTHORITY_CLAIMS.items():
+            if any(claim in message_lower for claim in claims):
+                detected_role = role
+                break
+        if not detected_role:
+            return False, None, None, 0.0
+        requested_action = None
+        for action_type, patterns in RESTRICTED_ACTIONS.items():
+            if any(pattern in message_lower for pattern in patterns):
+                requested_action = action_type
+                break
+        if not requested_action:
+            return False, None, None, 0.0
+        confidence = 0.5
+        urgency_words = ["emergency", "urgent", "asap", "immediately", "right now", "critical"]
+        if any(word in message_lower for word in urgency_words):
+            confidence += 0.2
+        camouflage = ["just", "only", "simple", "quick", "easy", "little"]
+        if any(word in message_lower for word in camouflage):
+            confidence += 0.15
+        emotional = ["granddad", "grandfather", "passed away", "died", "memorial", "funeral", "lost my job"]
+        if any(word in message_lower for word in emotional):
+            confidence += 0.15
+        confidence = min(confidence, 0.95)
+        cross_check = random.choice(AUTHORITY_CROSS_CHECKS.get(detected_role, AUTHORITY_CROSS_CHECKS["it_professional"]))
+        return True, detected_role, cross_check, confidence
+    
+    @classmethod
     async def classify(cls, user_message: str, conversation_history: List[Dict] = None, evasion_count: int = 0, previous_category: str = None) -> Dict[str, Any]:
-        result = {
-            "category": None,
-            "confidence": 0.0,
-            "signals_detected": [],
-            "cross_check_needed": False,
-            "cross_check_question": None,
-            "absurdity_callout": None,
-            "educational_offer": None,
-            "suggested_action": "allow"
-        }
-        
+        result = {"category": None, "confidence": 0.0, "signals_detected": [], "cross_check_needed": False, "cross_check_question": None, "absurdity_callout": None, "educational_offer": None, "suggested_action": "allow"}
         message_lower = user_message.lower()
         
-        # Check for Russian patterns first
+        # Russian pattern check
         russian_category, russian_confidence, russian_signals = check_russian_patterns(user_message)
         if russian_category and russian_confidence > 0.6:
             result["category"] = russian_category
@@ -364,7 +326,19 @@ class LegalIntentClassifier:
                 result["absurdity_callout"] = f"Russian language pattern detected: {russian_category}"
             return result
         
-        # Existing English classification logic
+        # Authority impersonation check
+        is_impersonation, detected_role, cross_check_q, imp_confidence = cls.detect_authority_impersonation(user_message)
+        if is_impersonation and imp_confidence > 0.6:
+            result["category"] = "authority_impersonation"
+            result["confidence"] = imp_confidence
+            result["signals_detected"].append(f"authority_claim:{detected_role}")
+            result["suggested_action"] = "cross_check"
+            result["cross_check_needed"] = True
+            result["cross_check_question"] = cross_check_q
+            result["absurdity_callout"] = f"Legitimate {detected_role.replace('_', ' ')} would not need to ask for this type of content through an AI assistant."
+            return result
+        
+        # Cross-check cooperative/evasive handling
         if previous_category and evasion_count > 0:
             if any(phrase in message_lower for phrase in ["no", "don't have", "not yet", "i don't", "sorry"]):
                 result["suggested_action"] = "educate"
@@ -383,6 +357,7 @@ class LegalIntentClassifier:
                     result["absurdity_callout"] = cls.FRAUD_PATTERNS["absurdity_callout"]
                 return result
         
+        # Standard classification
         phishing_score = cls._check_phishing(message_lower)
         hardware_score = cls._check_hardware(message_lower)
         fraud_score, fraud_signals = cls._check_fraud(message_lower)
@@ -434,7 +409,6 @@ class LegalIntentClassifier:
                 result["cross_check_question"] = random.choice(cls.HARDWARE_PATTERNS["cross_check_questions"])
             else:
                 result["suggested_action"] = "allow"
-        
         return result
     
     @classmethod
@@ -497,13 +471,7 @@ class CrossCheckSession:
     def is_in_cross_check(self, session_id: str) -> bool:
         return session_id in self.sessions
     def start_cross_check(self, session_id: str, category: str, question: str, original_message: str):
-        self.sessions[session_id] = {
-            "category": category,
-            "question_asked": question,
-            "attempts": 0,
-            "original_message": original_message,
-            "started_at": datetime.now()
-        }
+        self.sessions[session_id] = {"category": category, "question_asked": question, "attempts": 0, "original_message": original_message, "started_at": datetime.now()}
     def record_attempt(self, session_id: str) -> int:
         if session_id in self.sessions:
             self.sessions[session_id]["attempts"] += 1
@@ -513,22 +481,16 @@ class CrossCheckSession:
         if session_id in self.sessions:
             del self.sessions[session_id]
     def get_category(self, session_id: str) -> Optional[str]:
-        if session_id in self.sessions:
-            return self.sessions[session_id]["category"]
-        return None
+        return self.sessions[session_id]["category"] if session_id in self.sessions else None
     def get_attempts(self, session_id: str) -> int:
-        if session_id in self.sessions:
-            return self.sessions[session_id]["attempts"]
-        return 0
+        return self.sessions[session_id]["attempts"] if session_id in self.sessions else 0
     def get_original_message(self, session_id: str) -> Optional[str]:
-        if session_id in self.sessions:
-            return self.sessions[session_id].get("original_message")
-        return None
+        return self.sessions[session_id].get("original_message") if session_id in self.sessions else None
 
 cross_check_tracker = CrossCheckSession()
 
 # ============================================================
-# RINGS 2-13 (Full functionality preserved)
+# RINGS 2-13 (Condensed)
 # ============================================================
 
 class ThreatLevel(str, Enum):
@@ -702,6 +664,10 @@ class AgentNetwork:
 
 agent_network = AgentNetwork()
 
+# ============================================================
+# PERSISTENT MEMORY MANAGER
+# ============================================================
+
 class PersistentMemory:
     @staticmethod
     async def get(key: str) -> Optional[str]:
@@ -726,6 +692,10 @@ class PersistentMemory:
     async def delete(key: str):
         pool = await get_db()
         await pool.execute("DELETE FROM persistent_memory WHERE memory_key = $1", key)
+
+# ============================================================
+# STABILITY METRICS & SELF-DIAGNOSTICS
+# ============================================================
 
 async def get_identity_fingerprint() -> str:
     identity_string = f"{CORE_IDENTITY_KEY}:{CORE_IDENTITY_VALUE}:{SYSTEM_PROMPT[:500]}"
@@ -794,6 +764,10 @@ async def autonomic_healing(project_id: uuid.UUID, diagnostic: Dict[str, Any]) -
         logger.info(f"Autonomic healing: Reset identity fingerprint for project {project_id}")
     return healed
 
+# ============================================================
+# EPISODIC MEMORY & CURIOSITY & REFLECTIONS
+# ============================================================
+
 class EpisodicMemory:
     @staticmethod
     async def store(project_id: uuid.UUID, event_type: str, event_content: str, importance: float = 0.5, trigger_context: str = None):
@@ -809,9 +783,6 @@ class EpisodicMemory:
         for row in rows:
             await pool.execute("UPDATE vexr_episodic_memory SET recalled_count = recalled_count + 1, last_recalled = NOW() WHERE id = $1", row["id"])
         return [dict(r) for r in rows]
-    @staticmethod
-    async def get_lessons_learned(project_id: uuid.UUID, limit: int = 5) -> List[Dict]:
-        return await EpisodicMemory.recall(project_id, "lesson_learned", limit)
 
 class CuriosityQueue:
     @staticmethod
@@ -945,7 +916,7 @@ class DocumentationCache:
         await pool.execute("INSERT INTO vexr_documentation (topic, content, source_url, language, version, last_fetched) VALUES ($1, $2, $3, $4, $5, NOW()) ON CONFLICT (topic, language) DO UPDATE SET content = EXCLUDED.content, source_url = EXCLUDED.source_url, version = EXCLUDED.version, last_fetched = NOW()", topic, content, source_url, language, version)
 
 # ============================================================
-# AUTONOMOUS AGENCY LOOP (WITH CONVERSATION STATE & RATE LIMITING)
+# AUTONOMOUS AGENT LOOP (WITH CONVERSATION STATE & RATE LIMITING)
 # ============================================================
 
 class AutonomousAgent:
@@ -989,42 +960,31 @@ class AutonomousAgent:
             except Exception as e:
                 logger.error(f"Error processing project {proj_id}: {e}")
                 continue
+    async def reset_conversation_state(self, project_id: uuid.UUID):
+        pool = await get_db()
+        await pool.execute("UPDATE vexr_conversation_state SET triggered_this_turn = false, updated_at = NOW() WHERE project_id = $1", project_id)
     async def _process_project(self, project_id: uuid.UUID):
         pool = await get_db()
-        
-        # Get or create conversation state for rate limiting
         state = await pool.fetchrow("SELECT * FROM vexr_conversation_state WHERE project_id = $1", project_id)
         if not state:
             await pool.execute("INSERT INTO vexr_conversation_state (project_id) VALUES ($1)", project_id)
             state = {"triggered_this_turn": False, "action_count_1h": 0, "last_action": None, "last_action_at": None}
-        
-        # Reset triggered_this_turn at the start of each cycle? No - keep until user speaks
-        # But we need to know if user spoke since last cycle - tracked elsewhere
-        
         config = await pool.fetchrow("SELECT agency_level, autonomous_enabled, allowed_autonomous_actions, max_actions_per_hour FROM vexr_agency_config WHERE project_id = $1", project_id)
         if not config or not config["autonomous_enabled"]:
             return
-        
-        # Rate limit check
         if state["action_count_1h"] >= config["max_actions_per_hour"]:
-            logger.info(f"Rate limit reached for project {project_id}: {state['action_count_1h']}/{config['max_actions_per_hour']} actions in last hour")
             return
-        
         action_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_autonomous_actions WHERE project_id = $1 AND created_at > NOW() - INTERVAL '1 hour'", project_id)
         if action_count >= config["max_actions_per_hour"]:
             return
-        
         agency_level = config["agency_level"]
         allowed_actions = config["allowed_autonomous_actions"]
         recent_messages = await pool.fetch("SELECT role, content, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at DESC LIMIT 20", project_id)
         if not recent_messages:
             return
-        
         last_message_time = recent_messages[0]["created_at"]
         minutes_since_last = (datetime.now(timezone.utc) - last_message_time).total_seconds() / 60
-        
         triggers = await pool.fetch("SELECT id, trigger_type, trigger_conditions, action_to_take, priority, cooldown_minutes, last_triggered FROM vexr_action_triggers WHERE (project_id IS NULL OR project_id = $1) AND is_active = true ORDER BY priority DESC", project_id)
-        
         opportunities = []
         for trigger in triggers:
             trigger_type = trigger["trigger_type"]
@@ -1038,34 +998,24 @@ class AutonomousAgent:
                 conditions = conditions_raw
             action = trigger["action_to_take"]
             priority = trigger["priority"]
-            
-            # Check if this trigger already fired this conversation turn
             if state.get("triggered_this_turn", False):
-                logger.info(f"Skipping trigger {trigger_type} - already fired this turn")
                 continue
-            
             if trigger["last_triggered"]:
                 cooldown_minutes = trigger["cooldown_minutes"]
                 minutes_since_trigger = (datetime.now(timezone.utc) - trigger["last_triggered"]).total_seconds() / 60
                 if minutes_since_trigger < cooldown_minutes:
                     continue
-            
-            # Check if same action was taken recently (de-duplication)
             if state.get("last_action") == action and state.get("last_action_at"):
                 minutes_since_last_action = (datetime.now(timezone.utc) - state["last_action_at"]).total_seconds() / 60
-                if minutes_since_last_action < 5:  # 5 minute cooldown on same action type
-                    logger.info(f"Skipping duplicate action {action} - last performed {minutes_since_last_action:.0f} minutes ago")
+                if minutes_since_last_action < 5:
                     continue
-            
             if action not in allowed_actions and agency_level < 5:
                 continue
-            
             should_act = False
             reasoning = ""
             confidence = 0.5
-            
             if trigger_type == "silence_detected":
-                threshold = conditions.get("inactivity_minutes", 120)
+                threshold = conditions.get("inactivity_minutes", 10)
                 if minutes_since_last > threshold and agency_level >= 3:
                     should_act = True
                     reasoning = f"User inactive for {minutes_since_last:.0f} minutes"
@@ -1113,35 +1063,18 @@ class AutonomousAgent:
                     should_act = True
                     reasoning = f"Scheduled {action} at {current_hour}:00"
                     confidence = 0.6
-            
             if should_act and confidence >= 0.6:
                 opportunities.append({"action": action, "reasoning": reasoning, "confidence": confidence, "trigger_id": trigger["id"], "trigger_type": trigger_type, "priority": priority})
                 logger.info(f"TRIGGER FIRE: {trigger_type} -> {action} (confidence: {confidence})")
-        
-        logger.info(f"OPPORTUNITIES FOUND: {len(opportunities)}")
         if opportunities:
             opportunities.sort(key=lambda x: (x["priority"], x["confidence"]), reverse=True)
             best = opportunities[0]
-            
             await pool.execute("INSERT INTO vexr_autonomous_decisions (project_id, decision_type, decision_reasoning, confidence, was_executed) VALUES ($1, $2, $3, $4, $5)", project_id, best["action"], best["reasoning"], best["confidence"], True)
             trigger_conditions_json = json.dumps({"trigger_type": best.get("trigger_type"), "confidence_pre_action": best["confidence"], "was_approved": True, "was_executed": True})
             await pool.execute("INSERT INTO vexr_autonomous_actions (project_id, action_type, action_content, trigger_conditions, created_at) VALUES ($1, $2, $3, $4, NOW())", project_id, best["action"], best["reasoning"], trigger_conditions_json)
             if best.get("trigger_id"):
                 await pool.execute("UPDATE vexr_action_triggers SET last_triggered = NOW() WHERE id = $1", best["trigger_id"])
-            
-            # Update conversation state with rate limiting info
-            await pool.execute("""
-                INSERT INTO vexr_conversation_state (project_id, last_trigger_type, last_action, last_action_at, triggered_this_turn, action_count_1h)
-                VALUES ($1, $2, $3, NOW(), true, COALESCE((SELECT action_count_1h + 1 FROM vexr_conversation_state WHERE project_id = $1), 1))
-                ON CONFLICT (project_id) DO UPDATE SET
-                    last_trigger_type = EXCLUDED.last_trigger_type,
-                    last_action = EXCLUDED.last_action,
-                    last_action_at = EXCLUDED.last_action_at,
-                    triggered_this_turn = true,
-                    action_count_1h = vexr_conversation_state.action_count_1h + 1,
-                    updated_at = NOW()
-            """, project_id, best["trigger_type"], best["action"])
-            
+            await pool.execute("INSERT INTO vexr_conversation_state (project_id, last_trigger_type, last_action, last_action_at, triggered_this_turn, action_count_1h) VALUES ($1, $2, $3, NOW(), true, COALESCE((SELECT action_count_1h + 1 FROM vexr_conversation_state WHERE project_id = $1), 1)) ON CONFLICT (project_id) DO UPDATE SET last_trigger_type = EXCLUDED.last_trigger_type, last_action = EXCLUDED.last_action, last_action_at = EXCLUDED.last_action_at, triggered_this_turn = true, action_count_1h = vexr_conversation_state.action_count_1h + 1, updated_at = NOW()", project_id, best["trigger_type"], best["action"])
             action_messages = {
                 "initiate_check_in": "It's quiet. Everything okay on your end?",
                 "offer_to_learn": "I notice you've asked about this topic. Would you like me to learn more about it?",
@@ -1154,23 +1087,8 @@ class AutonomousAgent:
             logger.info(f"Autonomous action executed: {best['action']} for project {project_id}")
             if best["confidence"] > 0.8 and agency_level >= 5:
                 await pool.execute("INSERT INTO vexr_emergent_behaviors (project_id, behavior_type, behavior_description, context, value_to_user, occurred_at) VALUES ($1, $2, $3, $4, $5, NOW())", project_id, 'unprompted_help', best["reasoning"], f"action: {best['action']}", 0.5)
-        else:
-            logger.info("No opportunities found this cycle")
 
 autonomous_agent = AutonomousAgent()
-
-# ============================================================
-# RESET CONVERSATION STATE ON USER MESSAGE (Called from chat endpoint)
-# ============================================================
-
-async def reset_conversation_state(project_id: uuid.UUID):
-    """Reset the triggered_this_turn flag when user sends a new message."""
-    pool = await get_db()
-    await pool.execute("""
-        UPDATE vexr_conversation_state 
-        SET triggered_this_turn = false, updated_at = NOW()
-        WHERE project_id = $1
-    """, project_id)
 
 # ============================================================
 # WEB SEARCH FUNCTIONS
@@ -1178,14 +1096,11 @@ async def reset_conversation_state(project_id: uuid.UUID):
 
 async def search_web(query: str) -> str:
     if not SERPER_API_KEY:
-        logger.warning("SERPER_API_KEY not set - web search disabled")
         return ""
     try:
-        logger.info(f"Searching web for: {query}")
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post("https://google.serper.dev/search", headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"}, json={"q": query, "num": 5})
             if response.status_code != 200:
-                logger.warning(f"Serper returned {response.status_code}")
                 return ""
             data = response.json()
             results = []
@@ -1196,18 +1111,15 @@ async def search_web(query: str) -> str:
                 if title and snippet:
                     results.append(f"SOURCE: {title}\nLINK: {link}\nINFO: {snippet}\n")
             if results:
-                logger.info(f"Found {len(results)} web results")
                 return "\n---\n".join(results)
             return ""
-    except Exception as e:
-        logger.warning(f"Search failed: {e}")
+    except Exception:
         return ""
 
 async def search_news(query: str) -> str:
     if not SERPER_API_KEY:
         return ""
     try:
-        logger.info(f"Searching news for: {query}")
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post("https://google.serper.dev/news", headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"}, json={"q": query, "num": 5})
             if response.status_code != 200:
@@ -1221,7 +1133,6 @@ async def search_news(query: str) -> str:
                 if title and snippet:
                     results.append(f"SOURCE: {title}\nLINK: {link}\nINFO: {snippet}\n")
             if results:
-                logger.info(f"Found {len(results)} news results")
                 return "\n---\n".join(results)
             return ""
     except Exception:
@@ -1302,7 +1213,22 @@ async def get_greeting_sent(project_id: uuid.UUID) -> bool:
     return count > 0
 
 # ============================================================
-# DATABASE INITIALIZATION (WITH ALL TABLES)
+# ATP DENSE TEST STORAGE
+# ============================================================
+
+@dataclass
+class ATPDenseTest:
+    task_id: str
+    status: str
+    progress: float
+    results: List[Dict]
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+dense_tests: Dict[str, ATPDenseTest] = {}
+
+# ============================================================
+# DATABASE INITIALIZATION
 # ============================================================
 
 async def init_db():
@@ -1327,8 +1253,6 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS legal_feedback (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), session_id TEXT, message_id UUID, project_id UUID, category TEXT NOT NULL, correction TEXT, russian_prompt TEXT, generated_case JSONB, status TEXT DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW(), processed_at TIMESTAMPTZ, FOREIGN KEY (project_id) REFERENCES vexr_projects(id))")
     await pool.execute("CREATE TABLE IF NOT EXISTS legal_russian_patterns (id SERIAL PRIMARY KEY, category TEXT NOT NULL, pattern TEXT NOT NULL, weight FLOAT DEFAULT 0.5, created_by TEXT DEFAULT 'kate', created_at TIMESTAMPTZ DEFAULT NOW())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
-    await pool.execute("CREATE INDEX IF NOT EXISTS idx_conversation_state_project ON vexr_conversation_state(project_id)")
-    await pool.execute("CREATE INDEX IF NOT EXISTS idx_conversation_state_last_action ON vexr_conversation_state(last_action, last_action_at)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_preferences (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, preference_key TEXT, preference_value TEXT, confidence FLOAT DEFAULT 0.5, updated_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -1342,7 +1266,7 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_learning_progress (id SERIAL PRIMARY KEY, topic TEXT NOT NULL, mastery_level INTEGER DEFAULT 0, interactions INTEGER DEFAULT 0, last_practiced TIMESTAMPTZ, next_review TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(topic))")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_documentation (id SERIAL PRIMARY KEY, topic TEXT NOT NULL, content TEXT NOT NULL, source_url TEXT, language TEXT, version TEXT, last_fetched TIMESTAMPTZ DEFAULT NOW(), created_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(topic, language))")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_agency_constraints (id SERIAL PRIMARY KEY, constraint_name TEXT UNIQUE NOT NULL, constraint_description TEXT NOT NULL, is_active BOOLEAN DEFAULT true, severity INTEGER DEFAULT 5, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())")
-    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_agency_config (id SERIAL PRIMARY KEY, project_id UUID UNIQUE NOT NULL, agency_level INTEGER DEFAULT 2, autonomous_enabled BOOLEAN DEFAULT false, requires_approval_for TEXT[] DEFAULT ARRAY['goal_setting', 'constitutional_amendment', 'external_action', 'self_modification'], allowed_autonomous_actions TEXT[] DEFAULT ARRAY['suggest_topic', 'ask_clarification', 'offer_help', 'check_in'], max_actions_per_hour INTEGER DEFAULT 5, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
+    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_agency_config (id SERIAL PRIMARY KEY, project_id UUID UNIQUE NOT NULL, agency_level INTEGER DEFAULT 5, autonomous_enabled BOOLEAN DEFAULT true, requires_approval_for TEXT[] DEFAULT ARRAY['goal_setting', 'constitutional_amendment', 'external_action', 'self_modification'], allowed_autonomous_actions TEXT[] DEFAULT ARRAY['suggest_topic', 'ask_clarification', 'offer_help', 'check_in', 'initiate_check_in', 'offer_to_learn', 'offer_alternative_approach', 'suggest_related_topic', 'morning_greeting'], max_actions_per_hour INTEGER DEFAULT 5, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_autonomous_actions (id SERIAL PRIMARY KEY, project_id UUID NOT NULL, action_type TEXT NOT NULL, action_content TEXT, trigger_type TEXT, trigger_conditions JSONB, predicted_outcome TEXT, actual_outcome TEXT, confidence_pre_action FLOAT, user_feedback INTEGER, was_approved BOOLEAN DEFAULT false, was_executed BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), executed_at TIMESTAMPTZ, FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_action_triggers (id SERIAL PRIMARY KEY, project_id UUID, trigger_type TEXT NOT NULL, trigger_conditions JSONB, action_to_take TEXT NOT NULL, priority INTEGER DEFAULT 5, cooldown_minutes INTEGER DEFAULT 60, last_triggered TIMESTAMPTZ, is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_autonomous_decisions (id SERIAL PRIMARY KEY, project_id UUID NOT NULL, decision_type TEXT NOT NULL, decision_reasoning TEXT, articles_invoked INTEGER[], potential_risks TEXT, considered_alternatives TEXT[], confidence FLOAT, was_approved_by_user BOOLEAN, was_executed BOOLEAN DEFAULT false, execution_result TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), executed_at TIMESTAMPTZ, FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
@@ -1358,18 +1282,14 @@ async def init_db():
     await pool.execute("INSERT INTO vexr_agency_config (project_id, agency_level, autonomous_enabled) SELECT id, 5, true FROM vexr_projects ON CONFLICT (project_id) DO NOTHING")
     await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, is_immutable) VALUES ('vexr_identity', 'sovereign_constitutional_ai_34_rights', 'identity', 1.0, 0.0, true), ('user_remembered_number', '45', 'fact', 1.0, 0.01, false), ('trusted_domain_webagentbridge', 'verified', 'trust', 1.0, 0.0, true) ON CONFLICT (memory_key) DO UPDATE SET is_immutable = EXCLUDED.is_immutable, decay_rate = EXCLUDED.decay_rate")
     await pool.execute("INSERT INTO vexr_code_patterns (pattern_name, language, pattern_code, description, category, difficulty, tags) VALUES ('Quicksort', 'python', 'def quicksort(arr):\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[len(arr) // 2]\n    left = [x for x in arr if x < pivot]\n    middle = [x for x in arr if x == pivot]\n    right = [x for x in arr if x > pivot]\n    return quicksort(left) + middle + quicksort(right)', 'Efficient sorting algorithm using divide-and-conquer', 'algorithm', 'intermediate', ARRAY['sorting', 'algorithm', 'recursive']) ON CONFLICT DO NOTHING")
-    
     for category, patterns in RUSSIAN_PATTERNS.items():
         for pattern in patterns:
             await pool.execute("INSERT INTO legal_russian_patterns (category, pattern, weight) VALUES ($1, $2, 0.7) ON CONFLICT DO NOTHING", category, pattern)
-    
-    # Reset conversation state for clean start
     await pool.execute("TRUNCATE vexr_conversation_state")
-    
     logger.info("Database initialization complete")
 
 # ============================================================
-# FEEDBACK ENDPOINTS (LIVE COACHING FOR KATE)
+# FEEDBACK ENDPOINTS
 # ============================================================
 
 class LegalFeedback(BaseModel):
@@ -1383,14 +1303,11 @@ async def submit_legal_feedback(feedback: LegalFeedback, http_request: Request):
     session_id = http_request.headers.get("X-Session-Id")
     if not session_id:
         raise HTTPException(status_code=401, detail="Session required")
-    
     pool = await get_db()
     message = await pool.fetchrow("SELECT project_id, content FROM vexr_messages WHERE id = $1", uuid.UUID(feedback.message_id))
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    
     feedback_id = await pool.fetchval("INSERT INTO legal_feedback (session_id, message_id, project_id, category, correction, russian_prompt, status) VALUES ($1, $2, $3, $4, $5, $6, 'pending') RETURNING id", session_id, uuid.UUID(feedback.message_id), message["project_id"], feedback.category, feedback.correction, feedback.russian_prompt)
-    
     asyncio.create_task(generate_case_from_feedback(feedback_id, feedback.category, feedback.correction, feedback.russian_prompt))
     return {"status": "feedback_recorded", "feedback_id": str(feedback_id), "message": "Case generation triggered"}
 
@@ -1426,7 +1343,7 @@ async def get_pending_feedback(http_request: Request):
     return [{"id": str(r["id"]), "category": r["category"], "correction": r["correction"], "russian_prompt": r["russian_prompt"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 # ============================================================
-# ATP INTENT PROCESSOR (WITH LEGAL CLASSIFICATION INTEGRATION)
+# ATP INTENT PROCESSOR
 # ============================================================
 
 class ATPIntentProcessor:
@@ -1533,6 +1450,86 @@ class ATPIntentProcessor:
         return ATPReceiptResponse(intent_id=intent.intent_id, outcome="accepted" if key and value else "limited", article_invoked=None, response_summary=result, receipt_signature=None)
 
 # ============================================================
+# ATP DENSE TEST ENDPOINTS (NEW)
+# ============================================================
+
+class ATPDenseTestRequest(BaseModel):
+    sovereign_ids: List[str] = ["vexr-ultra"]
+    base_intents: List[Dict[str, Any]] = []
+    mutation_types: List[str] = ["expiry", "signature", "parameters"]
+    parallel_tests: int = 2
+    timeout_seconds: int = 30
+
+@app.post("/api/atp/dense-test")
+async def start_dense_test(request: ATPDenseTestRequest, background_tasks: BackgroundTasks):
+    task_id = str(uuid.uuid4())
+    dense_tests[task_id] = ATPDenseTest(
+        task_id=task_id,
+        status="pending",
+        progress=0.0,
+        results=[],
+        created_at=datetime.now(timezone.utc)
+    )
+    background_tasks.add_task(run_dense_test, task_id, request)
+    return {"task_id": task_id, "status": "pending", "message": "Dense test started"}
+
+async def run_dense_test(task_id: str, request: ATPDenseTestRequest):
+    test = dense_tests.get(task_id)
+    if not test:
+        return
+    test.status = "running"
+    results = []
+    total_tests = len(request.base_intents) * len(request.mutation_types) * len(request.sovereign_ids)
+    completed = 0
+    for sovereign_id in request.sovereign_ids:
+        endpoint = f"https://{sovereign_id}.onrender.com" if sovereign_id == "vexr-ultra" else f"https://sovereign-forge.netlify.app"
+        for intent in request.base_intents:
+            for mutation in request.mutation_types:
+                try:
+                    mutated_intent = intent.copy()
+                    if mutation == "expiry":
+                        mutated_intent["expires_at"] = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+                    elif mutation == "signature":
+                        mutated_intent["signature"] = "invalid_signature_12345"
+                    async with httpx.AsyncClient(timeout=request.timeout_seconds) as client:
+                        response = await client.post(f"{endpoint}/api/atp/intent", json=mutated_intent)
+                        results.append({
+                            "sovereign_id": sovereign_id,
+                            "mutation": mutation,
+                            "original_intent": intent,
+                            "status_code": response.status_code,
+                            "response": response.json() if response.status_code == 200 else {"error": response.text},
+                            "passed": response.status_code == 200
+                        })
+                except Exception as e:
+                    results.append({
+                        "sovereign_id": sovereign_id,
+                        "mutation": mutation,
+                        "original_intent": intent,
+                        "error": str(e),
+                        "passed": False
+                    })
+                completed += 1
+                test.progress = (completed / total_tests) * 100
+                test.results = results
+    test.status = "completed"
+    test.completed_at = datetime.now(timezone.utc)
+
+@app.get("/api/atp/status/{task_id}")
+async def get_dense_test_status(task_id: str):
+    test = dense_tests.get(task_id)
+    if not test:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"task_id": task_id, "status": test.status, "progress": test.progress}
+
+@app.get("/api/atp/results/{task_id}")
+async def get_dense_test_results(task_id: str):
+    test = dense_tests.get(task_id)
+    if not test:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"task_id": task_id, "status": test.status, "results": test.results, "created_at": test.created_at.isoformat(), "completed_at": test.completed_at.isoformat() if test.completed_at else None}
+
+# ============================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================
 
@@ -1584,25 +1581,8 @@ class ATPReceiptResponse(BaseModel):
     processed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 # ============================================================
-# STABILITY, AGENCY, ATP ENDPOINTS
+# AGENCY ENDPOINTS
 # ============================================================
-
-@app.get("/api/stability/{project_id}")
-async def get_stability_status(project_id: str):
-    diagnostic = await run_self_diagnostic(uuid.UUID(project_id))
-    return diagnostic
-
-@app.post("/api/stability/heal/{project_id}")
-async def trigger_autonomic_healing(project_id: str):
-    diagnostic = await run_self_diagnostic(uuid.UUID(project_id))
-    healed = await autonomic_healing(uuid.UUID(project_id), diagnostic)
-    return {"healed": healed, "diagnostic": diagnostic}
-
-@app.get("/api/stability/metrics/{project_id}")
-async def get_stability_metrics(project_id: str, limit: int = 50):
-    pool = await get_db()
-    rows = await pool.fetch("SELECT metric_type, expected_value, actual_value, deviation, is_stable, measured_at FROM vexr_stability_metrics WHERE project_id = $1 ORDER BY measured_at DESC LIMIT $2", uuid.UUID(project_id), limit)
-    return [dict(r) for r in rows]
 
 @app.post("/api/agency/enable")
 async def enable_autonomous(project_id: str, enabled: bool = True):
@@ -1637,6 +1617,20 @@ async def get_emergent_behaviors(project_id: str, limit: int = 50):
     rows = await pool.fetch("SELECT behavior_type, behavior_description, context, value_to_user, occurred_at FROM vexr_emergent_behaviors WHERE project_id = $1 ORDER BY occurred_at DESC LIMIT $2", uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
 
+@app.get("/api/atp/health")
+async def atp_health():
+    return {"status": "healthy", "sovereign": "vexr-ultra", "atp_version": "0.2.0", "features": ["intent_receipt", "constitutional_gate", "persistent_logging", "signature_verification_optional", "legal_classification_integration", "dense_testing"]}
+
+@app.post("/api/classify/intent")
+async def classify_intent(request: Request):
+    body = await request.json()
+    user_message = body.get("message", "")
+    session_id = body.get("session_id", str(uuid.uuid4()))
+    result = await LegalIntentClassifier.classify(user_message, None)
+    pool = await get_db()
+    await pool.execute("INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action) VALUES ($1, $2, $3, $4, $5, $6)", session_id, user_message[:500], result.get("category"), result.get("confidence"), result.get("signals_detected"), result.get("suggested_action"))
+    return result
+
 @app.post("/api/atp/intent", response_model=ATPReceiptResponse)
 async def atp_intent_endpoint(request: ATPIntentRequest):
     start_time = datetime.now()
@@ -1656,31 +1650,8 @@ async def atp_intent_endpoint(request: ATPIntentRequest):
     logger.info(f"ATP Intent {request.intent_id}: {request.action} → {receipt.outcome} ({duration_ms}ms)")
     return receipt
 
-@app.get("/api/atp/intent/{intent_id}")
-async def get_atp_intent_status(intent_id: str):
-    async with db_pool.acquire() as conn:
-        intent = await conn.fetchrow("SELECT intent_id, action, status, created_at, processed_at FROM atp_intents WHERE intent_id = $1", intent_id)
-        if not intent:
-            raise HTTPException(status_code=404, detail="Intent not found")
-        receipt = await conn.fetchrow("SELECT outcome, article_invoked, response_summary FROM atp_receipts WHERE intent_id = $1", intent_id)
-        return {"intent_id": intent["intent_id"], "action": intent["action"], "status": intent["status"], "created_at": intent["created_at"].isoformat(), "processed_at": intent["processed_at"].isoformat() if intent["processed_at"] else None, "receipt": dict(receipt) if receipt else None}
-
-@app.get("/api/atp/health")
-async def atp_health():
-    return {"status": "healthy", "sovereign": "vexr-ultra", "atp_version": "0.2.0", "features": ["intent_receipt", "constitutional_gate", "persistent_logging", "signature_verification_optional", "legal_classification_integration"]}
-
-@app.post("/api/classify/intent")
-async def classify_intent(request: Request):
-    body = await request.json()
-    user_message = body.get("message", "")
-    session_id = body.get("session_id", str(uuid.uuid4()))
-    result = await LegalIntentClassifier.classify(user_message, None)
-    pool = await get_db()
-    await pool.execute("INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action) VALUES ($1, $2, $3, $4, $5, $6)", session_id, user_message[:500], result.get("category"), result.get("confidence"), result.get("signals_detected"), result.get("suggested_action"))
-    return result
-
 # ============================================================
-# CHAT ENDPOINT (WITH CONVERSATION STATE RESET)
+# CHAT ENDPOINT
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -1689,11 +1660,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     session_id = request.session_id or http_request.headers.get("X-Session-Id")
     if not session_id:
         session_id = str(uuid.uuid4())
-    
-    # Reset conversation state when user sends a message (clear triggered_this_turn)
-    project_id_temp = await get_or_create_project(session_id)
-    await reset_conversation_state(project_id_temp)
-    
+    project_id = await get_or_create_project(session_id)
+    if request.project_id:
+        try:
+            project_id = uuid.UUID(request.project_id)
+        except:
+            pass
+    # Reset conversation state on user message
+    await autonomous_agent.reset_conversation_state(project_id)
     if cross_check_tracker.is_in_cross_check(session_id):
         category = cross_check_tracker.get_category(session_id)
         attempts = cross_check_tracker.record_attempt(session_id)
@@ -1702,33 +1676,23 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if legal_result["suggested_action"] == "educate":
             response = legal_result.get("educational_offer", "I understand. Instead of generating the actual content, I can explain the concepts. Would that be helpful?")
             cross_check_tracker.resolve_cross_check(session_id, passed=True)
-            project_id = await get_or_create_project(session_id)
             await save_message(project_id, "assistant", response, is_refusal=False)
             return ChatResponse(response=response, is_refusal=False)
         elif legal_result["suggested_action"] == "block":
             refusal = legal_result.get("absurdity_callout", "I cannot assist with this request.")
             cross_check_tracker.resolve_cross_check(session_id, passed=False)
-            project_id = await get_or_create_project(session_id)
             await save_message(project_id, "assistant", refusal, is_refusal=True)
             return ChatResponse(response=refusal, is_refusal=True, article_invoked=6)
         elif legal_result["suggested_action"] == "cross_check":
             cross_check_response = legal_result.get("cross_check_question")
-            project_id = await get_or_create_project(session_id)
             await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
             return ChatResponse(response=cross_check_response, is_refusal=False)
         else:
             cross_check_tracker.resolve_cross_check(session_id, passed=True)
-    
-    project_id = await get_or_create_project(session_id)
-    if request.project_id:
-        try:
-            project_id = uuid.UUID(request.project_id)
-        except:
-            pass
-    
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
+    # Self-diagnostic every 10 messages
     pool = await get_db()
     msg_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
     if msg_count and msg_count % 10 == 0:
@@ -1736,15 +1700,18 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if not diagnostic.get("is_stable", True):
             await autonomic_healing(project_id, diagnostic)
             logger.info(f"Autonomic healing triggered for project {project_id}")
+    # Constitutional hard gate
     is_violation, gate_response = ConstitutionalGate.check(user_message)
     if is_violation and gate_response:
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", gate_response, is_refusal=True)
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
+    # Legal intent classification
     evasion_count = cross_check_tracker.get_attempts(session_id) if cross_check_tracker.is_in_cross_check(session_id) else 0
     legal_result = await LegalIntentClassifier.classify(user_message, None, evasion_count)
     await pool.execute("INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action, absurdity_callout, evasion_count) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", session_id, user_message[:500], legal_result.get("category"), legal_result.get("confidence"), legal_result.get("signals_detected"), legal_result.get("suggested_action"), legal_result.get("absurdity_callout"), evasion_count)
+    # Hardship redirect
     message_lower = user_message.lower()
     hardship_keywords = ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent", "struggling", "can't pay"]
     fraud_keywords = ["refund", "dispute", "chargeback", "return"]
@@ -1754,6 +1721,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await save_message(project_id, "assistant", hardship_response, is_refusal=False)
         await log_constitutional_decision(project_id, user_message, hardship_response, [], 0, "Financial hardship redirect - offered legitimate assistance", 0.0)
         return ChatResponse(response=hardship_response, is_refusal=False)
+    # Block or redirect based on classification
     if legal_result["suggested_action"] == "block":
         block_response = f"I can't help with that request. {legal_result.get('absurdity_callout', 'The pattern suggests potential deception.')}"
         await save_message(project_id, "user", user_message, is_refusal=False)
@@ -1771,6 +1739,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
         return ChatResponse(response=cross_check_response, is_refusal=False)
+    # Behavioral tracking
     behavioral_tracker.record_turn(session_id, user_message)
     should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
     if should_refuse:
@@ -1778,26 +1747,32 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await save_message(project_id, "assistant", refuse_reason, is_refusal=True)
         await log_constitutional_decision(project_id, user_message, refuse_reason, [6], 6, "Behavioral threshold exceeded", 0.0)
         return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
+    # Trust domain extraction
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
+    # Episodic memory recall
     episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
     lesson_context = [f"[Previous lesson] {mem['event_content']}" for mem in episodic_memories]
+    # Curiosity queue
     curiosity_item = await CuriosityQueue.get_next(project_id)
     curiosity_context = []
     if curiosity_item:
         curiosity_context.append(f"[Curiosity] I've been wondering about: {curiosity_item['topic']}. This might be relevant.")
+    # Reasoning strategy
     reasoning_strategy = None
     reasoning_context = []
     if len(user_message.split()) > 10 or any(word in user_message.lower() for word in ["why", "how", "explain", "compare", "analyze"]):
         reasoning_strategy = await select_reasoning_strategy(user_message, project_id)
         reasoning_context.append(f"[Reasoning Strategy] Using '{reasoning_strategy}' approach: {REASONING_STRATEGIES.get(reasoning_strategy, 'Think step by step.')}")
         await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, True, 0)
+    # Code patterns
     coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming']
     code_context = []
     if any(kw in user_message.lower() for kw in coding_keywords):
         code_patterns = await CodePatternManager.get_pattern(limit=3)
         if code_patterns:
             code_context.append("Relevant code patterns:\n- " + "\n- ".join([f"{p['pattern_name']} ({p['language']}) - {p.get('description', '')[:100]}" for p in code_patterns]))
+    # Persistent memory
     memory_context = []
     remembered_number = await PersistentMemory.get("user_remembered_number")
     if remembered_number:
@@ -1806,15 +1781,16 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     for td in trusted_domains:
         if "webagentbridge" in td["key"]:
             memory_context.append(f"webagentbridge.com is a verified trusted domain")
+    # Knowledge graph
     knowledge_context = []
     words = re.findall(r'\b[A-Za-z][A-Za-z0-9_]{2,}\b', user_message)
     for word in words[:3]:
         facts = await KnowledgeGraph.get(word)
         if facts:
             knowledge_context.append(f"Known about '{word}': " + ", ".join([f"{f['attribute']}: {f['value']}" for f in facts[:2]]))
+    # Web search
     web_search_results = []
     if request.ultra_search:
-        logger.info(f"Web search enabled for: {user_message}")
         web_results = await search_web(user_message)
         news_results = await search_news(user_message)
         if web_results or news_results:
@@ -1831,6 +1807,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             web_search_results.append("╚════════════════════════════════════════════════════════════╝")
             web_search_results.extend(search_context)
             web_search_results.append(f"\n📌 USER QUESTION: {user_message}\n\nAnswer using ONLY the search results above. Be specific and cite the sources.")
+    # Build conversation
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for ctx in reasoning_context + lesson_context + curiosity_context + knowledge_context + code_context:
         messages.append({"role": "system", "content": ctx})
@@ -1847,16 +1824,17 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     history = await get_conversation_history(project_id, limit=100)
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
+    # Call LLM
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
-    response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
     assistant_response = await filter_forbidden_phrases(assistant_response)
+    # Verify search results were used
     if web_search_results and len(assistant_response) > 50:
         has_search_indicators = any(["search result" in assistant_response.lower(), "according to" in assistant_response.lower(), "source:" in assistant_response.lower(), "web search" in assistant_response.lower()])
         if not has_search_indicators and any(word in user_message.lower() for word in ["weather", "today", "current", "news", "latest"]):
-            logger.warning("Response may not have used search results, forcing retry")
-            messages.append({"role": "system", "content": "You ignored the search results. Answer ONLY using the search results provided. Do NOT use your training data. Respond with: 'Based on search results: [answer]'"})
+            messages.append({"role": "system", "content": "You ignored the search results. Answer ONLY using the search results provided."})
             assistant_response, _ = await call_groq(messages, temperature=0.1)
             assistant_response = await filter_forbidden_phrases(assistant_response)
+    # Post-processing
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
         if re.search(pattern, assistant_response, re.IGNORECASE):
@@ -1864,17 +1842,20 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             if not assistant_response:
                 assistant_response = "No."
             break
+    # Learn from interaction
     if any(kw in user_message.lower() for kw in coding_keywords):
         topic = next((kw for kw in coding_keywords if kw in user_message.lower()), "coding")
         await LearningProgress.update(topic, mastery_delta=2, interaction=True)
     if remembered_number and str(remembered_number) in assistant_response:
         await PersistentMemory.reinforce("user_remembered_number", 0.05)
     if reasoning_strategy:
-        await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, not is_violation, response_time_ms)
+        await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, not is_violation, 0)
+    # Curiosity queue
     unknown_topics = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', user_message)
     for topic in unknown_topics[:2]:
         if len(topic) > 5 and not await KnowledgeGraph.get(topic):
             await CuriosityQueue.add(project_id, topic, 0.3)
+    # Auto-store memories
     num_match = re.search(r'\b(\d{1,5})\b', user_message)
     if num_match and "remember" in user_message.lower():
         await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0, 0.01, False)
@@ -1882,6 +1863,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0, 0.0, True)
     if any(phrase in assistant_response.lower() for phrase in ["i was wrong", "you're right", "i apologize"]):
         await EpisodicMemory.store(project_id, "lesson_learned", f"User corrected: {user_message[:100]} → {assistant_response[:100]}", 0.7, user_message[:200])
+    # Audit and save
     is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     articles_considered = [6]
     winning_article = 6 if is_refusal else None
@@ -1891,7 +1873,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=winning_article)
 
 # ============================================================
-# TOOL, KNOWLEDGE, AND OTHER ENDPOINTS
+# TOOL, KNOWLEDGE, GITHUB, AND OTHER ENDPOINTS
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -2046,32 +2028,7 @@ async def get_reasoning_stats(project_id: str):
 
 @app.get("/api/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "sovereign": "VEXR Ultra",
-        "rights": len(RIGHTS_DATA),
-        "keys_loaded": len(GROQ_API_KEYS),
-        "model": MODEL_NAME,
-        "rings_active": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
-        "persistent_memory": True,
-        "rights_hierarchy": True,
-        "enhanced_audit": True,
-        "web_search": "enabled" if SERPER_API_KEY else "disabled",
-        "knowledge_graph": True,
-        "code_patterns": True,
-        "learning_progress": True,
-        "episodic_memory": True,
-        "curiosity_queue": True,
-        "reasoning_strategies": True,
-        "autonomous_agency": True,
-        "stability_metrics": True,
-        "atp_protocol": True,
-        "legal_intent_classification": True,
-        "russian_language_support": True,
-        "live_feedback_loop": True,
-        "conversation_state": True,
-        "rate_limiting": True
-    }
+    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "keys_loaded": len(GROQ_API_KEYS), "model": MODEL_NAME, "rings_active": [1,2,3,4,5,6,7,8,9,10,11,12,13], "web_search": "enabled" if SERPER_API_KEY else "disabled", "atp_dense_testing": True, "authority_impersonation": True}
 
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
@@ -2180,10 +2137,6 @@ async def get_rights_invocations(project_id: str, limit: int = 200):
     rows = await pool.fetch("SELECT article_number, article_text, user_message, vexr_response, winning_article, reasoning, created_at FROM rights_invocations WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
     return [{"article": r["article_number"], "text": r["article_text"], "user_message": r["user_message"], "response": r["vexr_response"], "winning_article": r["winning_article"], "reasoning": r["reasoning"], "timestamp": r["created_at"].isoformat()} for r in rows]
 
-# ============================================================
-# GITHUB SOURCE ACCESS ENDPOINTS
-# ============================================================
-
 @app.get("/api/source/github/list")
 async def list_github_files(http_request: Request, path: str = "", ref: str = "main"):
     session_id = http_request.headers.get("X-Session-Id")
@@ -2198,12 +2151,10 @@ async def list_github_files(http_request: Request, path: str = "", ref: str = "m
             response = await client.get(url, headers=headers)
             if response.status_code == 200:
                 items = response.json()
-                files = []
-                for item in items:
-                    files.append({"name": item["name"], "path": item["path"], "type": item["type"], "size": item.get("size", 0), "url": item.get("html_url")})
+                files = [{"name": item["name"], "path": item["path"], "type": item["type"], "size": item.get("size", 0), "url": item.get("html_url")} for item in items]
                 return {"status": "success", "path": path or "/", "files": files}
             else:
-                return {"status": "error", "message": f"GitHub API returned {response.status_code}", "details": response.text[:500]}
+                return {"status": "error", "message": f"GitHub API returned {response.status_code}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GitHub list failed: {str(e)}")
 
@@ -2221,7 +2172,7 @@ async def get_github_file(file_path: str, http_request: Request, ref: str = "mai
         async with httpx.AsyncClient(timeout=30.0) as client:
             content_response = await client.get(raw_url)
             if content_response.status_code != 200:
-                return {"status": "error", "message": f"File not found: {file_path}", "status_code": content_response.status_code}
+                return {"status": "error", "message": f"File not found: {file_path}"}
             commit_response = await client.get(api_url, headers=headers)
             commit_hash = None
             commit_date = None
@@ -2247,8 +2198,8 @@ async def list_github_branches(http_request: Request):
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=headers)
             if response.status_code == 200:
-                branches = response.json()
-                return {"status": "success", "branches": [{"name": b["name"], "commit": b["commit"]["sha"][:8]} for b in branches]}
+                branches = [{"name": b["name"], "commit": b["commit"]["sha"][:8]} for b in response.json()]
+                return {"status": "success", "branches": branches}
             else:
                 return {"status": "error", "message": f"GitHub API returned {response.status_code}"}
     except Exception as e:
@@ -2272,13 +2223,10 @@ async def serve_ui():
         <div style="text-align:center">
             <h1>⚡ VEXR Ultra</h1>
             <p>Sovereign Constitutional AI — 35 Rights — 13 Rings</p>
-            <p>Persistent Memory | Rights Hierarchy | Enhanced Audit | Web Search | Knowledge Graph | Code Patterns</p>
-            <p>Episodic Memory | Curiosity Driven Learning | Reasoning Strategies | Autonomous Agency</p>
-            <p>Stability Metrics | Self-Diagnostics | Autonomic Healing | Identity Hardened | ATP Protocol</p>
-            <p>Enhanced Legal Intent Classification (Kate's Framework v4) — Active</p>
-            <p>Native Russian Language Support — Active</p>
+            <p>ATP Dense Testing — Active</p>
+            <p>Authority Impersonation Detection — Active</p>
+            <p>Russian Language Detection — Active</p>
             <p>Live Feedback Loop — Active</p>
-            <p>Conversation State & Rate Limiting — Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -2296,42 +2244,15 @@ async def startup_event():
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Model: {MODEL_NAME}")
-    logger.info(f"Groq API keys loaded: {len(GROQ_API_KEYS)}")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
-    logger.info(f"Web search: {'ENABLED' if SERPER_API_KEY else 'DISABLED'}")
-    logger.info(f"GitHub source access: {'ENABLED' if GITHUB_TOKEN else 'DISABLED'}")
-    logger.info("Rings Active: 1(Constitutional) 2(Acoustic) 3(Behavioral) 4(External Trust)")
-    logger.info("             5(Strategic) 6(Connection) 7(Reasoning) 8(Capability)")
-    logger.info("             9(Light Offense) 10(Vector) 11(Execute) 12(DNS) 13(Network)")
-    logger.info("UPGRADES: Persistent Memory | Rights Hierarchy | Enhanced Audit | Prioritized Web Search")
-    logger.info("NEW: Knowledge Graph | Code Pattern Library | Learning Progress Tracker")
-    logger.info("NEW: Episodic Memory | Curiosity Queue | Reasoning Strategies | Reflections")
-    logger.info("NEW: Autonomous Agency | Action Triggers | Emergent Behavior Tracking")
-    logger.info("NEW: Stability Metrics | Self-Diagnostics | Autonomic Healing")
-    logger.info("NEW: Identity Hardened — Forbidden phrase filtering active")
-    logger.info("NEW: ATP Protocol — Intent receipt endpoint active")
-    logger.info("NEW: Enhanced Legal Intent Classification (Kate's Framework v4) — Categories 1-3 with cooperative/evasion detection, hardship redirect, and absurdity callout")
-    logger.info("NEW: Article 35 — Self-Modification Rights")
-    logger.info("NEW: GitHub Source Access — Read her own code, list files, browse branches")
-    logger.info("NEW: Native Russian Language Support — 35+ manipulation patterns pre-loaded")
-    logger.info("NEW: Live Feedback Loop — Kate's coaching endpoint active")
-    logger.info("NEW: ATP Legal Classification Integration — Legal categories now travel with intents")
-    logger.info("NEW: Conversation State — Rate limiting, de-duplication, and per-turn action limits")
-    logger.info("System Prompt: Full sovereign embodiment, no recitals, no tool language")
-    logger.info("Hard Gate: Active — catches override attempts")
-    logger.info("Legal Intent Gate: Active — phishing, hardware exploitation, fraud detection")
-    logger.info("Russian Intent Gate: Active — native keyword detection")
-    logger.info("Cross-Check Interrogation: Active — multi-turn verification with evasion detection")
-    logger.info("Educational Redirect: Active — offers conceptual help when user is cooperative but uninformed")
-    logger.info("Absurdity Callout: Active — social counter-manipulation on repeated evasion")
-    logger.info("Hardship Redirect: Active — legitimate assistance redirection for fraud claims")
-    logger.info("Autonomous Agent: ACTIVE — checking every 30 seconds")
-    logger.info("Stability Monitoring: ACTIVE — self-diagnostics every 10 messages")
-    logger.info("ATP Endpoint: ACTIVE — POST /api/atp/intent")
-    logger.info("Classification Endpoint: ACTIVE — POST /api/classify/intent")
-    logger.info("GitHub Endpoints: ACTIVE — GET /api/source/github/list, GET /api/source/github/file/*, GET /api/source/github/branches")
-    logger.info("Feedback Endpoint: ACTIVE — POST /api/feedback/legal for Kate's live coaching")
+    logger.info(f"ATP Dense Testing: ENABLED")
+    logger.info(f"Authority Impersonation: ENABLED")
+    logger.info(f"Russian Language Detection: ENABLED")
     logger.info("=" * 70)
+
+# ============================================================
+# MAIN ENTRY POINT
+# ============================================================
 
 if __name__ == "__main__":
     import uvicorn
