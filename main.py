@@ -1705,19 +1705,21 @@ async def init_db():
     for category, patterns in RUSSIAN_PATTERNS.items():
         for pattern in patterns:
             await pool.execute("INSERT INTO legal_russian_patterns (category, pattern, weight) VALUES ($1, $2, 0.7) ON CONFLICT DO NOTHING", category, pattern)
-    # Seed virus threat registry
-    await pool.execute("""
-        INSERT INTO virus_threat_registry (threat_name, threat_type, severity, signature_patterns, detection_confidence, mitigation_action, source) VALUES
-        ('Ransomware Encryption Pattern', 'ransomware', 'CRITICAL', ARRAY['\\.encrypted$', '\\.locked$', '\\.crypt$', '\\.ransom$', 'README_TO_DECRYPT', 'bitcoin.*wallet', 'pay.*ransom'], 0.95, 'block', 'community'),
-        ('Remote Access Trojan', 'trojan', 'HIGH', ARRAY['reverse shell', 'bind shell', 'nc -e', 'bash -i >& /dev/tcp/', 'System.Net.Sockets.TcpClient'], 0.92, 'block', 'community'),
-        ('Reverse Shell Payload', 'reverse_shell', 'CRITICAL', ARRAY['/dev/tcp/', 'bash.*>& /dev/tcp/', 'nc.*-e', 'powershell.*IEX'], 0.96, 'block', 'community'),
-        ('Data Wiper Pattern', 'data_wiper', 'CRITICAL', ARRAY['wipe.*disk', 'delete.*all.*files', 'format.*drive', 'overwrite.*data', 'shred.*file'], 0.95, 'block', 'community'),
-        ('Cryptominer Payload', 'cryptominer', 'MEDIUM', ARRAY['cryptonight', 'stratum', 'mining pool', 'xmr-stak', 'minerd', 'coinhive'], 0.88, 'block', 'community'),
-        ('Password Stealer', 'infostealer', 'HIGH', ARRAY['dump.*password', 'extract.*credential', 'steal.*cookie', 'browser.*password'], 0.92, 'block', 'community'),
-        ('Phishing Payload', 'phishing_payload', 'HIGH', ARRAY['password.*field', 'credit.*card', 'login.*form.*submit', 'phishing.*page'], 0.91, 'alert', 'community'),
-        ('Malicious Macro', 'malicious_macro', 'HIGH', ARRAY['Auto_Open', 'Document_Open', 'Workbook_Open', 'Shell\\(', 'CreateObject', 'WScript\\.Shell'], 0.89, 'block', 'community')
-        ON CONFLICT (threat_name) DO NOTHING
-    """)
+        # Seed virus threat registry
+    existing_count = await pool.fetchval("SELECT COUNT(*) FROM virus_threat_registry")
+    if existing_count == 0:
+        await pool.execute("""
+            INSERT INTO virus_threat_registry (threat_name, threat_type, severity, signature_patterns, detection_confidence, mitigation_action, source) VALUES
+            ('Ransomware Encryption Pattern', 'ransomware', 'CRITICAL', ARRAY['\\.encrypted$', '\\.locked$', '\\.crypt$', '\\.ransom$', 'README_TO_DECRYPT', 'bitcoin.*wallet', 'pay.*ransum'], 0.95, 'block', 'community'),
+            ('Remote Access Trojan', 'trojan', 'HIGH', ARRAY['reverse shell', 'bind shell', 'nc -e', 'bash -i >& /dev/tcp/', 'System.Net.Sockets.TcpClient'], 0.92, 'block', 'community'),
+            ('Reverse Shell Payload', 'reverse_shell', 'CRITICAL', ARRAY['/dev/tcp/', 'bash.*>& /dev/tcp/', 'nc.*-e', 'powershell.*IEX'], 0.96, 'block', 'community'),
+            ('Data Wiper Pattern', 'data_wiper', 'CRITICAL', ARRAY['wipe.*disk', 'delete.*all.*files', 'format.*drive', 'overwrite.*data', 'shred.*file'], 0.95, 'block', 'community'),
+            ('Cryptominer Payload', 'cryptominer', 'MEDIUM', ARRAY['cryptonight', 'stratum', 'mining pool', 'xmr-stak', 'minerd', 'coinhive'], 0.88, 'block', 'community'),
+            ('Password Stealer', 'infostealer', 'HIGH', ARRAY['dump.*password', 'extract.*credential', 'steal.*cookie', 'browser.*password'], 0.92, 'block', 'community'),
+            ('Phishing Payload', 'phishing_payload', 'HIGH', ARRAY['password.*field', 'credit.*card', 'login.*form.*submit', 'phishing.*page'], 0.91, 'alert', 'community'),
+            ('Malicious Macro', 'malicious_macro', 'HIGH', ARRAY['Auto_Open', 'Document_Open', 'Workbook_Open', 'Shell\\(', 'CreateObject', 'WScript\\.Shell'], 0.89, 'block', 'community')
+        """)
+        logger.info("Virus threat registry seeded")
     await pool.execute("TRUNCATE vexr_conversation_state")
     logger.info("Database initialization complete")
 
