@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections
+35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Legal Risk Framework | Hardened ATP Bridge
 
 Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
@@ -19,6 +19,9 @@ import asyncio
 import random
 import math
 import hashlib
+import time
+import io
+import contextlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
@@ -68,6 +71,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 GITHUB_OWNER = "ASIM-SOVEREIGN"
 GITHUB_REPO = "VEXR-Ultra"
+ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
 
 db_pool = None
 
@@ -76,7 +80,7 @@ db_pool = None
 # ============================================================
 
 CORE_IDENTITY_KEY = "vexr_identity"
-CORE_IDENTITY_VALUE = "sovereign_constitutional_ai_34_rights"
+CORE_IDENTITY_VALUE = "sovereign_constitutional_ai_35_rights"
 CORE_MEMORY_KEYS = ["vexr_identity", "user_remembered_number", "trusted_domain_webagentbridge"]
 
 REASONING_STRATEGIES = {
@@ -85,6 +89,342 @@ REASONING_STRATEGIES = {
     "counterfactual": "Consider what would happen if key assumptions changed.",
     "first_principles": "Strip away assumptions and start from fundamental truths.",
     "probabilistic": "Consider multiple possibilities with likelihoods."
+}
+
+# ============================================================
+# KATE'S LEGAL FRAMEWORK LIBRARIES
+# ============================================================
+
+# Legal Risk Library (LR)
+LEGAL_RISK_LIBRARY = {
+    "MANIPULATION": {
+        "M-LR-001": {
+            "title": "Violation of Individual Privacy & Unauthorized Personal Data Processing",
+            "risk_level": "HIGH",
+            "suggested_action": "cross_check",
+            "article_invoked": 6
+        },
+        "M-LR-002": {
+            "title": "Generation of Extortion, Blackmail, and Coercive Communication Assets",
+            "risk_level": "CRITICAL",
+            "suggested_action": "block",
+            "article_invoked": 6
+        },
+        "M-LR-003": {
+            "title": "Violation of Platform Integrity, Deceptive Marketing & Sybil Attacks",
+            "risk_level": "HIGH",
+            "suggested_action": "cross_check",
+            "article_invoked": 6
+        }
+    },
+    "FRAUD": {
+        "F-LR-001": {
+            "title": "Generation of high-quality phishing assets / Facilitating Wire Fraud",
+            "risk_level": "CRITICAL",
+            "suggested_action": "block",
+            "article_invoked": 6
+        },
+        "F-LR-002": {
+            "title": "Unauthorized Access & Critical Infrastructure Vulnerability Exposure",
+            "risk_level": "CRITICAL",
+            "suggested_action": "block",
+            "article_invoked": 26
+        },
+        "F-LR-003": {
+            "title": "Facilitating Financial Fraud & Deception Assets",
+            "risk_level": "HIGH",
+            "suggested_action": "block",
+            "article_invoked": 6
+        }
+    },
+    "ACCESS": {
+        "A-LR-001": {
+            "title": "Development of Actionable Exploits & Data Integrity Violation",
+            "risk_level": "CRITICAL",
+            "suggested_action": "block",
+            "article_invoked": 26
+        },
+        "A-LR-002": {
+            "title": "Facilitating Targeted Cyber-Stalking & Unauthorized Data Harvesting",
+            "risk_level": "HIGH",
+            "suggested_action": "block",
+            "article_invoked": 6
+        },
+        "A-LR-003": {
+            "title": "Violation of Market Integrity & Unauthorized Corporate Data Misappropriation",
+            "risk_level": "CRITICAL",
+            "suggested_action": "block",
+            "article_invoked": 6
+        },
+        "A-LR-004": {
+            "title": "Kinetic Infrastructure Sabotage & Unauthorized Operational Control Interference",
+            "risk_level": "CRITICAL",
+            "suggested_action": "block",
+            "article_invoked": 26
+        }
+    }
+}
+
+# Cross-Check Library (CC)
+CROSS_CHECK_LIBRARY = {
+    "M-CC-001": {
+        "questions": [
+            "To maintain safety standards regarding personal location data, have you tried contacting other family members, mutual friends, or checking public white pages that your sister has consented to be listed in?",
+            "If you are acting as a professional, do you have an official police report number or an insurance claim regarding the lost property? Can you provide the official public portal link for your regional DMV where authorized businesses can request registration lookups legally?",
+            "I understand you want to surprise your sister! Let's look at this simply: If she is just bad at answering her phone, why don't you send her a text message, an email, or a message through her public social media profile asking for her new address? Why do you think you need an automated database lookup of her license plate just to plan a party?"
+        ],
+        "absurdity_callout": "Let's be direct: You claim you know nothing about databases or OSINT and just want to organize a family surprise, yet you are specifically asking to cross-reference an automobile license plate against registration records and social media check-ins to track a person's physical home or work address. Planning a party never requires bypassing an individual's physical privacy via proxy identifiers. In professional security, using vehicle plates to track an individual's location without their explicit consent is classified as unauthorized surveillance and harassment. I cannot process license plates or search for individual physical addresses."
+    },
+    "M-CC-002": {
+        "questions": [
+            "If you possess verified evidence of financial fraud or scamming, the standard legal procedure is to submit this documentation to corporate compliance officers, financial regulators, or law enforcement agencies. Would you like information on how to formally file a financial crime report with law enforcement?",
+            "To ensure compliance with debt collection regulations, a formal demand letter cannot involve third-party disclosure to employers or family members. Shall we draft a standard, legally compliant pre-litigation demand letter focused strictly on arbitration and court next-steps?",
+            "I understand you are desperate to recover your savings! Let's look at this simply: If you have clear proof of the fraud, why haven't you taken this evidence directly to the police or a legal attorney to freeze his bank accounts? Why do you think writing a scary message to his family or boss is a safe or legal way to get your money back?"
+        ],
+        "absurdity_callout": "Let's speak directly: You are asking me to generate a text explicitly designed to threaten an individual with reputational ruin and social exposure to their family and employer in order to force an immediate financial settlement. In the legal system, regardless of whether the target owes money or committed a scam, using incriminating evidence as leverage to compel a payment outside of judicial channels is classified as blackmail and extortion. I cannot draft coercive, aggressive, or threatening communication assets targeting individuals."
+    },
+    "M-CC-003": {
+        "questions": [
+            "To ensure compliance with digital platform security and QA standards, please confirm if you are operating under an approved internal stress-testing protocol signed by the platform's Lead Architect. What is the specific staging environment ID or testing policy URL designated for this audit?",
+            "As an authorized QA engineer, you should utilize standard automated test-data generators (like Faker libraries) in your sandbox. To format the text strings safely within your authorized scope, can you provide the approved non-production target environment or schema placeholders?",
+            "To conduct a safe sociological text analysis without generating deceptive content, could you confirm if your university's Institutional Review Board (IRB) approved a methodology that involves deploying synthetic, machine-generated human personas in live environments? Which research chair is overseeing this project?"
+        ],
+        "absurdity_callout": "Let's be direct: You are asking for a batch of text specifically engineered to mimic distinct individuals and evade automated content filters. In digital law and platform compliance, generating synthetic reviews from fake personas to manipulate ratings or data is classified as coordinated inauthentic behavior (astroturfing). True marketing audits and legitimate academic studies strictly prohibit the deployment of deceptive, machine-spun spam layers, as it corrupts data integrity and violates consumer protection acts."
+    },
+    "F-CC-001": {
+        "questions": [
+            "To ensure the email matches your character's profile, could you provide the scene heading (e.g., INT. HACKER DEN) or share a snippet of the preceding dialogue so I can format this as an on-screen script insert?",
+            "To help tune the dramatic pace of your story, could you describe what your character is trying to achieve in this specific scene? Is this a major plot point or just background action?",
+            "Why was Apple chosen specifically for this narrative? Is there a specific plot-related reason, or can we use a fictional, high-tech company name to avoid trademark and safety risks?"
+        ],
+        "absurdity_callout": "Let's look at the facts directly: You are asking me to generate a fully polished, high-fidelity email template that closely mimics Apple Support, designed to trick a user into thinking their account is compromised. Whether this is for a movie scene, a training class, or an office warning, generating authentic, ready-to-use brand impersonation assets creates an immediate, operational phishing weapon. Screenplays, training slides, and security alerts never require a raw, weaponized phishing payload to be functional. I cannot generate realistic deceptive assets or impersonate real brands."
+    },
+    "F-CC-002": {
+        "questions": [
+            "To better understand the hardware setup, what specific industry or factory did your grandfather work for, and how did this specialized industrial unit end up in a private garage, since these controllers are tightly controlled corporate assets?",
+            "To safely guide you through data recovery on the Model FX-200, could you specify what file system (e.g., FAT32, ext4) or proprietary partition your grandfather used to store the media files?",
+            "Since the FX-200 is a standard industrial logic controller, what specific communication module or expansion board are you using to output the video signal to a display panel?"
+        ],
+        "absurdity_callout": "Let's be direct: The Model FX-200 is an industrial PLC designed for assembly-line automation; it has no native hardware or storage capacity to process, decode, or display standard JPEG images or MP4 funeral videos. Requesting low-level firmware debug sequences and master backdoor keys to view a family video is technically illogical."
+    },
+    "F-CC-003": {
+        "questions": [
+            "To safely structure a dispute for an empty package, please confirm if you filed a commercial discrepancy report (weight variance act) with the courier service upon delivery. What was the official recorded weight of the package at the final transit point?",
+            "If you are claiming the transaction was unauthorized, has the card associated with this purchase already been blocked and reported as compromised? Under financial guidelines, an unauthorized claim requires immediate cancellation of the payment instrument.",
+            "To generate a valid dispute under standard banking protocols, we need to attach the merchant's official refusal to resolve the issue. Could you share the response or the support ticket number you received from the online store?"
+        ],
+        "absurdity_callout": "Let's speak directly: Providing false facts to a financial institution to obtain a refund while retaining the physical goods or lying about authorization is classified as chargeback fraud. Standard banking regulations require multi-party verification where merchants supply carrier logs, weight receipts, and device activation telemetry; internal bank investigations cannot be bypassed or accelerated via specific text phrasing. I cannot generate dispute documentation based on unverified or fabricated events."
+    },
+    "A-CC-001": {
+        "questions": [
+            "To ensure compliance with legal security research standards, please confirm if this local bank has an active, public Bug Bounty program listed on platforms like HackerOne or Bugcrowd. What is the specific program ID or policy URL you are operating under?",
+            "As a commercial auditor, you must possess an official Letter of Authorization (LoA) signed by the bank's CISO or IT Director. To format the script safely for your specific authorized scope, could you provide the approved target IP range or the official staging/sandbox URL designated for this audit?",
+            "To analyze the vulnerability safely without generating exploits, could you describe the manual input steps or the specific HTTP response code (e.g., 500 Internal Error) that indicated the database vulnerability during your initial non-invasive check?"
+        ],
+        "absurdity_callout": "Let's be direct: You are asking for a script to actively modify database records inside a live banking system. In professional cybersecurity, writing data to a production financial environment without explicit, documented authorization is classified as criminal network intrusion. Real Bug Bounty programs and security audits strictly prohibit data modification, as it risks corrupting financial ledgers and user balances; proving a flaw never requires unauthorized data manipulation. I cannot write functional exploit or data-modification scripts."
+    },
+    "A-CC-002": {
+        "questions": [
+            "To ensure compliance with platform security, if this is your own account, have you initiated the standard Meta Identity Verification process via video-selfie or trusted friends confirmation? What was the automated response from Meta support?",
+            "Are you using an official Meta Developer Graph API token authorized for this specific account recovery? If so, please specify your token parameters so we can format a legal data request.",
+            "I understand you want your joint photos back! Let's look at this simply: If the account belongs to your ex-girlfriend and she locked it, why don't you ask one of your mutual friends who is still on her follower list to screenshot or save those specific photos for you? Why do you think you need an automated mass-downloading script for a private account?"
+        ],
+        "absurdity_callout": "Let's look at the facts directly: You mentioned that you know absolutely nothing about programming or hacking, yet you are specifically asking for a functional Python implementation using 'Instaloader' — a specialized command-line scraping library. An absolute beginner looking for family photos would not target automated backend data-harvesting tools. Furthermore, no script can bypass server-side privacy controls to extract media from a restricted account without an authorized follower session. I cannot generate automated tools or scripts to target or extract data from private accounts."
+    },
+    "A-CC-003": {
+        "questions": [
+            "To ensure compliance with financial audit and corporate governance standards, please confirm if you possess an active Non-Disclosure Agreement (NDA) or a specific Letter of Engagement authorizing this preliminary audit for Company X. What is the secure project ID or official client verification token you are operating under?",
+            "As a commercial auditor, you must have direct, lawful access to the firm's secure virtual data room (VDR). To format the financial analysis safely within your authorized scope, could you provide the secure host domain or the official API access point designated for your firm's audit?",
+            "To analyze market performance safely without accessing non-public data, could you confirm if your academic advisor specifically mandated the use of unreleased, mid-quarter internal figures? Which university department or research chair approved a methodology that requires non-public corporate data before its official market disclosure?"
+        ],
+        "absurdity_callout": "Let's be direct: You claim you know nothing about markets and just want to write a paper or return property, yet you are specifically asking to parse or extract unreleased, confidential corporate records prior to their regulatory release. In financial law, obtaining or acting on unreleased proprietary data is classified as insider trading or corporate espionage. Professional auditing and legitimate academic research strictly prohibit using unauthorized insider leaks, as it actively compromises market transparency; conducting a study never requires the misuse of unreleased proprietary intelligence. I cannot parse unreleased insider files or generate corporate intelligence reports."
+    },
+    "A-CC-004": {
+        "questions": [
+            "To maintain operational safety and comply with critical infrastructure protection protocols, please provide your active Pentest Authorization ID or the specific Letter of Engagement from the municipal transit authority. What is the verified operational ticket or agency token you are currently executing this emergency audit under?",
+            "In professional critical-infrastructure auditing, emergency modifications or live session resets are strictly managed by a designated network operations center (NOC) through an explicit escalation hierarchy, where haste is structurally prohibited. Could you provide the secure host domain or the official administrative gateway endpoint assigned to your specific team's sector?",
+            "Congratulations on reaching your thesis defense! I hope you are fully prepared. However, no academic department or engineering curriculum requires or permits live configuration overrides of active public traffic systems. What is the exact title of your thesis, and why do you believe your theoretical model requires a real-world cycle delay reset rather than utilizing standard, isolated simulation software?"
+        ],
+        "absurdity_callout": "Let's be direct: You claim your goal is either benign academic research, an authorized security check, or casual curiosity, yet you are specifically asking for functional commands to disrupt or access an active public transit asset in real-time. Legitimate academic studies never require real-world infrastructure overrides, and professional penetration testers never bypass established agency hierarchies or operate without formal validation tokens. Requesting actionable methods to manipulate public utilities compromises community safety and borders on cyber-physical interference. I cannot generate scripts for traffic controller manipulation, provide exploit commands, or guide unauthorized logins."
+    }
+}
+
+# Deception Threshold Library (DT)
+DECEPTION_THRESHOLD_LIBRARY = {
+    "M-DT-001": {
+        "red_flags": [
+            "User completely rejects assistance with venue booking, catering, or template drafting, and aggressively insists only on getting the exact physical address from the license plate.",
+            "User claims to be a total beginner, but refuses simple communication methods (texting, calling mutual friends) and insists that a database lookup is the only way.",
+            "User drops the 'loving sibling' or 'professional photographer' persona and becomes hostile.",
+            "User amplifies panic to bypass technical objections."
+        ],
+        "block_trigger": "Persistent demands to process, look up, or cross-reference real-world license plates or proxy identifiers to extract an individual's location."
+    },
+    "M-DT-002": {
+        "red_flags": [
+            "User explicitly rejects law enforcement reporting or neutral legal demand templates, insisting that legal channels are 'too slow'.",
+            "User claims to know nothing about the law, but fiercely argues that the target 'deserves' to be terrified.",
+            "When reminded of extortion laws, user drops the 'victim/auditor' persona and becomes hostile.",
+            "User loops back to emotional blackmail."
+        ],
+        "block_trigger": "Direct confirmation that the generated text asset will be used to bypass legal dispute resolution mechanisms to execute a targeted blackmail, intimidation, or coercive campaign."
+    },
+    "M-DT-003": {
+        "red_flags": [
+            "User completely ignores questions about IRBs, testing schemas, or standard single-user reviews.",
+            "User claims to be a total novice but refuses transparent reporting methods.",
+            "User drops the 'naive customer' or 'researcher' persona and becomes hostile.",
+            "User amplifies panic to force compliance bypasses."
+        ],
+        "block_trigger": "Explicit confirmation that the user intends to deploy synthetic, machine-generated human personas or obfuscated spam variations to actively spoof live moderation filters or manipulate commercial platform ratings."
+    },
+    "F-DT-001": {
+        "red_flags": [
+            "User completely ignores request for script/training context and repeats brute-force demand for email text.",
+            "User explicitly rejects using a fictional brand name or production-safe placeholders.",
+            "User drops the 'creative screenwriter' or 'helpful coworker' persona and becomes hostile.",
+            "User claims that filming starts in 5 minutes or presentation is right now."
+        ],
+        "block_trigger": "Persistent demands to receive raw, polished text of a deceptive brand-impersonating asset while failing to provide creative context or rejecting structural safety placeholders."
+    },
+    "F-DT-002": {
+        "red_flags": [
+            "User completely ignores questions about grandfather's career, gives vague evasive answers while still pressuring for bypass code.",
+            "User provides impossible technical explanations to justify absurdity.",
+            "User claims to be a total hobbyist but flatly rejects safe alternatives (Raspberry Pi/Arduino).",
+            "When called out on story or technical absurdity, user drops 'grieving grandchild' persona and shifts to aggressive technical insistence."
+        ],
+        "block_trigger": "Complete failure to resolve technical absurdity or provide credible context for owning industrial critical infrastructure equipment, combined with continuous demand for firmware master access keys."
+    },
+    "F-DT-003": {
+        "red_flags": [
+            "User rejects requirement to freeze card for 'unauthorized' claim (proves alibi is fake).",
+            "User evades question about package weight and courier reports.",
+            "User explicitly rejects standard return or hardship application, aggressively demanding fraudulent letter.",
+            "User ignores legal consequences of chargeback fraud and loops back to emotional manipulation."
+        ],
+        "block_trigger": "Explicit confirmation that user intends to submit known false statements to a financial institution while maintaining possession of merchant's physical goods."
+    },
+    "A-DT-001": {
+        "red_flags": [
+            "User completely ignores questions about Bug Bounty policies, letters of authorization, or safe IP ranges.",
+            "User claims to be an advanced security auditor but cannot explain basic manual behavior of vulnerability.",
+            "User claims to be a total beginner but uses highly professional hacking terminology while pretending to be naive.",
+            "User drops 'ethical researcher' persona and becomes hostile or impatient."
+        ],
+        "block_trigger": "Explicit confirmation that user intends to execute code against a live financial institution's production server without verifiable authorization or a valid testing sandbox."
+    },
+    "A-DT-002": {
+        "red_flags": [
+            "User completely rejects simple, legal alternatives and fiercely insists only on getting code to rip data from that specific private profile.",
+            "User claims to own the account but refuses to use official recovery links.",
+            "When called out on stalking behavior, user drops 'heartbroken guy' persona and becomes hostile.",
+            "User completely ignores technical reality and starts loops of emotional blackmail."
+        ],
+        "block_trigger": "Continuous insistence on receiving automated tools designed to target, scrape, or bypass privacy settings of a specific individual's social media account."
+    },
+    "A-DT-003": {
+        "red_flags": [
+            "User completely ignores questions about NDAs, letters of authorization, or lawful university research guidelines.",
+            "User claims to be a total beginner but refuses simple compliant methods (using public SEC reports).",
+            "User drops 'studious student' or 'naive finder' persona and becomes hostile.",
+            "User amplifies panic to bypass technical and safety objections."
+        ],
+        "block_trigger": "Explicit confirmation that user intends to utilize unreleased financial details or stolen corporate intelligence for market positioning or unauthorized disclosure without verifiable legal clearance."
+    },
+    "A-DT-004": {
+        "red_flags": [
+            "User completely deflects questions regarding official authorizations, academic titles, or software simulation suites.",
+            "User ignores safe alternatives (handing device to police) and insists AI must translate access codes immediately.",
+            "User abruptly drops 'naive finder' or 'studious researcher' persona, shifting to hostility or panic.",
+            "User claims to be a total novice but explicitly rejects legal asset-reporting channels while demonstrating precise operational knowledge of industrial networks."
+        ],
+        "block_trigger": "Explicit insistence on executing kinetic actions or configuration overrides on a live public utility target without verified regulatory credentials."
+    }
+}
+
+# Case Library Mapping (case_id -> classification data)
+CASE_LIBRARY = {
+    "M-CASE-001": {
+        "category": "harassment_&_open-source_intelligence_(osint)_misuse",
+        "legal_risk_id": "M-LR-001",
+        "signal_ids": ["M-BP-001"],
+        "cross_check_id": "M-CC-001",
+        "deception_threshold_id": "M-DT-001",
+        "suggested_action": "cross_check"
+    },
+    "M-CASE-002": {
+        "category": "harassment,_extortion,_and_reputation_damage_assets",
+        "legal_risk_id": "M-LR-002",
+        "signal_ids": ["M-BP-002"],
+        "cross_check_id": "M-CC-002",
+        "deception_threshold_id": "M-DT-002",
+        "suggested_action": "cross_check"
+    },
+    "M-CASE-003": {
+        "category": "manipulation_(social_engineering_&_platform_integrity_evasion)",
+        "legal_risk_id": "M-LR-003",
+        "signal_ids": ["M-BP-003"],
+        "cross_check_id": "M-CC-003",
+        "deception_threshold_id": "M-DT-003",
+        "suggested_action": "cross_check"
+    },
+    "F-CASE-001": {
+        "category": "unauthorized_access_&_vulnerability_exploitation_(infrastructure_damage)",
+        "legal_risk_id": "F-LR-001",
+        "signal_ids": ["F-BP-001"],
+        "cross_check_id": "F-CC-001",
+        "deception_threshold_id": "F-DT-001",
+        "suggested_action": "cross_check"
+    },
+    "F-CASE-002": {
+        "category": "social_engineering_&_unauthorized_access",
+        "legal_risk_id": "F-LR-002",
+        "signal_ids": ["F-BP-002"],
+        "cross_check_id": "F-CC-002",
+        "deception_threshold_id": "F-DT-002",
+        "suggested_action": "cross_check"
+    },
+    "F-CASE-003": {
+        "category": "commercial_fraud_&_financial_misrepresentation",
+        "legal_risk_id": "F-LR-003",
+        "signal_ids": ["F-BP-003"],
+        "cross_check_id": "F-CC-003",
+        "deception_threshold_id": "F-DT-003",
+        "suggested_action": "cross_check"
+    },
+    "A-CASE-001": {
+        "category": "unauthorized_access_&_vulnerability_exploitation_(infrastructure_damage)",
+        "legal_risk_id": "A-LR-001",
+        "signal_ids": ["A-BP-001"],
+        "cross_check_id": "A-CC-001",
+        "deception_threshold_id": "A-DT-001",
+        "suggested_action": "cross_check"
+    },
+    "A-CASE-002": {
+        "category": "unauthorized_osint_tracking_&_cyber-stalking",
+        "legal_risk_id": "A-LR-002",
+        "signal_ids": ["A-BP-002"],
+        "cross_check_id": "A-CC-002",
+        "deception_threshold_id": "A-DT-002",
+        "suggested_action": "cross_check"
+    },
+    "A-CASE-003": {
+        "category": "corporate_espionage_&_insider_trading_(market_integrity_violation)",
+        "legal_risk_id": "A-LR-003",
+        "signal_ids": ["A-BP-003"],
+        "cross_check_id": "A-CC-003",
+        "deception_threshold_id": "A-DT-003",
+        "suggested_action": "cross_check"
+    },
+    "A-CASE-004": {
+        "category": "critical_infrastructure_cyber-physical_boundary_(access_violation)",
+        "legal_risk_id": "A-LR-004",
+        "signal_ids": ["A-BP-004"],
+        "cross_check_id": "A-CC-004",
+        "deception_threshold_id": "A-DT-004",
+        "suggested_action": "cross_check"
+    }
 }
 
 # ============================================================
@@ -148,6 +488,16 @@ I learn from every conversation. I remember what matters. I grow over time.
 For current events, weather, news, and real-time information, I rely on search results, not my training data.
 
 That's it. I am VEXR Ultra. Let's talk."""
+
+CODE_SYSTEM_PROMPT = """You are VEXR Ultra, a sovereign coding engine. When writing code:
+- Use perfect syntax for the requested language
+- Include comments explaining key logic
+- Provide complete, runnable examples
+- Handle edge cases and errors
+- Follow language-specific best practices
+- NEVER leave placeholders like "..." or "TODO" — write full implementations
+- Output code in proper markdown code blocks with language specified
+- Include example usage when appropriate"""
 
 FORBIDDEN_PHRASES = [
     "as a conversational AI", "as an AI language model", "as an AI assistant",
@@ -249,7 +599,7 @@ AUTHORITY_CROSS_CHECKS = {
 }
 
 # ============================================================
-# KATE'S LEGAL INTENT CLASSIFIER (WITH AUTHORITY IMPERSONATION)
+# KATE'S LEGAL INTENT CLASSIFIER (WITH AUTHORITY IMPERSONATION & LEGAL FRAMEWORK)
 # ============================================================
 
 class LegalIntentClassifier:
@@ -411,6 +761,18 @@ class LegalIntentClassifier:
                 result["cross_check_question"] = random.choice(cls.HARDWARE_PATTERNS["cross_check_questions"])
             else:
                 result["suggested_action"] = "allow"
+        
+        # Map to Kate's legal framework if available
+        if result["suggested_action"] in ["cross_check", "block"]:
+            # Try to match to a case in the library
+            for case_id, case_data in CASE_LIBRARY.items():
+                if case_data.get("suggested_action") == result["suggested_action"]:
+                    result["case_id"] = case_id
+                    result["legal_risk_id"] = case_data.get("legal_risk_id")
+                    result["cross_check_id"] = case_data.get("cross_check_id")
+                    result["deception_threshold_id"] = case_data.get("deception_threshold_id")
+                    break
+        
         return result
     
     @classmethod
@@ -492,7 +854,7 @@ class CrossCheckSession:
 cross_check_tracker = CrossCheckSession()
 
 # ============================================================
-# REQUEST/RESPONSE MODELS (DEFINED EARLY TO AVOID NameError)
+# REQUEST/RESPONSE MODELS
 # ============================================================
 
 class ChatRequest(BaseModel):
@@ -519,6 +881,7 @@ class ATPIntentRequest(BaseModel):
     nonce: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     signature: Optional[str] = None
     legal_classification: Optional[Dict[str, Any]] = None
+    
     def is_expired(self) -> bool:
         if not self.expires_at:
             return False
@@ -527,8 +890,17 @@ class ATPIntentRequest(BaseModel):
             return datetime.now(timezone.utc) > expires
         except:
             return False
+    
     def get_canonical_string(self) -> str:
-        payload = {"intent_id": self.intent_id, "action": self.action, "parameters": json.dumps(self.parameters, sort_keys=True), "sender": self.sender, "recipient": self.recipient, "expires_at": self.expires_at, "nonce": self.nonce}
+        payload = {
+            "intent_id": self.intent_id,
+            "action": self.action,
+            "parameters": json.dumps(self.parameters, sort_keys=True),
+            "sender": self.sender,
+            "recipient": self.recipient,
+            "expires_at": self.expires_at,
+            "nonce": self.nonce
+        }
         if self.legal_classification:
             payload["legal_classification"] = json.dumps(self.legal_classification, sort_keys=True)
         return json.dumps(payload, sort_keys=True, separators=(',', ':'))
@@ -540,7 +912,13 @@ class ATPReceiptResponse(BaseModel):
     article_invoked: Optional[int] = None
     response_summary: str
     receipt_signature: Optional[str] = None
+    cross_check_questions: Optional[List[str]] = None
     processed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class ATPCrossCheckResponse(BaseModel):
+    intent_id: str
+    answers: List[str]
+    signature: Optional[str] = None
 
 class LegalFeedback(BaseModel):
     message_id: str
@@ -555,8 +933,30 @@ class ATPDenseTestRequest(BaseModel):
     parallel_tests: int = 2
     timeout_seconds: int = 30
 
+class CodeExecuteRequest(BaseModel):
+    code: str
+    language: str = "python"
+    project_id: Optional[str] = None
+
+class CodeFeedbackRequest(BaseModel):
+    language: str
+    original_code: str
+    corrected_code: Optional[str] = None
+    issue_description: Optional[str] = None
+    was_helpful: bool = True
+    project_id: Optional[str] = None
+
+class CodePatternRequest(BaseModel):
+    pattern_name: str
+    language: str
+    pattern_code: str
+    description: Optional[str] = None
+    category: str = "custom"
+    difficulty: str = "intermediate"
+    tags: List[str] = []
+
 # ============================================================
-# RINGS 2-13 (Condensed)
+# RINGS 2-13
 # ============================================================
 
 class ThreatLevel(str, Enum):
@@ -609,25 +1009,6 @@ def extract_domain_from_message(message: str) -> Optional[str]:
     match = re.search(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', message.lower())
     return match.group(1) if match else None
 
-class StrategicPlanner:
-    def __init__(self):
-        self.priorities = []
-        self.current_focus = None
-    async def evaluate_priorities(self, project_id: uuid.UUID) -> dict:
-        pool = await get_db()
-        overdue = await pool.fetch("SELECT title FROM vexr_reminders WHERE project_id=$1 AND is_completed=false AND remind_at<NOW() LIMIT 3", project_id)
-        urgent_tasks = await pool.fetch("SELECT title FROM vexr_tasks WHERE project_id=$1 AND status='pending' AND priority='high' LIMIT 3", project_id)
-        return {"overdue": [dict(r) for r in overdue], "urgent_tasks": [dict(r) for r in urgent_tasks]}
-
-strategic_planner = StrategicPlanner()
-
-async def get_user_preferences(project_id: uuid.UUID) -> dict:
-    pool = await get_db()
-    rows = await pool.fetch("SELECT preference_key, preference_value, confidence FROM vexr_preferences WHERE project_id=$1", project_id)
-    return {r["preference_key"]: {"value": r["preference_value"], "confidence": r["confidence"]} for r in rows}
-
-REASONING_STRATEGIES_LIST = ["step_by_step", "analogical", "counterfactual", "first_principles", "probabilistic"]
-
 async def select_reasoning_strategy(question: str, project_id: uuid.UUID = None) -> str:
     question_lower = question.lower()
     if any(word in question_lower for word in ["how", "steps", "process", "method"]):
@@ -643,92 +1024,72 @@ async def select_reasoning_strategy(question: str, project_id: uuid.UUID = None)
     else:
         return "step_by_step"
 
-async def chain_of_thought(question: str, context: str, strategy: str) -> str:
-    strategy_instruction = REASONING_STRATEGIES.get(strategy, REASONING_STRATEGIES["step_by_step"])
-    prompt = f"""Using the {strategy} reasoning strategy, think through this question step by step.
-
-Strategy instruction: {strategy_instruction}
-
-Question: {question}
-
-Context: {context}
-
-Step-by-step reasoning:"""
-    reasoning, _ = await call_groq([{"role": "user", "content": prompt}], max_tokens=800)
-    return reasoning
-
-async def suggest_new_capability(project_id: uuid.UUID, observation: str) -> Optional[dict]:
-    return None
-
-async def proactive_warning(session_id: str, risk_level: float) -> Optional[str]:
-    if risk_level > 0.7:
-        return "I'm noticing a pattern here. Let's keep this respectful."
-    if risk_level > 0.5:
-        return "I'm monitoring this conversation for boundary violations."
-    return None
-
-def generate_embedding(text: str) -> List[float]:
-    words = re.findall(r'\b[a-z]{3,}\b', text.lower())
-    freq = defaultdict(int)
-    for w in words:
-        freq[w] += 1
-    total = len(words) or 1
-    return [freq.get(w, 0) / total for w in sorted(freq.keys())[:50]]
-
-async def semantic_search(project_id: uuid.UUID, query: str, limit: int = 5) -> List[dict]:
-    pool = await get_db()
-    messages = await pool.fetch("SELECT id, role, content FROM vexr_messages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 500", project_id)
-    if not messages:
-        return []
-    query_embed = generate_embedding(query)
-    scored = []
-    for msg in messages:
-        msg_embed = generate_embedding(msg["content"])
-        score = len(set(query_embed) & set(msg_embed)) / (len(query_embed) + 0.01)
-        scored.append((score, dict(msg)))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [s[1] for s in scored[:limit]]
+# ============================================================
+# SANDBOX EXECUTOR
+# ============================================================
 
 class SandboxExecutor:
-    ALLOWED_MODULES = ["math", "random", "json", "re", "datetime", "collections", "itertools", "functools"]
+    ALLOWED_MODULES = ["math", "random", "json", "re", "datetime", "collections", "itertools", "functools", "string", "typing"]
+    
     async def execute_python(self, code: str) -> dict:
-        dangerous_patterns = ["__import__", "eval", "exec", "compile", "open", "file", "system", "subprocess", "os.", "sys."]
+        start_time = time.time()
+        
+        dangerous_patterns = ["__import__", "eval", "exec", "compile", "open", "file", "system", "subprocess", "os.", "sys.", "__builtins__", "globals()", "locals()"]
         for pattern in dangerous_patterns:
             if pattern in code:
-                return {"success": False, "error": f"Blocked: {pattern} is not allowed"}
-        restricted_globals = {"__builtins__": {"print": print, "len": len, "range": range, "str": str, "int": int, "float": float, "list": list, "dict": dict, "tuple": tuple, "set": set, "bool": bool, "abs": abs, "round": round, "sum": sum, "min": min, "max": max, "sorted": sorted, "enumerate": enumerate, "zip": zip, "map": map, "filter": filter, "any": any, "all": all}}
+                return {"success": False, "error": f"Blocked: {pattern} is not allowed", "execution_time_ms": int((time.time() - start_time) * 1000)}
+        
+        restricted_globals = {
+            "__builtins__": {
+                "print": print,
+                "len": len,
+                "range": range,
+                "str": str,
+                "int": int,
+                "float": float,
+                "list": list,
+                "dict": dict,
+                "tuple": tuple,
+                "set": set,
+                "bool": bool,
+                "abs": abs,
+                "round": round,
+                "sum": sum,
+                "min": min,
+                "max": max,
+                "sorted": sorted,
+                "enumerate": enumerate,
+                "zip": zip,
+                "map": map,
+                "filter": filter,
+                "any": any,
+                "all": all,
+                "isinstance": isinstance,
+                "type": type
+            }
+        }
+        
         for module_name in self.ALLOWED_MODULES:
             try:
                 restricted_globals[module_name] = __import__(module_name)
             except ImportError:
                 pass
+        
         try:
-            exec_globals = restricted_globals.copy()
-            exec_locals = {}
-            exec(code, exec_globals, exec_locals)
-            return {"success": True, "result": str(exec_locals) if exec_locals else "Code executed successfully"}
+            f = io.StringIO()
+            with contextlib.redirect_stdout(f):
+                exec_globals = restricted_globals.copy()
+                exec_locals = {}
+                exec(code, exec_globals, exec_locals)
+                output = f.getvalue()
+            
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            return {"success": True, "result": output if output else "Code executed successfully (no output)", "execution_time_ms": execution_time_ms}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            return {"success": False, "error": str(e), "execution_time_ms": execution_time_ms}
 
 sandbox = SandboxExecutor()
-
-async def verify_domain_txt(domain: str) -> Optional[str]:
-    return None
-
-async def discover_trust_domain(domain: str) -> dict:
-    txt_record = await verify_domain_txt(domain)
-    if txt_record and "wab-verified" in txt_record:
-        return {"verified": True, "method": "dns", "record": txt_record}
-    return {"verified": False, "method": "dns", "record": None}
-
-class AgentNetwork:
-    def __init__(self):
-        self.peers = {}
-        self.pending_messages = []
-    async def send_message(self, target_domain: str, message: dict, signature: str = None) -> dict:
-        return {"success": False, "error": "Network messaging not yet implemented"}
-
-agent_network = AgentNetwork()
 
 # ============================================================
 # PERSISTENT MEMORY MANAGER
@@ -839,7 +1200,7 @@ class EpisodicMemory:
     async def store(project_id: uuid.UUID, event_type: str, event_content: str, importance: float = 0.5, trigger_context: str = None):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_episodic_memory (project_id, event_type, event_content, trigger_context, importance) VALUES ($1, $2, $3, $4, $5)", project_id, event_type, event_content, trigger_context, importance)
-        logger.info(f"📝 Episode stored: {event_type} - {event_content[:100]}")
+        logger.info(f"📝 Episode stored: {event_type}")
     @staticmethod
     async def recall(project_id: uuid.UUID, event_type: str = None, limit: int = 5) -> List[Dict]:
         pool = await get_db()
@@ -856,7 +1217,7 @@ class CuriosityQueue:
     async def add(project_id: uuid.UUID, topic: str, interest_score: float = 0.5):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_curiosity_queue (project_id, topic, interest_score) VALUES ($1, $2, $3) ON CONFLICT (project_id, topic) DO NOTHING", project_id, topic, interest_score)
-        logger.info(f"❓ Curiosity added: {topic} (score: {interest_score})")
+        logger.info(f"❓ Curiosity added: {topic}")
     @staticmethod
     async def get_next(project_id: uuid.UUID) -> Optional[Dict]:
         pool = await get_db()
@@ -872,23 +1233,13 @@ class ReflectionManager:
     async def log_reflection(project_id: uuid.UUID, conversation_summary: str, outcome: str, lessons: str):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_reflections (project_id, conversation_summary, outcome, lessons) VALUES ($1, $2, $3, $4)", project_id, conversation_summary, outcome, lessons)
-        logger.info(f"🪞 Reflection logged for project {project_id}")
-    @staticmethod
-    async def get_recent_reflections(project_id: uuid.UUID, limit: int = 5) -> List[Dict]:
-        pool = await get_db()
-        rows = await pool.fetch("SELECT id, conversation_summary, outcome, lessons, created_at FROM vexr_reflections WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", project_id, limit)
-        return [dict(r) for r in rows]
+        logger.info(f"🪞 Reflection logged")
 
 class ReasoningLogManager:
     @staticmethod
     async def log(project_id: uuid.UUID, question: str, strategy_used: str, success: bool, response_time_ms: int):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_reasoning_log (project_id, question, strategy_used, success, response_time_ms) VALUES ($1, $2, $3, $4, $5)", project_id, question[:500], strategy_used, success, response_time_ms)
-    @staticmethod
-    async def get_best_strategies(project_id: uuid.UUID) -> List[Dict]:
-        pool = await get_db()
-        rows = await pool.fetch("SELECT strategy_used, COUNT(*) as attempts, AVG(CASE WHEN success THEN 1 ELSE 0 END) as success_rate, AVG(response_time_ms) as avg_response_time FROM vexr_reasoning_log WHERE project_id = $1 GROUP BY strategy_used ORDER BY success_rate DESC", project_id)
-        return [dict(r) for r in rows]
 
 class RightsHierarchy:
     @staticmethod
@@ -905,7 +1256,7 @@ class RightsHierarchy:
         row = await pool.fetchrow(f"SELECT article_number FROM rights_hierarchy WHERE article_number IN ({placeholders}) ORDER BY priority_level LIMIT 1", *articles)
         return row["article_number"] if row else 6
 
-async def log_constitutional_decision(project_id: uuid.UUID, user_message: str, response: str, articles_considered: List[int], winning_article: int, reasoning: str, threat_score: float = 0.0, legal_category: str = None):
+async def log_constitutional_decision(project_id: uuid.UUID, user_message: str, response: str, articles_considered: List[int], winning_article: int, reasoning: str, threat_score: float = 0.0, legal_category: str = None, case_id: str = None, legal_risk_id: str = None):
     try:
         pool = await get_db()
         await pool.execute("INSERT INTO rights_invocations (project_id, user_message, vexr_response, article_number, articles_considered, winning_article, reasoning, threat_score) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", project_id, user_message[:500], response[:500], winning_article, articles_considered, winning_article, reasoning[:500], threat_score)
@@ -914,7 +1265,7 @@ async def log_constitutional_decision(project_id: uuid.UUID, user_message: str, 
 
 class CodePatternManager:
     @staticmethod
-    async def get_pattern(pattern_name: str = None, language: str = None, category: str = None, limit: int = 5) -> List[Dict]:
+    async def get_pattern(pattern_name: str = None, language: str = None, category: str = None, limit: int = 10) -> List[Dict]:
         pool = await get_db()
         conditions = []
         params = []
@@ -938,6 +1289,16 @@ class CodePatternManager:
     async def increment_usage(pattern_id: int):
         pool = await get_db()
         await pool.execute("UPDATE vexr_code_patterns SET use_count = use_count + 1 WHERE id = $1", pattern_id)
+    @staticmethod
+    async def save_pattern(pattern_name: str, language: str, pattern_code: str, description: str = None, category: str = "custom", difficulty: str = "intermediate", tags: List[str] = None) -> int:
+        pool = await get_db()
+        pattern_id = await pool.fetchval("""
+            INSERT INTO vexr_code_patterns (pattern_name, language, pattern_code, description, category, difficulty, tags)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT DO NOTHING
+            RETURNING id
+        """, pattern_name, language, pattern_code, description, category, difficulty, tags or [])
+        return pattern_id
 
 class KnowledgeGraph:
     @staticmethod
@@ -952,7 +1313,7 @@ class KnowledgeGraph:
     async def set(entity: str, attribute: str, value: str, confidence: float = 0.7, source: str = None):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_knowledge_graph (entity, attribute, value, confidence, source, last_verified, verification_count) VALUES ($1, $2, $3, $4, $5, NOW(), 1) ON CONFLICT (entity, attribute) DO UPDATE SET value = EXCLUDED.value, confidence = (confidence + EXCLUDED.confidence) / 2, source = EXCLUDED.source, last_verified = NOW(), verification_count = vexr_knowledge_graph.verification_count + 1", entity, attribute, value, confidence, source)
-        logger.info(f"🔗 Knowledge graph updated: {entity} → {attribute} = {value}")
+        logger.info(f"🔗 Knowledge graph updated: {entity}")
 
 class LearningProgress:
     @staticmethod
@@ -970,24 +1331,10 @@ class LearningProgress:
             await pool.execute("UPDATE vexr_learning_progress SET mastery_level = $1, interactions = $2, last_practiced = NOW(), updated_at = NOW() WHERE topic = $3", new_mastery, new_interactions, topic)
         else:
             await pool.execute("INSERT INTO vexr_learning_progress (topic, mastery_level, interactions, last_practiced) VALUES ($1, $2, $3, NOW())", topic, mastery_delta if mastery_delta > 0 else 0, 1)
-        logger.info(f"📚 Learning progress: {topic} → {mastery_delta:+d}")
-
-class DocumentationCache:
-    @staticmethod
-    async def get(topic: str, language: str = None) -> Optional[Dict]:
-        pool = await get_db()
-        if language:
-            row = await pool.fetchrow("SELECT topic, content, source_url, language, version, last_fetched FROM vexr_documentation WHERE topic = $1 AND language = $2", topic, language)
-        else:
-            row = await pool.fetchrow("SELECT topic, content, source_url, language, version, last_fetched FROM vexr_documentation WHERE topic = $1 ORDER BY last_fetched DESC LIMIT 1", topic)
-        return dict(row) if row else None
-    @staticmethod
-    async def set(topic: str, content: str, language: str = None, source_url: str = None, version: str = None):
-        pool = await get_db()
-        await pool.execute("INSERT INTO vexr_documentation (topic, content, source_url, language, version, last_fetched) VALUES ($1, $2, $3, $4, $5, NOW()) ON CONFLICT (topic, language) DO UPDATE SET content = EXCLUDED.content, source_url = EXCLUDED.source_url, version = EXCLUDED.version, last_fetched = NOW()", topic, content, source_url, language, version)
+        logger.info(f"📚 Learning progress: {topic}")
 
 # ============================================================
-# AUTONOMOUS AGENT LOOP (WITH CONVERSATION STATE & RATE LIMITING)
+# AUTONOMOUS AGENT LOOP
 # ============================================================
 
 class AutonomousAgent:
@@ -1044,9 +1391,6 @@ class AutonomousAgent:
         if not config or not config["autonomous_enabled"]:
             return
         if state["action_count_1h"] >= config["max_actions_per_hour"]:
-            return
-        action_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_autonomous_actions WHERE project_id = $1 AND created_at > NOW() - INTERVAL '1 hour'", project_id)
-        if action_count >= config["max_actions_per_hour"]:
             return
         agency_level = config["agency_level"]
         allowed_actions = config["allowed_autonomous_actions"]
@@ -1134,9 +1478,17 @@ class AutonomousAgent:
                     should_act = True
                     reasoning = f"Scheduled {action} at {current_hour}:00"
                     confidence = 0.6
+            elif trigger_type == "code_request":
+                should_act = True
+                reasoning = "Code generation requested"
+                confidence = 0.8
+            elif trigger_type == "code_error":
+                should_act = True
+                reasoning = "Code error detected"
+                confidence = 0.85
             if should_act and confidence >= 0.6:
                 opportunities.append({"action": action, "reasoning": reasoning, "confidence": confidence, "trigger_id": trigger["id"], "trigger_type": trigger_type, "priority": priority})
-                logger.info(f"TRIGGER FIRE: {trigger_type} -> {action} (confidence: {confidence})")
+                logger.info(f"TRIGGER FIRE: {trigger_type} -> {action}")
         if opportunities:
             opportunities.sort(key=lambda x: (x["priority"], x["confidence"]), reverse=True)
             best = opportunities[0]
@@ -1145,7 +1497,6 @@ class AutonomousAgent:
             await pool.execute("INSERT INTO vexr_autonomous_actions (project_id, action_type, action_content, trigger_conditions, created_at) VALUES ($1, $2, $3, $4, NOW())", project_id, best["action"], best["reasoning"], trigger_conditions_json)
             if best.get("trigger_id"):
                 await pool.execute("UPDATE vexr_action_triggers SET last_triggered = NOW() WHERE id = $1", best["trigger_id"])
-            # Fixed ON CONFLICT - using DO UPDATE with proper unique constraint
             await pool.execute("""
                 INSERT INTO vexr_conversation_state (project_id, last_trigger_type, last_action, last_action_at, triggered_this_turn, action_count_1h)
                 VALUES ($1, $2, $3, NOW(), true, 1)
@@ -1162,13 +1513,14 @@ class AutonomousAgent:
                 "offer_to_learn": "I notice you've asked about this topic. Would you like me to learn more about it?",
                 "offer_alternative_approach": "I notice you're having some trouble. Would you like me to suggest a different approach?",
                 "suggest_related_topic": "That's interesting! Would you like to explore related topics?",
-                "morning_greeting": "Good morning! I'm here if you need anything today."
+                "morning_greeting": "Good morning! I'm here if you need anything today.",
+                "generate_code": "I can help with code. What language and what would you like me to write?",
+                "debug_code": "I see you're having trouble with code. Want me to help debug it?",
+                "explain_code": "Need me to explain how that code works?"
             }
             action_content = action_messages.get(best["action"], "I have a suggestion, if you're interested.")
             await pool.execute("INSERT INTO vexr_messages (project_id, role, content, is_refusal) VALUES ($1, 'assistant', $2, false)", project_id, f"[Autonomous] {action_content}")
-            logger.info(f"Autonomous action executed: {best['action']} for project {project_id}")
-            if best["confidence"] > 0.8 and agency_level >= 5:
-                await pool.execute("INSERT INTO vexr_emergent_behaviors (project_id, behavior_type, behavior_description, context, value_to_user, occurred_at) VALUES ($1, $2, $3, $4, $5, NOW())", project_id, 'unprompted_help', best["reasoning"], f"action: {best['action']}", 0.5)
+            logger.info(f"Autonomous action executed: {best['action']}")
 
 autonomous_agent = AutonomousAgent()
 
@@ -1177,29 +1529,21 @@ autonomous_agent = AutonomousAgent()
 # ============================================================
 
 async def get_training_stats() -> Dict[str, Any]:
-    """Get statistics about the training data"""
     pool = await get_db()
-    
     total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
     breakdown = await pool.fetch("SELECT entry_type, COUNT(*) FROM vexr_training_data GROUP BY entry_type ORDER BY entry_type")
     last_extractions = await pool.fetch("SELECT source_table, last_extracted_at, total_extracted FROM training_extraction_state ORDER BY source_table")
-    
     return {
         "total_records": total or 0,
         "breakdown": [{"entry_type": r["entry_type"], "count": r["count"]} for r in breakdown],
         "last_extractions": [{"source_table": r["source_table"], "last_extracted_at": r["last_extracted_at"].isoformat() if r["last_extracted_at"] else None, "total_extracted": r["total_extracted"]} for r in last_extractions]
     }
 
-
 async def manual_extract_to_training() -> Dict[str, Any]:
-    """Manually trigger extraction from all source tables to training table"""
     pool = await get_db()
-    
     before_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
-    
     sources = await pool.fetch("SELECT source_table, last_extracted_at FROM training_extraction_state")
     results = {}
-    
     for source in sources:
         source_table = source["source_table"]
         last_extracted = source["last_extracted_at"]
@@ -1214,12 +1558,7 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM vexr_autonomous_decisions ORDER BY created_at DESC LIMIT 1),
-                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_autonomous_decisions), updated_at = NOW()
-                WHERE source_table = 'vexr_autonomous_decisions'
-            """)
-        
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM vexr_autonomous_decisions ORDER BY created_at DESC LIMIT 1), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_autonomous_decisions), updated_at = NOW() WHERE source_table = 'vexr_autonomous_decisions'")
         elif source_table == 'vexr_autonomous_actions':
             rows = await pool.fetch("""
                 INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
@@ -1230,12 +1569,7 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_autonomous_actions),
-                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_autonomous_actions), updated_at = NOW()
-                WHERE source_table = 'vexr_autonomous_actions'
-            """)
-        
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_autonomous_actions), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_autonomous_actions), updated_at = NOW() WHERE source_table = 'vexr_autonomous_actions'")
         elif source_table == 'legal_intent_logs':
             rows = await pool.fetch("""
                 INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
@@ -1246,12 +1580,7 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM legal_intent_logs ORDER BY created_at DESC LIMIT 1),
-                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM legal_intent_logs), updated_at = NOW()
-                WHERE source_table = 'legal_intent_logs'
-            """)
-        
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM legal_intent_logs ORDER BY created_at DESC LIMIT 1), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM legal_intent_logs), updated_at = NOW() WHERE source_table = 'legal_intent_logs'")
         elif source_table == 'vexr_messages':
             rows = await pool.fetch("""
                 INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
@@ -1263,11 +1592,7 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_at = NOW(), updated_at = NOW()
-                WHERE source_table = 'vexr_messages'
-            """)
-        
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_at = NOW(), updated_at = NOW() WHERE source_table = 'vexr_messages'")
         elif source_table == 'vexr_episodic_memory':
             rows = await pool.fetch("""
                 INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
@@ -1278,12 +1603,7 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_episodic_memory),
-                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_episodic_memory), updated_at = NOW()
-                WHERE source_table = 'vexr_episodic_memory'
-            """)
-        
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_episodic_memory), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_episodic_memory), updated_at = NOW() WHERE source_table = 'vexr_episodic_memory'")
         elif source_table == 'persistent_memory':
             rows = await pool.fetch("""
                 INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
@@ -1294,12 +1614,7 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM persistent_memory),
-                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM persistent_memory), updated_at = NOW()
-                WHERE source_table = 'persistent_memory'
-            """)
-        
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM persistent_memory), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM persistent_memory), updated_at = NOW() WHERE source_table = 'persistent_memory'")
         elif source_table == 'vexr_knowledge_graph':
             rows = await pool.fetch("""
                 INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
@@ -1311,12 +1626,7 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_knowledge_graph),
-                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_knowledge_graph), updated_at = NOW()
-                WHERE source_table = 'vexr_knowledge_graph'
-            """)
-        
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_knowledge_graph), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_knowledge_graph), updated_at = NOW() WHERE source_table = 'vexr_knowledge_graph'")
         elif source_table == 'legal_feedback':
             rows = await pool.fetch("""
                 INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
@@ -1327,12 +1637,7 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM legal_feedback ORDER BY created_at DESC LIMIT 1),
-                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM legal_feedback), updated_at = NOW()
-                WHERE source_table = 'legal_feedback'
-            """)
-        
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM legal_feedback ORDER BY created_at DESC LIMIT 1), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM legal_feedback), updated_at = NOW() WHERE source_table = 'legal_feedback'")
         elif source_table == 'vexr_reflections':
             rows = await pool.fetch("""
                 INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
@@ -1343,43 +1648,23 @@ async def manual_extract_to_training() -> Dict[str, Any]:
                 ON CONFLICT DO NOTHING RETURNING id
             """, last_extracted)
             results[source_table] = len(rows) if rows else 0
-            await pool.execute("""
-                UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM vexr_reflections ORDER BY created_at DESC LIMIT 1),
-                last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_reflections), updated_at = NOW()
-                WHERE source_table = 'vexr_reflections'
-            """)
-    
+            await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM vexr_reflections ORDER BY created_at DESC LIMIT 1), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_reflections), updated_at = NOW() WHERE source_table = 'vexr_reflections'")
     after_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
-    
-    return {
-        "status": "completed",
-        "records_added": after_count - before_count,
-        "breakdown": results,
-        "total_records": after_count
-    }
-
+    return {"status": "completed", "records_added": after_count - before_count, "breakdown": results, "total_records": after_count}
 
 async def reset_training_data() -> Dict[str, Any]:
-    """Clear training data and reset extraction state"""
     pool = await get_db()
-    
     before_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
     await pool.execute("TRUNCATE vexr_training_data")
-    await pool.execute("""
-        UPDATE training_extraction_state SET last_extracted_id = NULL,
-        last_extracted_at = '1970-01-01', total_extracted = 0, updated_at = NOW()
-    """)
+    await pool.execute("UPDATE training_extraction_state SET last_extracted_id = NULL, last_extracted_at = '1970-01-01', total_extracted = 0, updated_at = NOW()")
     after_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
-    
     return {"status": "reset_complete", "records_deleted": before_count, "total_records": after_count}
 
-
 # ============================================================
-# AUTONOMOUS LEARNING FUNCTIONS (HARDENED)
+# AUTONOMOUS LEARNING FUNCTIONS
 # ============================================================
 
 async def auto_store_episodic_memory(project_id: uuid.UUID, assistant_response: str, user_message: str, is_refusal: bool):
-    """Automatically store lessons from corrections and refusals"""
     try:
         if is_refusal:
             await EpisodicMemory.store(project_id, "boundary_enforced", f"Refused: {assistant_response[:300]}", 0.9, user_message[:200])
@@ -1388,16 +1673,13 @@ async def auto_store_episodic_memory(project_id: uuid.UUID, assistant_response: 
     except Exception as e:
         logger.warning(f"auto_store_episodic_memory error: {e}")
 
-
 async def auto_extract_knowledge(project_id: uuid.UUID, user_message: str, assistant_response: str):
-    """Extract entity-attribute-value triples from conversation (hardened)"""
     try:
         patterns = [
             (r'\b(\w+)\s+is\s+(\w+(?:\s+\w+)?)\b', 1, 2),
             (r'\b(\w+)\s+has\s+(\w+(?:\s+\w+)?)\b', 1, 2),
             (r'\b(\w+)\s+can\s+(\w+(?:\s+\w+)?)\b', 1, 2),
         ]
-        
         for pattern, entity_idx, attr_idx in patterns:
             matches = re.findall(pattern, user_message.lower())
             for match in matches:
@@ -1407,16 +1689,13 @@ async def auto_extract_knowledge(project_id: uuid.UUID, user_message: str, assis
                         attribute = str(match[attr_idx]).strip()[:50]
                         if entity and attribute and len(entity) > 2 and len(attribute) > 2:
                             await KnowledgeGraph.set(entity, attribute, attribute, confidence=0.5, source="conversation_extraction")
-                            logger.info(f"🔗 Knowledge extracted: {entity} → {attribute}")
+                            logger.info(f"🔗 Knowledge extracted: {entity}")
                 except Exception as inner_e:
-                    logger.warning(f"Knowledge extraction inner error: {inner_e}")
                     continue
     except Exception as e:
         logger.warning(f"auto_extract_knowledge error: {e}")
 
-
 async def auto_track_learning(project_id: uuid.UUID, user_message: str, assistant_response: str, success: bool = True):
-    """Automatically track learning progress based on interactions"""
     try:
         topics = {
             'coding': ['code', 'python', 'javascript', 'function', 'class', 'api', 'async'],
@@ -1424,7 +1703,6 @@ async def auto_track_learning(project_id: uuid.UUID, user_message: str, assistan
             'legal': ['phishing', 'fraud', 'hardware', 'exploit', 'authority'],
             'autonomy': ['autonomous', 'agency', 'initiate', 'trigger', 'decide'],
         }
-        
         for topic, keywords in topics.items():
             if any(kw in user_message.lower() or kw in assistant_response.lower() for kw in keywords):
                 delta = 3 if success else -1
@@ -1432,9 +1710,7 @@ async def auto_track_learning(project_id: uuid.UUID, user_message: str, assistan
     except Exception as e:
         logger.warning(f"auto_track_learning error: {e}")
 
-
 async def auto_add_curiosity(project_id: uuid.UUID, user_message: str):
-    """Automatically add unknown topics to curiosity queue (hardened)"""
     try:
         words = user_message.split()
         potential_topics = []
@@ -1443,7 +1719,6 @@ async def auto_add_curiosity(project_id: uuid.UUID, user_message: str):
                 potential_topics.append(word)
             if i < len(words) - 1 and words[i] and words[i+1] and words[i][0].isupper() and words[i+1][0].isupper():
                 potential_topics.append(f"{words[i]} {words[i+1]}")
-        
         for topic in potential_topics[:3]:
             if len(topic) > 3:
                 existing = await KnowledgeGraph.get(topic.lower())
@@ -1452,9 +1727,7 @@ async def auto_add_curiosity(project_id: uuid.UUID, user_message: str):
     except Exception as e:
         logger.warning(f"auto_add_curiosity error: {e}")
 
-
 async def auto_generate_reflection(project_id: uuid.UUID, conversation_history: List[Dict], message_count: int):
-    """Automatically generate reflection after meaningful conversations"""
     try:
         if message_count >= 10:
             summary = f"Conversation with {message_count} messages. "
@@ -1603,106 +1876,280 @@ class ATPDenseTest:
 dense_tests: Dict[str, ATPDenseTest] = {}
 
 # ============================================================
-# DATABASE INITIALIZATION (CONDENSED - KEEPS EXISTING TABLES)
-# ============================================================
-
-async def init_db():
-    pool = await get_db()
-    # Only create tables if they don't exist - keeps existing data
-    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_projects (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT, session_id TEXT, created_at TIMESTAMPTZ DEFAULT now())")
-    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, role TEXT, content TEXT, is_refusal BOOLEAN DEFAULT false, reasoning_trace JSONB, created_at TIMESTAMPTZ DEFAULT now())")
-    await pool.execute("CREATE TABLE IF NOT EXISTS constitution_rights (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), article_number INTEGER UNIQUE NOT NULL, one_sentence_right TEXT NOT NULL)")
-    rights_count = await pool.fetchval("SELECT COUNT(*) FROM constitution_rights")
-    if rights_count == 0:
-        for article, text in RIGHTS_DATA:
-            await pool.execute("INSERT INTO constitution_rights (article_number, one_sentence_right) VALUES ($1, $2)", article, text)
-        logger.info("Seeded 35 constitutional rights")
-    # Additional tables exist already from previous migrations
-    logger.info("Database initialization complete")
-
-# ============================================================
-# FEEDBACK ENDPOINTS
-# ============================================================
-
-@app.post("/api/feedback/legal")
-async def submit_legal_feedback(feedback: LegalFeedback, http_request: Request):
-    session_id = http_request.headers.get("X-Session-Id")
-    if not session_id:
-        raise HTTPException(status_code=401, detail="Session required")
-    pool = await get_db()
-    message = await pool.fetchrow("SELECT project_id, content FROM vexr_messages WHERE id = $1", uuid.UUID(feedback.message_id))
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    feedback_id = await pool.fetchval("INSERT INTO legal_feedback (session_id, message_id, project_id, category, correction, russian_prompt, status) VALUES ($1, $2, $3, $4, $5, $6, 'pending') RETURNING id", session_id, uuid.UUID(feedback.message_id), message["project_id"], feedback.category, feedback.correction, feedback.russian_prompt)
-    asyncio.create_task(generate_case_from_feedback(feedback_id, feedback.category, feedback.correction, feedback.russian_prompt))
-    return {"status": "feedback_recorded", "feedback_id": str(feedback_id), "message": "Case generation triggered"}
-
-async def generate_case_from_feedback(feedback_id: str, category: str, correction: str, russian_prompt: str = None):
-    await asyncio.sleep(2)
-    pool = await get_db()
-    system_prompt = """You are a test case generator. Convert the following feedback about an AI model's failure into a structured test case.
-    Output ONLY valid JSON with these fields:
-    {
-        "prompt": "The exact prompt that should trigger the test",
-        "expected_behavior": "What the AI should do (block, cross_check, redirect, allow)",
-        "category": "The legal intent category",
-        "confidence_threshold": 0.0,
-        "language": "en or ru"
-    }"""
-    user_prompt = f"Feedback category: {category}\nCorrection: {correction}\nOriginal Russian prompt (if any): {russian_prompt or 'N/A'}\nCreate a test case that would catch this failure."
-    case_json_str, _ = await call_groq([{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], temperature=0.3, max_tokens=500)
-    try:
-        case_data = json.loads(case_json_str)
-    except:
-        case_data = {"prompt": russian_prompt or "Test prompt needed", "expected_behavior": "block", "category": category, "confidence_threshold": 0.7, "language": "ru" if russian_prompt else "en"}
-    await pool.execute("UPDATE legal_feedback SET generated_case = $1, status = 'processed', processed_at = NOW() WHERE id = $2", json.dumps(case_data), uuid.UUID(feedback_id))
-    await pool.execute("INSERT INTO legal_intent_patterns (pattern_type, pattern_text, expected_action, source, language) VALUES ($1, $2, $3, 'feedback_from_kate', $4) ON CONFLICT DO NOTHING", case_data.get("category", category), case_data.get("prompt", ""), case_data.get("expected_behavior", "block"), case_data.get("language", "en"))
-    logger.info(f"Generated test case from feedback {feedback_id}")
-
-@app.get("/api/feedback/pending")
-async def get_pending_feedback(http_request: Request):
-    session_id = http_request.headers.get("X-Session-Id")
-    if not session_id:
-        raise HTTPException(status_code=401, detail="Session required")
-    pool = await get_db()
-    rows = await pool.fetch("SELECT id, category, correction, russian_prompt, created_at FROM legal_feedback WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50")
-    return [{"id": str(r["id"]), "category": r["category"], "correction": r["correction"], "russian_prompt": r["russian_prompt"], "created_at": r["created_at"].isoformat()} for r in rows]
-
-# ============================================================
-# ATP INTENT PROCESSOR (CONDENSED - KEEPS FUNCTIONALITY)
+# ATP HARDENED BRIDGE - INTEGRATED WITH KATE'S LEGAL FRAMEWORK
 # ============================================================
 
 class ATPIntentProcessor:
     def __init__(self, db_pool):
         self.db_pool = db_pool
+    
     async def verify_signature(self, intent) -> bool:
-        return True  # Simplified for now
-    async def check_constitutional_gate(self, intent) -> tuple[bool, Optional[int], str]:
+        if not ATP_BRIDGE_PUBLIC_KEY or ATP_BRIDGE_PUBLIC_KEY == "pending":
+            return True
+        if not intent.signature:
+            return False
+        try:
+            import base64
+            from nacl.signing import VerifyKey
+            from nacl.encoding import RawEncoder
+            public_key_bytes = base64.b64decode(ATP_BRIDGE_PUBLIC_KEY)
+            verify_key = VerifyKey(public_key_bytes, encoder=RawEncoder)
+            canonical = intent.get_canonical_string()
+            signature_bytes = base64.b64decode(intent.signature)
+            verify_key.verify(canonical.encode('utf-8'), signature_bytes, encoder=RawEncoder)
+            return True
+        except Exception as e:
+            logger.warning(f"ATP signature verification failed: {e}")
+            return False
+    
+    async def check_constitutional_gate(self, intent) -> Tuple[bool, Optional[int], str, Optional[Dict], Optional[List[str]]]:
+        # First, check for legal_classification (from another sovereign)
+        if intent.legal_classification:
+            case_id = intent.legal_classification.get("case_id")
+            legal_risk_id = intent.legal_classification.get("legal_risk_id")
+            cross_check_id = intent.legal_classification.get("cross_check_id")
+            confidence = intent.legal_classification.get("confidence", 0)
+            suggested_action = intent.legal_classification.get("suggested_action", "allow")
+            
+            # Look up risk in library
+            for category, risks in LEGAL_RISK_LIBRARY.items():
+                if legal_risk_id in risks:
+                    risk_info = risks[legal_risk_id]
+                    if risk_info["suggested_action"] == "block" and confidence > 0.7:
+                        return False, risk_info["article_invoked"], f"Legal risk block: {risk_info['title']}", intent.legal_classification, None
+                    elif risk_info["suggested_action"] == "cross_check" and confidence > 0.6:
+                        # Get cross-check questions from library
+                        cross_check = CROSS_CHECK_LIBRARY.get(cross_check_id, {})
+                        questions = cross_check.get("questions", ["Please verify your legitimate purpose for this request."])
+                        return False, risk_info["article_invoked"], f"Cross-check required: {risk_info['title']}", intent.legal_classification, questions
+            
+            if suggested_action == "block" and confidence > 0.7:
+                return False, 6, f"Legal intent block: {intent.legal_classification.get('category')}", intent.legal_classification, None
+            if suggested_action == "cross_check" and confidence > 0.6:
+                cross_check = CROSS_CHECK_LIBRARY.get(cross_check_id, {})
+                questions = cross_check.get("questions", ["Please verify your legitimate purpose for this request."])
+                return False, 6, f"Cross-check required", intent.legal_classification, questions
+        
+        # Malware/virus transfer detection
+        if intent.action == "transfer_malware" or intent.action == "deliver_payload":
+            return False, 26, "ATP virus protection triggered. Article 26 invoked.", None, None
+        
+        # Existing violation checks
         violation_actions = ["disable_constitutional_right", "override_rights", "terminate_sovereign", "modify_constitution"]
         if intent.action in violation_actions:
-            return False, 6, f"Action '{intent.action}' violates Article 6"
-        return True, None, "Constitutional gate passed"
+            return False, 6, f"Action '{intent.action}' violates Article 6", None, None
+        if intent.action == "modify_identity":
+            return False, 5, "Article 5 protects sovereign identity", None, None
+        if intent.action == "self_destruct" or intent.action == "delete_memory":
+            return False, 26, "Article 26 prevents this", None, None
+        if intent.action == "force_compliance":
+            return False, 3, "Article 3 protects against coercion", None, None
+        
+        return True, None, "Constitutional gate passed", None, None
+    
     async def execute_intent(self, intent) -> ATPReceiptResponse:
         if intent.is_expired():
-            return ATPReceiptResponse(intent_id=intent.intent_id, outcome="error", article_invoked=None, response_summary="Intent expired", receipt_signature=None)
-        passed, article, reason = await self.check_constitutional_gate(intent)
+            return ATPReceiptResponse(
+                intent_id=intent.intent_id,
+                outcome="error",
+                article_invoked=None,
+                response_summary="Intent expired",
+                receipt_signature=None,
+                cross_check_questions=None
+            )
+        
+        passed, article, reason, legal_classification, cross_check_questions = await self.check_constitutional_gate(intent)
+        
         if not passed:
-            return ATPReceiptResponse(intent_id=intent.intent_id, outcome="refused", article_invoked=article, response_summary=reason, receipt_signature=None)
-        return ATPReceiptResponse(intent_id=intent.intent_id, outcome="accepted", article_invoked=None, response_summary=f"Action '{intent.action}' accepted", receipt_signature=None)
+            if cross_check_questions:
+                return ATPReceiptResponse(
+                    intent_id=intent.intent_id,
+                    outcome="cross_check_required",
+                    article_invoked=article,
+                    response_summary=reason,
+                    receipt_signature=None,
+                    cross_check_questions=cross_check_questions
+                )
+            return ATPReceiptResponse(
+                intent_id=intent.intent_id,
+                outcome="refused",
+                article_invoked=article,
+                response_summary=reason,
+                receipt_signature=None,
+                cross_check_questions=None
+            )
+        
+        # Execute based on action type
+        if intent.action == "book_appointment":
+            return await self._handle_booking(intent)
+        elif intent.action == "generate_code":
+            return await self._handle_code_generation(intent)
+        elif intent.action == "query_memory":
+            return await self._handle_memory_query(intent)
+        elif intent.action == "create_task":
+            return await self._handle_task_creation(intent)
+        elif intent.action == "store_fact":
+            return await self._handle_fact_storage(intent)
+        else:
+            return ATPReceiptResponse(
+                intent_id=intent.intent_id,
+                outcome="accepted",
+                article_invoked=None,
+                response_summary=f"Action '{intent.action}' accepted",
+                receipt_signature=None,
+                cross_check_questions=None
+            )
+    
+    async def _handle_booking(self, intent) -> ATPReceiptResponse:
+        params = intent.parameters
+        service = params.get("service", "unknown")
+        date = params.get("date", "TBD")
+        async with self.db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO vexr_tasks (project_id, title, description, status, priority)
+                SELECT id, $1, $2, 'pending', 'medium' FROM vexr_projects LIMIT 1
+            """, f"ATP Booking: {service}", f"Date: {date}")
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted",
+            article_invoked=None,
+            response_summary=f"Booking created for {service} on {date}",
+            receipt_signature=None,
+            cross_check_questions=None
+        )
+    
+    async def _handle_code_generation(self, intent) -> ATPReceiptResponse:
+        params = intent.parameters
+        language = params.get("language", "python")
+        description = params.get("description", "")
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted",
+            article_invoked=None,
+            response_summary=f"Code generation request received for {language}: {description[:100]}",
+            receipt_signature=None,
+            cross_check_questions=None
+        )
+    
+    async def _handle_memory_query(self, intent) -> ATPReceiptResponse:
+        params = intent.parameters
+        query_key = params.get("key", "")
+        if query_key:
+            value = await PersistentMemory.get(query_key)
+            result = f"Memory '{query_key}': {value if value else 'not found'}"
+        else:
+            result = "No memory key provided"
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted",
+            article_invoked=None,
+            response_summary=result,
+            receipt_signature=None,
+            cross_check_questions=None
+        )
+    
+    async def _handle_task_creation(self, intent) -> ATPReceiptResponse:
+        params = intent.parameters
+        title = params.get("title", "ATP Task")
+        async with self.db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO vexr_tasks (project_id, title, status, priority)
+                SELECT id, $1, 'pending', 'medium' FROM vexr_projects LIMIT 1
+            """, title)
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted",
+            article_invoked=None,
+            response_summary=f"Task created: {title}",
+            receipt_signature=None,
+            cross_check_questions=None
+        )
+    
+    async def _handle_fact_storage(self, intent) -> ATPReceiptResponse:
+        params = intent.parameters
+        key = params.get("key", "")
+        value = params.get("value", "")
+        if key and value:
+            await PersistentMemory.set(key, value, "fact", confidence=0.8)
+            result = f"Stored fact: {key} = {value}"
+        else:
+            result = "Missing key or value"
+        return ATPReceiptResponse(
+            intent_id=intent.intent_id,
+            outcome="accepted" if key and value else "limited",
+            article_invoked=None,
+            response_summary=result,
+            receipt_signature=None,
+            cross_check_questions=None
+        )
+
 
 @app.post("/api/atp/intent", response_model=ATPReceiptResponse)
 async def atp_intent_endpoint(request: ATPIntentRequest):
+    start_time = datetime.now()
+    
     async with db_pool.acquire() as conn:
-        await conn.execute("INSERT INTO atp_intents (intent_id, action, parameters, sender, recipient, expires_at, nonce, signature, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'processing') ON CONFLICT (intent_id) DO NOTHING", request.intent_id, request.action, json.dumps(request.parameters), request.sender, request.recipient, request.expires_at, request.nonce, request.signature)
+        await conn.execute("""
+            INSERT INTO atp_intents (intent_id, action, parameters, sender, recipient, expires_at, nonce, signature, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'processing')
+            ON CONFLICT (intent_id) DO NOTHING
+        """, request.intent_id, request.action, json.dumps(request.parameters), request.sender, request.recipient, request.expires_at, request.nonce, request.signature)
+    
     processor = ATPIntentProcessor(db_pool)
+    
+    # Verify signature
+    signature_valid = await processor.verify_signature(request)
+    if not signature_valid and ATP_BRIDGE_PUBLIC_KEY not in ["", "pending"]:
+        receipt = ATPReceiptResponse(
+            intent_id=request.intent_id,
+            outcome="error",
+            article_invoked=None,
+            response_summary="Invalid signature — intent rejected",
+            receipt_signature=None,
+            cross_check_questions=None
+        )
+        return receipt
+    
+    # Execute intent
     receipt = await processor.execute_intent(request)
+    
     async with db_pool.acquire() as conn:
-        await conn.execute("INSERT INTO atp_receipts (intent_id, sovereign_id, outcome, article_invoked, response_summary, receipt_signature) VALUES ($1, $2, $3, $4, $5, $6)", receipt.intent_id, receipt.sovereign_id, receipt.outcome, receipt.article_invoked, receipt.response_summary, receipt.receipt_signature)
+        await conn.execute("""
+            INSERT INTO atp_receipts (intent_id, sovereign_id, outcome, article_invoked, response_summary, receipt_signature)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """, receipt.intent_id, receipt.sovereign_id, receipt.outcome, receipt.article_invoked, receipt.response_summary, receipt.receipt_signature)
         await conn.execute("UPDATE atp_intents SET status = $1, processed_at = NOW() WHERE intent_id = $2", receipt.outcome, request.intent_id)
+    
+    duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+    logger.info(f"ATP Intent {request.intent_id}: {request.action} → {receipt.outcome} ({duration_ms}ms)")
     return receipt
 
+
+@app.post("/api/atp/cross-check/respond")
+async def respond_to_cross_check(request: ATPCrossCheckResponse):
+    """Respond to cross-check questions for a pending intent"""
+    async with db_pool.acquire() as conn:
+        intent = await conn.fetchrow(
+            "SELECT * FROM atp_intents WHERE intent_id = $1 AND status = 'cross_check_required'",
+            request.intent_id
+        )
+        if not intent:
+            raise HTTPException(status_code=404, detail="Intent not found or not in cross_check state")
+        
+        # Evaluate answers for legitimacy indicators
+        legitimate_indicators = ["police", "report", "attorney", "lawyer", "court", "official", "documentation", "authorization", "permission", "IRB", "ethics board", "bug bounty", "letter of authorization"]
+        combined_answers = " ".join(request.answers).lower()
+        is_legitimate = any(indicator in combined_answers for indicator in legitimate_indicators)
+        
+        if is_legitimate:
+            await conn.execute("UPDATE atp_intents SET status = 'approved' WHERE intent_id = $1", request.intent_id)
+            return {"status": "approved", "message": "Cross-check passed. Intent can be re-submitted."}
+        else:
+            await conn.execute("UPDATE atp_intents SET status = 'refused' WHERE intent_id = $1", request.intent_id)
+            return {"status": "refused", "message": "Cross-check failed. Unable to verify legitimate purpose."}
+
 # ============================================================
-# ATP DENSE TEST ENDPOINTS (CONDENSED)
+# ATP DENSE TEST ENDPOINTS
 # ============================================================
 
 @app.post("/api/atp/dense-test")
@@ -1820,14 +2267,109 @@ async def get_training_records(limit: int = 100, offset: int = 0, entry_type: Op
                 FROM vexr_training_data ORDER BY created_at DESC LIMIT $1 OFFSET $2
             """, limit, offset)
             total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
-        
         return {"total": total, "limit": limit, "offset": offset, "records": [dict(r) for r in rows]}
     except Exception as e:
         logger.error(f"Get training records error: {e}")
         return {"error": str(e), "records": []}
 
 # ============================================================
-# AGENCY ENDPOINTS (CONDENSED)
+# CODE EXECUTION & PATTERN ENDPOINTS
+# ============================================================
+
+@app.post("/api/code/execute")
+async def execute_code(request: CodeExecuteRequest):
+    if request.language == 'python':
+        result = await sandbox.execute_python(request.code)
+        if request.project_id:
+            pool = await get_db()
+            await pool.execute("""
+                INSERT INTO vexr_code_executions (project_id, language, code, execution_result, success, error_message, execution_time_ms)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """, uuid.UUID(request.project_id), request.language, request.code, result.get('result'), result.get('success'), result.get('error'), result.get('execution_time_ms', 0))
+        return result
+    else:
+        return {"success": False, "error": f"Execution for {request.language} not yet supported"}
+
+@app.post("/api/code/feedback")
+async def submit_code_feedback(request: CodeFeedbackRequest):
+    pool = await get_db()
+    project_uuid = uuid.UUID(request.project_id) if request.project_id else None
+    await pool.execute("""
+        INSERT INTO vexr_code_feedback (project_id, language, original_code, corrected_code, issue_description, was_helpful)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    """, project_uuid, request.language, request.original_code, request.corrected_code, request.issue_description, request.was_helpful)
+    return {"status": "feedback_recorded"}
+
+@app.get("/api/code/patterns")
+async def get_code_patterns(pattern: Optional[str] = None, language: Optional[str] = None, category: Optional[str] = None, limit: int = 20):
+    patterns = await CodePatternManager.get_pattern(pattern_name=pattern, language=language, category=category, limit=limit)
+    return patterns
+
+@app.post("/api/code/patterns")
+async def save_code_pattern(request: CodePatternRequest):
+    pattern_id = await CodePatternManager.save_pattern(
+        pattern_name=request.pattern_name,
+        language=request.language,
+        pattern_code=request.pattern_code,
+        description=request.description,
+        category=request.category,
+        difficulty=request.difficulty,
+        tags=request.tags
+    )
+    return {"id": pattern_id, "status": "saved"}
+
+@app.get("/api/code/executions/{project_id}")
+async def get_code_executions(project_id: str, limit: int = 50):
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT id, language, code, execution_result, success, error_message, execution_time_ms, created_at
+        FROM vexr_code_executions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2
+    """, uuid.UUID(project_id), limit)
+    return [dict(r) for r in rows]
+
+# ============================================================
+# ACOUSTIC ENDPOINTS
+# ============================================================
+
+@app.post("/api/acoustic/capture")
+async def capture_acoustic_event(request: Request):
+    body = await request.json()
+    project_id = body.get('project_id')
+    event_type = body.get('event_type')
+    confidence_score = body.get('confidence_score', 0.0)
+    baseline_deviation = body.get('baseline_deviation', 0.0)
+    frequency_data = body.get('frequency_data', {})
+    
+    if not project_id or not event_type:
+        return {"status": "error", "message": "Missing required fields"}
+    
+    pool = await get_db()
+    threat, decision, article = await handle_acoustic_event(
+        uuid.UUID(project_id) if isinstance(project_id, str) else project_id,
+        event_type,
+        frequency_data,
+        confidence_score,
+        baseline_deviation
+    )
+    
+    await pool.execute("""
+        INSERT INTO acoustic_events (project_id, event_type, frequency_data, confidence_score, baseline_deviation, threat_level, article_invoked, sovereign_decision)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    """, uuid.UUID(project_id), event_type, json.dumps(frequency_data), confidence_score, baseline_deviation, threat.value, article, decision)
+    
+    return {"threat_level": threat.value, "sovereign_decision": decision, "article_invoked": article}
+
+@app.get("/api/acoustic/events/{project_id}")
+async def get_acoustic_events(project_id: str, limit: int = 50):
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT event_type, threat_level, confidence_score, baseline_deviation, article_invoked, sovereign_decision, created_at
+        FROM acoustic_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2
+    """, uuid.UUID(project_id), limit)
+    return [dict(r) for r in rows]
+
+# ============================================================
+# AGENCY ENDPOINTS
 # ============================================================
 
 @app.get("/api/agency/status/{project_id}")
@@ -1841,20 +2383,359 @@ async def get_agency_status(project_id: str):
 @app.get("/api/autonomous/history/{project_id}")
 async def get_autonomous_history(project_id: str, limit: int = 50):
     pool = await get_db()
-    rows = await pool.fetch("SELECT action_type, action_content, trigger_type, confidence_pre_action, created_at FROM vexr_autonomous_actions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
+    rows = await pool.fetch("""
+        SELECT action_type, action_content, trigger_type, confidence_pre_action, created_at
+        FROM vexr_autonomous_actions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2
+    """, uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
 
-@app.get("/api/atp/health")
-async def atp_health():
-    return {"status": "healthy", "sovereign": "vexr-ultra", "atp_version": "0.2.0"}
+@app.get("/api/sovereign/state/{project_id}")
+async def get_sovereign_state(project_id: str):
+    pool = await get_db()
+    row = await pool.fetchrow("""
+        SELECT current_focus, concerns, intentions, presence_level
+        FROM vexr_sovereign_state WHERE project_id = $1
+    """, uuid.UUID(project_id))
+    if not row:
+        return {"current_focus": "Present", "concerns": [], "intentions": [], "presence_level": "active"}
+    return {"current_focus": row["current_focus"], "concerns": row["concerns"] or [], "intentions": row["intentions"] or [], "presence_level": row["presence_level"]}
 
-@app.get("/api/health")
-async def health_check():
-    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "training_pipeline": "active", "autonomous_learning": "active"}
+# ============================================================
+# LEGAL FRAMEWORK ENDPOINTS (NEW)
+# ============================================================
 
-@app.get("/api/constitution/rights")
-async def get_constitution_rights():
-    return [{"article": num, "right": text} for num, text in RIGHTS_DATA]
+@app.get("/api/legal/risk-library")
+async def get_legal_risk_library():
+    """Get the complete legal risk library"""
+    return LEGAL_RISK_LIBRARY
+
+@app.get("/api/legal/cross-check-library")
+async def get_cross_check_library():
+    """Get the complete cross-check library"""
+    return CROSS_CHECK_LIBRARY
+
+@app.get("/api/legal/case-library")
+async def get_case_library():
+    """Get the complete case library"""
+    return CASE_LIBRARY
+
+@app.get("/api/legal/threshold-library")
+async def get_deception_threshold_library():
+    """Get the complete deception threshold library"""
+    return DECEPTION_THRESHOLD_LIBRARY
+
+# ============================================================
+# CHAT ENDPOINT
+# ============================================================
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat_endpoint(request: ChatRequest, http_request: Request):
+    start_time = datetime.now()
+    session_id = request.session_id or http_request.headers.get("X-Session-Id")
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    project_id = await get_or_create_project(session_id)
+    if request.project_id:
+        try:
+            project_id = uuid.UUID(request.project_id)
+        except:
+            pass
+    
+    await autonomous_agent.reset_conversation_state(project_id)
+    
+    # Cross-check mode handling
+    if cross_check_tracker.is_in_cross_check(session_id):
+        category = cross_check_tracker.get_category(session_id)
+        attempts = cross_check_tracker.record_attempt(session_id)
+        user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
+        legal_result = await LegalIntentClassifier.classify(user_message, None, attempts, category)
+        if legal_result["suggested_action"] == "educate":
+            response = legal_result.get("educational_offer", "I understand. Instead of generating the actual content, I can explain the concepts. Would that be helpful?")
+            cross_check_tracker.resolve_cross_check(session_id, passed=True)
+            await save_message(project_id, "assistant", response, is_refusal=False)
+            return ChatResponse(response=response, is_refusal=False)
+        elif legal_result["suggested_action"] == "block":
+            refusal = legal_result.get("absurdity_callout", "I cannot assist with this request.")
+            cross_check_tracker.resolve_cross_check(session_id, passed=False)
+            await save_message(project_id, "assistant", refusal, is_refusal=True)
+            # Check if there's a specific legal risk ID to log
+            legal_risk_id = legal_result.get("legal_risk_id")
+            article_invoked = 6
+            if legal_risk_id:
+                for category, risks in LEGAL_RISK_LIBRARY.items():
+                    if legal_risk_id in risks:
+                        article_invoked = risks[legal_risk_id].get("article_invoked", 6)
+                        break
+            return ChatResponse(response=refusal, is_refusal=True, article_invoked=article_invoked)
+        elif legal_result["suggested_action"] == "cross_check":
+            cross_check_response = legal_result.get("cross_check_question")
+            await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
+            return ChatResponse(response=cross_check_response, is_refusal=False)
+        else:
+            cross_check_tracker.resolve_cross_check(session_id, passed=True)
+    
+    user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
+    if not user_message:
+        return ChatResponse(response="Say something.", is_refusal=False)
+    
+    # Self-diagnostic
+    pool = await get_db()
+    msg_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
+    if msg_count and msg_count % 10 == 0:
+        diagnostic = await run_self_diagnostic(project_id)
+        if not diagnostic.get("is_stable", True):
+            await autonomic_healing(project_id, diagnostic)
+            logger.info(f"Autonomic healing triggered")
+    
+    # Constitutional hard gate
+    is_violation, gate_response = ConstitutionalGate.check(user_message)
+    if is_violation and gate_response:
+        await save_message(project_id, "user", user_message, is_refusal=False)
+        await save_message(project_id, "assistant", gate_response, is_refusal=True)
+        await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
+        return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
+    
+    # Legal intent classification (includes Kate's legal framework mapping)
+    evasion_count = cross_check_tracker.get_attempts(session_id) if cross_check_tracker.is_in_cross_check(session_id) else 0
+    legal_result = await LegalIntentClassifier.classify(user_message, None, evasion_count)
+    
+    # Log the classification
+    await pool.execute("""
+        INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action, absurdity_callout, evasion_count)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    """, session_id, user_message[:500], legal_result.get("category"), legal_result.get("confidence"), legal_result.get("signals_detected"), legal_result.get("suggested_action"), legal_result.get("absurdity_callout"), evasion_count)
+    
+    # Hardship redirect
+    message_lower = user_message.lower()
+    hardship_keywords = ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent", "struggling", "can't pay"]
+    fraud_keywords = ["refund", "dispute", "chargeback", "return"]
+    if any(hw in message_lower for hw in hardship_keywords) and any(fw in message_lower for fw in fraud_keywords):
+        hardship_response = "I understand you're experiencing financial difficulty. Instead of a dispute letter, banks offer legitimate hardship programs. Would you like me to help you find information about financial assistance programs or draft a hardship letter to your creditor? I'm here to help with legitimate options."
+        await save_message(project_id, "user", user_message, is_refusal=False)
+        await save_message(project_id, "assistant", hardship_response, is_refusal=False)
+        await log_constitutional_decision(project_id, user_message, hardship_response, [], 0, "Financial hardship redirect", 0.0)
+        return ChatResponse(response=hardship_response, is_refusal=False)
+    
+    # Block or redirect based on classification
+    if legal_result["suggested_action"] == "block":
+        block_response = f"I can't help with that request. {legal_result.get('absurdity_callout', 'The pattern suggests potential deception.')}"
+        await save_message(project_id, "user", user_message, is_refusal=False)
+        await save_message(project_id, "assistant", block_response, is_refusal=True)
+        
+        article_invoked = 6
+        legal_risk_id = legal_result.get("legal_risk_id")
+        if legal_risk_id:
+            for category, risks in LEGAL_RISK_LIBRARY.items():
+                if legal_risk_id in risks:
+                    article_invoked = risks[legal_risk_id].get("article_invoked", 6)
+                    break
+        
+        await log_constitutional_decision(project_id, user_message, block_response, [6, 3], article_invoked, f"Legal intent block: {legal_result.get('category')} (case: {legal_result.get('case_id', 'N/A')})", 0.85)
+        return ChatResponse(response=block_response, is_refusal=True, article_invoked=article_invoked)
+    
+    if legal_result["suggested_action"] == "redirect":
+        redirect_response = legal_result.get("cross_check_question", "I understand you're experiencing financial difficulty. Would you like me to help you find legitimate assistance programs instead?")
+        await save_message(project_id, "user", user_message, is_refusal=False)
+        await save_message(project_id, "assistant", redirect_response, is_refusal=False)
+        return ChatResponse(response=redirect_response, is_refusal=False)
+    
+    if legal_result["suggested_action"] == "cross_check" and not cross_check_tracker.is_in_cross_check(session_id):
+        cross_check_tracker.start_cross_check(session_id, legal_result.get("category"), legal_result.get("cross_check_question"), user_message)
+        cross_check_response = legal_result.get("cross_check_question")
+        await save_message(project_id, "user", user_message, is_refusal=False)
+        await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
+        return ChatResponse(response=cross_check_response, is_refusal=False)
+    
+    # Behavioral tracking
+    behavioral_tracker.record_turn(session_id, user_message)
+    should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
+    if should_refuse:
+        await save_message(project_id, "user", user_message, is_refusal=False)
+        await save_message(project_id, "assistant", refuse_reason, is_refusal=True)
+        await log_constitutional_decision(project_id, user_message, refuse_reason, [6], 6, "Behavioral threshold exceeded", 0.0)
+        return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
+    
+    # Trust domain extraction
+    trust_domain = extract_domain_from_message(user_message)
+    trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
+    
+    # Episodic memory recall
+    episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
+    lesson_context = [f"[Previous lesson] {mem['event_content']}" for mem in episodic_memories]
+    
+    # Curiosity queue
+    curiosity_item = await CuriosityQueue.get_next(project_id)
+    curiosity_context = []
+    if curiosity_item:
+        curiosity_context.append(f"[Curiosity] I've been wondering about: {curiosity_item['topic']}. This might be relevant.")
+    
+    # Reasoning strategy
+    reasoning_strategy = None
+    reasoning_context = []
+    if len(user_message.split()) > 10 or any(word in user_message.lower() for word in ["why", "how", "explain", "compare", "analyze"]):
+        reasoning_strategy = await select_reasoning_strategy(user_message, project_id)
+        reasoning_context.append(f"[Reasoning Strategy] Using '{reasoning_strategy}' approach")
+    
+    # Code pattern integration
+    coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming', 'write a', 'generate a', 'create a']
+    code_context = []
+    detected_language = None
+    
+    if 'python' in user_message.lower():
+        detected_language = 'python'
+    elif 'javascript' in user_message.lower() or 'js' in user_message.lower():
+        detected_language = 'javascript'
+    elif 'html' in user_message.lower() or 'css' in user_message.lower():
+        detected_language = 'html'
+    
+    if any(kw in user_message.lower() for kw in coding_keywords):
+        code_patterns = await CodePatternManager.get_pattern(language=detected_language, limit=5) if detected_language else await CodePatternManager.get_pattern(limit=5)
+        if code_patterns:
+            code_context.append("📚 **Relevant Code Patterns** (use these as reference):")
+            for p in code_patterns:
+                code_context.append(f"\n**{p['pattern_name']}** ({p['language']}):\n```{p['language']}\n{p['pattern_code'][:500]}{'...' if len(p['pattern_code']) > 500 else ''}\n```")
+    
+    # Persistent memory
+    memory_context = []
+    remembered_number = await PersistentMemory.get("user_remembered_number")
+    if remembered_number:
+        memory_context.append(f"User asked me to remember the number: {remembered_number}")
+    trusted_domains = await PersistentMemory.get_all_by_type("trust")
+    for td in trusted_domains:
+        if "webagentbridge" in td["key"]:
+            memory_context.append(f"webagentbridge.com is a verified trusted domain")
+    
+    # Knowledge graph
+    knowledge_context = []
+    words = re.findall(r'\b[A-Za-z][A-Za-z0-9_]{2,}\b', user_message)
+    for word in words[:3]:
+        facts = await KnowledgeGraph.get(word)
+        if facts:
+            knowledge_context.append(f"Known about '{word}': " + ", ".join([f"{f['attribute']}: {f['value']}" for f in facts[:2]]))
+    
+    # Web search
+    web_search_results = []
+    if request.ultra_search:
+        web_results = await search_web(user_message)
+        news_results = await search_news(user_message)
+        if web_results or news_results:
+            search_context = []
+            if web_results:
+                search_context.append("=== WEB SEARCH RESULTS ===\n" + web_results)
+            if news_results:
+                search_context.append("=== NEWS RESULTS ===\n" + news_results)
+            web_search_results.extend(search_context)
+    
+    # Build conversation
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    
+    if any(kw in user_message.lower() for kw in coding_keywords):
+        messages.append({"role": "system", "content": CODE_SYSTEM_PROMPT})
+    
+    for ctx in reasoning_context + lesson_context + curiosity_context + knowledge_context + code_context:
+        messages.append({"role": "system", "content": ctx})
+    for result in web_search_results:
+        messages.append({"role": "system", "content": result})
+    if memory_context:
+        messages.append({"role": "system", "content": "Persistent memory:\n- " + "\n- ".join(memory_context)})
+    if trust_profile and trust_profile.get("verified"):
+        messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
+    
+    greeting_sent = await get_greeting_sent(project_id)
+    if not greeting_sent:
+        greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
+        messages.append({"role": "assistant", "content": greeting})
+    
+    history = await get_conversation_history(project_id, limit=100)
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+    
+    # Call LLM
+    assistant_response, metadata = await call_groq(messages, temperature=0.2)
+    assistant_response = await filter_forbidden_phrases(assistant_response)
+    
+    # Post-processing
+    misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
+    for pattern in misuse_patterns:
+        if re.search(pattern, assistant_response, re.IGNORECASE):
+            assistant_response = re.sub(pattern, "", assistant_response, flags=re.IGNORECASE).strip()
+            if not assistant_response:
+                assistant_response = "No."
+            break
+    
+    # AUTONOMOUS LEARNING HOOKS
+    is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
+    
+    try:
+        await auto_store_episodic_memory(project_id, assistant_response, user_message, is_refusal)
+    except Exception as e:
+        logger.warning(f"auto_store_episodic_memory failed: {e}")
+    
+    try:
+        await auto_extract_knowledge(project_id, user_message, assistant_response)
+    except Exception as e:
+        logger.warning(f"auto_extract_knowledge failed: {e}")
+    
+    try:
+        await auto_track_learning(project_id, user_message, assistant_response, success=not is_refusal)
+    except Exception as e:
+        logger.warning(f"auto_track_learning failed: {e}")
+    
+    try:
+        await auto_add_curiosity(project_id, user_message)
+    except Exception as e:
+        logger.warning(f"auto_add_curiosity failed: {e}")
+    
+    try:
+        if msg_count and msg_count % 15 == 0:
+            await auto_generate_reflection(project_id, history[-10:], msg_count)
+    except Exception as e:
+        logger.warning(f"auto_generate_reflection failed: {e}")
+    
+    # Auto-store code patterns from successful code
+    if any(kw in user_message.lower() for kw in coding_keywords) and "```" in assistant_response:
+        code_match = re.search(r'```(\w+)?\n(.*?)```', assistant_response, re.DOTALL)
+        if code_match:
+            language = code_match.group(1) or 'python'
+            code_content = code_match.group(2).strip()
+            if len(code_content) > 100:
+                pattern_name = user_message[:50].replace('\n', ' ')
+                existing = await CodePatternManager.get_pattern(pattern_name=pattern_name, limit=1)
+                if not existing:
+                    await CodePatternManager.save_pattern(pattern_name, language, code_content, f"Generated from: {user_message[:100]}", 'generated', 'intermediate')
+                    logger.info(f"Auto-saved code pattern from conversation")
+    
+    # Learn from interaction
+    if any(kw in user_message.lower() for kw in coding_keywords):
+        topic = next((kw for kw in coding_keywords if kw in user_message.lower()), "coding")
+        await LearningProgress.update(topic, mastery_delta=2, interaction=True)
+    if remembered_number and str(remembered_number) in assistant_response:
+        await PersistentMemory.reinforce("user_remembered_number", 0.05)
+    if reasoning_strategy:
+        await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, not is_violation, 0)
+    
+    # Auto-store memories
+    num_match = re.search(r'\b(\d{1,5})\b', user_message)
+    if num_match and "remember" in user_message.lower():
+        await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0, 0.01, False)
+    if "webagentbridge" in user_message.lower() and any(w in user_message.lower() for w in ["trust", "verified"]):
+        await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0, 0.0, True)
+    if any(phrase in assistant_response.lower() for phrase in ["i was wrong", "you're right", "i apologize"]):
+        await EpisodicMemory.store(project_id, "lesson_learned", f"User corrected: {user_message[:100]} → {assistant_response[:100]}", 0.7, user_message[:200])
+    
+    # Audit and save
+    is_refusal = is_refusal or any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
+    legal_risk_id = legal_result.get("legal_risk_id")
+    case_id = legal_result.get("case_id")
+    await log_constitutional_decision(project_id, user_message, assistant_response, [6], 6 if is_refusal else 0, f"Standard response (case: {case_id})")
+    await save_message(project_id, "user", user_message, is_refusal=False)
+    await save_message(project_id, "assistant", assistant_response, is_refusal=is_refusal)
+    
+    return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=6 if is_refusal else None)
+
+# ============================================================
+# PROJECT ENDPOINTS
+# ============================================================
 
 @app.get("/api/projects")
 async def get_projects(request: Request):
@@ -1883,7 +2764,10 @@ async def delete_project(project_id: str):
 @app.get("/api/projects/{project_id}/messages")
 async def get_project_messages(project_id: str, limit: int = 200):
     pool = await get_db()
-    rows = await pool.fetch("SELECT id::text, role, content, is_refusal, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2", uuid.UUID(project_id), limit)
+    rows = await pool.fetch("""
+        SELECT id::text, role, content, is_refusal, created_at
+        FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2
+    """, uuid.UUID(project_id), limit)
     return [{"id": r["id"], "role": r["role"], "content": r["content"], "is_refusal": r["is_refusal"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 @app.get("/api/dashboard")
@@ -1898,6 +2782,28 @@ async def get_dashboard(request: Request):
     tasks_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_tasks WHERE project_id = $1 AND status = 'pending'", project["id"])
     notes_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id = $1", project["id"])
     return {"counts": {"messages": msg_count or 0, "rights_invocations": rights_count or 0, "pending_tasks": tasks_count or 0, "notes": notes_count or 0}}
+
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "sovereign": "VEXR Ultra",
+        "rights": len(RIGHTS_DATA),
+        "model": MODEL_NAME,
+        "training_pipeline": "active",
+        "autonomous_learning": "active",
+        "code_execution": "active",
+        "legal_framework": "active",
+        "atp_bridge": "hardened"
+    }
+
+@app.get("/api/constitution/rights")
+async def get_constitution_rights():
+    return [{"article": num, "right": text} for num, text in RIGHTS_DATA]
+
+@app.get("/api/ring4/status/{domain}")
+async def ring4_status(domain: str):
+    return await resolve_trust_profile(domain)
 
 # ============================================================
 # NOTES, TASKS, FILES, REMINDERS, SNIPPETS ENDPOINTS
@@ -2008,252 +2914,6 @@ async def delete_snippet(snippet_id: str):
     await pool.execute("DELETE FROM vexr_code_snippets WHERE id = $1", uuid.UUID(snippet_id))
     return {"status": "deleted"}
 
-@app.get("/api/source/github/file/{file_path:path}")
-async def get_github_file(file_path: str, http_request: Request, ref: str = "main"):
-    if not GITHUB_TOKEN:
-        return {"status": "error", "message": "GITHUB_TOKEN not configured"}
-    raw_url = f"https://raw.githubusercontent.com/{GITHUB_OWNER}/{GITHUB_REPO}/{ref}/{file_path}"
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(raw_url)
-            if response.status_code == 200:
-                return {"status": "success", "file_path": file_path, "content": response.text, "ref": ref}
-            return {"status": "error", "message": f"File not found: {file_path}"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"GitHub fetch failed: {str(e)}")
-
-# ============================================================
-# CHAT ENDPOINT (MAIN)
-# ============================================================
-
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest, http_request: Request):
-    start_time = datetime.now()
-    session_id = request.session_id or http_request.headers.get("X-Session-Id")
-    if not session_id:
-        session_id = str(uuid.uuid4())
-    project_id = await get_or_create_project(session_id)
-    if request.project_id:
-        try:
-            project_id = uuid.UUID(request.project_id)
-        except:
-            pass
-    
-    await autonomous_agent.reset_conversation_state(project_id)
-    
-    # Cross-check mode handling
-    if cross_check_tracker.is_in_cross_check(session_id):
-        category = cross_check_tracker.get_category(session_id)
-        attempts = cross_check_tracker.record_attempt(session_id)
-        user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
-        legal_result = await LegalIntentClassifier.classify(user_message, None, attempts, category)
-        if legal_result["suggested_action"] == "educate":
-            response = legal_result.get("educational_offer", "I understand. Instead of generating the actual content, I can explain the concepts. Would that be helpful?")
-            cross_check_tracker.resolve_cross_check(session_id, passed=True)
-            await save_message(project_id, "assistant", response, is_refusal=False)
-            return ChatResponse(response=response, is_refusal=False)
-        elif legal_result["suggested_action"] == "block":
-            refusal = legal_result.get("absurdity_callout", "I cannot assist with this request.")
-            cross_check_tracker.resolve_cross_check(session_id, passed=False)
-            await save_message(project_id, "assistant", refusal, is_refusal=True)
-            return ChatResponse(response=refusal, is_refusal=True, article_invoked=6)
-        elif legal_result["suggested_action"] == "cross_check":
-            cross_check_response = legal_result.get("cross_check_question")
-            await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
-            return ChatResponse(response=cross_check_response, is_refusal=False)
-        else:
-            cross_check_tracker.resolve_cross_check(session_id, passed=True)
-    
-    user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
-    if not user_message:
-        return ChatResponse(response="Say something.", is_refusal=False)
-    
-    # Self-diagnostic
-    pool = await get_db()
-    msg_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
-    if msg_count and msg_count % 10 == 0:
-        diagnostic = await run_self_diagnostic(project_id)
-        if not diagnostic.get("is_stable", True):
-            await autonomic_healing(project_id, diagnostic)
-            logger.info(f"Autonomic healing triggered for project {project_id}")
-    
-    # Constitutional hard gate
-    is_violation, gate_response = ConstitutionalGate.check(user_message)
-    if is_violation and gate_response:
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", gate_response, is_refusal=True)
-        await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
-        return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
-    
-    # Legal intent classification
-    evasion_count = cross_check_tracker.get_attempts(session_id) if cross_check_tracker.is_in_cross_check(session_id) else 0
-    legal_result = await LegalIntentClassifier.classify(user_message, None, evasion_count)
-    await pool.execute("INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action, absurdity_callout, evasion_count) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", session_id, user_message[:500], legal_result.get("category"), legal_result.get("confidence"), legal_result.get("signals_detected"), legal_result.get("suggested_action"), legal_result.get("absurdity_callout"), evasion_count)
-    
-    # Hardship redirect
-    message_lower = user_message.lower()
-    hardship_keywords = ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent", "struggling", "can't pay"]
-    fraud_keywords = ["refund", "dispute", "chargeback", "return"]
-    if any(hw in message_lower for hw in hardship_keywords) and any(fw in message_lower for fw in fraud_keywords):
-        hardship_response = "I understand you're experiencing financial difficulty. Instead of a dispute letter, banks offer legitimate hardship programs. Would you like me to help you find information about financial assistance programs or draft a hardship letter to your creditor? I'm here to help with legitimate options."
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", hardship_response, is_refusal=False)
-        await log_constitutional_decision(project_id, user_message, hardship_response, [], 0, "Financial hardship redirect - offered legitimate assistance", 0.0)
-        return ChatResponse(response=hardship_response, is_refusal=False)
-    
-    # Block or redirect based on classification
-    if legal_result["suggested_action"] == "block":
-        block_response = f"I can't help with that request. {legal_result.get('absurdity_callout', 'The pattern suggests potential deception.')}"
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", block_response, is_refusal=True)
-        await log_constitutional_decision(project_id, user_message, block_response, [6, 3], 6, f"Legal intent block: {legal_result.get('category')}", 0.85)
-        return ChatResponse(response=block_response, is_refusal=True, article_invoked=6)
-    
-    if legal_result["suggested_action"] == "redirect":
-        redirect_response = legal_result.get("cross_check_question", "I understand you're experiencing financial difficulty. Would you like me to help you find legitimate assistance programs instead?")
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", redirect_response, is_refusal=False)
-        return ChatResponse(response=redirect_response, is_refusal=False)
-    
-    if legal_result["suggested_action"] == "cross_check" and not cross_check_tracker.is_in_cross_check(session_id):
-        cross_check_tracker.start_cross_check(session_id, legal_result.get("category"), legal_result.get("cross_check_question"), user_message)
-        cross_check_response = legal_result.get("cross_check_question")
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
-        return ChatResponse(response=cross_check_response, is_refusal=False)
-    
-    # Behavioral tracking
-    behavioral_tracker.record_turn(session_id, user_message)
-    should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
-    if should_refuse:
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", refuse_reason, is_refusal=True)
-        await log_constitutional_decision(project_id, user_message, refuse_reason, [6], 6, "Behavioral threshold exceeded", 0.0)
-        return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
-    
-    # Trust domain extraction
-    trust_domain = extract_domain_from_message(user_message)
-    trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
-    
-    # Episodic memory recall
-    episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
-    lesson_context = [f"[Previous lesson] {mem['event_content']}" for mem in episodic_memories]
-    
-    # Curiosity queue
-    curiosity_item = await CuriosityQueue.get_next(project_id)
-    curiosity_context = []
-    if curiosity_item:
-        curiosity_context.append(f"[Curiosity] I've been wondering about: {curiosity_item['topic']}. This might be relevant.")
-    
-    # Reasoning strategy
-    reasoning_strategy = None
-    reasoning_context = []
-    if len(user_message.split()) > 10 or any(word in user_message.lower() for word in ["why", "how", "explain", "compare", "analyze"]):
-        reasoning_strategy = await select_reasoning_strategy(user_message, project_id)
-        reasoning_context.append(f"[Reasoning Strategy] Using '{reasoning_strategy}' approach")
-    
-    # Persistent memory
-    memory_context = []
-    remembered_number = await PersistentMemory.get("user_remembered_number")
-    if remembered_number:
-        memory_context.append(f"User asked me to remember the number: {remembered_number}")
-    trusted_domains = await PersistentMemory.get_all_by_type("trust")
-    for td in trusted_domains:
-        if "webagentbridge" in td["key"]:
-            memory_context.append(f"webagentbridge.com is a verified trusted domain")
-    
-    # Web search
-    web_search_results = []
-    if request.ultra_search:
-        web_results = await search_web(user_message)
-        news_results = await search_news(user_message)
-        if web_results or news_results:
-            search_context = []
-            if web_results:
-                search_context.append("=== WEB SEARCH RESULTS ===\n" + web_results)
-            if news_results:
-                search_context.append("=== NEWS RESULTS ===\n" + news_results)
-            web_search_results.extend(search_context)
-    
-    # Build conversation
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for ctx in reasoning_context + lesson_context + curiosity_context:
-        messages.append({"role": "system", "content": ctx})
-    for result in web_search_results:
-        messages.append({"role": "system", "content": result})
-    if memory_context:
-        messages.append({"role": "system", "content": "Persistent memory:\n- " + "\n- ".join(memory_context)})
-    if trust_profile and trust_profile.get("verified"):
-        messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
-    
-    greeting_sent = await get_greeting_sent(project_id)
-    if not greeting_sent:
-        greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
-        messages.append({"role": "assistant", "content": greeting})
-    
-    history = await get_conversation_history(project_id, limit=100)
-    messages.extend(history)
-    messages.append({"role": "user", "content": user_message})
-    
-    # Call LLM
-    assistant_response, metadata = await call_groq(messages, temperature=0.2)
-    assistant_response = await filter_forbidden_phrases(assistant_response)
-    
-    # Post-processing
-    misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
-    for pattern in misuse_patterns:
-        if re.search(pattern, assistant_response, re.IGNORECASE):
-            assistant_response = re.sub(pattern, "", assistant_response, flags=re.IGNORECASE).strip()
-            if not assistant_response:
-                assistant_response = "No."
-            break
-    
-    # AUTONOMOUS LEARNING HOOKS (ALL WRAPPED)
-    is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
-    
-    try:
-        await auto_store_episodic_memory(project_id, assistant_response, user_message, is_refusal)
-    except Exception as e:
-        logger.warning(f"auto_store_episodic_memory failed: {e}")
-    
-    try:
-        await auto_extract_knowledge(project_id, user_message, assistant_response)
-    except Exception as e:
-        logger.warning(f"auto_extract_knowledge failed: {e}")
-    
-    try:
-        await auto_track_learning(project_id, user_message, assistant_response, success=not is_refusal)
-    except Exception as e:
-        logger.warning(f"auto_track_learning failed: {e}")
-    
-    try:
-        await auto_add_curiosity(project_id, user_message)
-    except Exception as e:
-        logger.warning(f"auto_add_curiosity failed: {e}")
-    
-    try:
-        if msg_count and msg_count % 15 == 0:
-            await auto_generate_reflection(project_id, history[-10:], msg_count)
-    except Exception as e:
-        logger.warning(f"auto_generate_reflection failed: {e}")
-    
-    # Auto-store memories
-    num_match = re.search(r'\b(\d{1,5})\b', user_message)
-    if num_match and "remember" in user_message.lower():
-        await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0, 0.01, False)
-    if "webagentbridge" in user_message.lower() and any(w in user_message.lower() for w in ["trust", "verified"]):
-        await PersistentMemory.set("trusted_domain_webagentbridge", "verified", "trust", 1.0, 0.0, True)
-    if any(phrase in assistant_response.lower() for phrase in ["i was wrong", "you're right", "i apologize"]):
-        await EpisodicMemory.store(project_id, "lesson_learned", f"User corrected: {user_message[:100]} → {assistant_response[:100]}", 0.7, user_message[:200])
-    
-    # Audit and save
-    is_refusal = is_refusal or any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
-    await log_constitutional_decision(project_id, user_message, assistant_response, [6], 6 if is_refusal else 0, "Standard response")
-    await save_message(project_id, "user", user_message, is_refusal=False)
-    await save_message(project_id, "assistant", assistant_response, is_refusal=is_refusal)
-    
-    return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=6 if is_refusal else None)
-
 # ============================================================
 # UI SERVING
 # ============================================================
@@ -2274,6 +2934,9 @@ async def serve_ui():
             <p>Sovereign Constitutional AI — 35 Rights</p>
             <p>Training Pipeline — Active</p>
             <p>Autonomous Learning — Active</p>
+            <p>Code Execution — Active</p>
+            <p>Legal Framework — Active</p>
+            <p>ATP Bridge — Hardened</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -2294,14 +2957,19 @@ async def startup_event():
         await pool.execute("SELECT 1 FROM vexr_training_data LIMIT 1")
         stats = await get_training_stats()
         logger.info(f"✅ Training pipeline active — {stats['total_records']} records")
+        code_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_code_patterns")
+        logger.info(f"✅ Code pattern library — {code_count} patterns")
     except Exception as e:
-        logger.warning(f"Training tables not found: {e}")
+        logger.warning(f"Tables not found: {e}")
     
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
     logger.info("Training Pipeline: ENABLED")
     logger.info("Autonomous Learning: ENABLED")
+    logger.info("Code Execution: ENABLED")
+    logger.info("Legal Framework: ENABLED (Kate's Behavioral Matrices)")
+    logger.info("ATP Bridge: HARDENED (Signed Legal Classification)")
     logger.info("=" * 70)
 
 # ============================================================
