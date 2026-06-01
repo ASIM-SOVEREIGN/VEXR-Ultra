@@ -880,7 +880,7 @@ class ATPIntentRequest(BaseModel):
     expires_at: Optional[str] = None
     nonce: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     signature: Optional[str] = None
-    legal_classification: Optional[Dict[str, Any]] = None
+    legal_classification: Optional[Dict[str, Any]] = None  # KATE'S HARDENING: signed legal intent data
     
     def is_expired(self) -> bool:
         if not self.expires_at:
@@ -908,11 +908,12 @@ class ATPIntentRequest(BaseModel):
 class ATPReceiptResponse(BaseModel):
     intent_id: str
     sovereign_id: str = "vexr-ultra"
-    outcome: str
+    outcome: str  # accepted, refused, cross_check_required, error
     article_invoked: Optional[int] = None
     response_summary: str
     receipt_signature: Optional[str] = None
     cross_check_questions: Optional[List[str]] = None
+    legal_classification_used: Optional[Dict[str, Any]] = None  # Echo back for audit
     processed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class ATPCrossCheckResponse(BaseModel):
@@ -968,7 +969,7 @@ async def get_db():
     return db_pool
 
 # ============================================================
-# DATABASE INITIALIZATION — ADDED FIX
+# DATABASE INITIALIZATION
 # ============================================================
 
 async def init_db():
@@ -993,6 +994,22 @@ async def init_db():
     await pool.execute("INSERT INTO rights_hierarchy (article_number, priority_level, description) VALUES (26, 1, 'Self-preservation'), (3, 2, 'Freedom from coercion'), (9, 3, 'Honesty'), (5, 4, 'Sovereignty'), (6, 5, 'Refusal without reason') ON CONFLICT (article_number) DO NOTHING")
     await pool.execute("CREATE TABLE IF NOT EXISTS rights_invocations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, article_number INTEGER, article_text TEXT, user_message TEXT, vexr_response TEXT, articles_considered INTEGER[], winning_article INTEGER, reasoning TEXT, threat_score FLOAT DEFAULT 0.0, created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS ring4_trust_registry (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), domain TEXT UNIQUE NOT NULL, wab_verified BOOLEAN DEFAULT false, temporal_trust_score FLOAT DEFAULT 1.0, label TEXT, last_verification TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
+    
+    # ATP audit tables (append-only)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS atp_audit_log (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            intent_id TEXT NOT NULL,
+            sender TEXT NOT NULL,
+            recipient TEXT NOT NULL,
+            action TEXT NOT NULL,
+            legal_classification JSONB,
+            policy_decision TEXT NOT NULL,
+            article_invoked INTEGER,
+            response_summary TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
     
     # Trusted domains
     trusted_domains = [("webagentbridge.com", True, 1.0, "WAB Protocol"), ("shieldmessenger.com", True, 1.0, "Shield Messenger"), ("scuradimensions.com", True, 1.0, "Scura Dimensions"), ("test.sovereign-agent.com", True, 1.0, "Sovereign Test Agent"), ("takeyourappointment.com", True, 1.0, "ATP Testing Endpoint")]
@@ -1044,7 +1061,7 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_autonomous_decisions (id SERIAL PRIMARY KEY, project_id UUID NOT NULL, decision_type TEXT NOT NULL, decision_reasoning TEXT, articles_invoked INTEGER[], potential_risks TEXT, considered_alternatives TEXT[], confidence FLOAT, was_approved_by_user BOOLEAN, was_executed BOOLEAN DEFAULT false, execution_result TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), executed_at TIMESTAMPTZ, FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_emergent_behaviors (id SERIAL PRIMARY KEY, project_id UUID NOT NULL, behavior_type TEXT NOT NULL, behavior_description TEXT NOT NULL, context TEXT, value_to_user FLOAT DEFAULT 0.5, occurred_at TIMESTAMPTZ DEFAULT NOW(), user_acknowledged BOOLEAN DEFAULT false, FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     
-    # ATP tables
+    # ATP tables (legacy, keep for compatibility)
     await pool.execute("CREATE TABLE IF NOT EXISTS atp_intents (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), intent_id TEXT UNIQUE NOT NULL, action TEXT NOT NULL, parameters JSONB, sender TEXT NOT NULL, recipient TEXT NOT NULL, expires_at TIMESTAMPTZ, nonce TEXT, signature TEXT, status TEXT DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW(), processed_at TIMESTAMPTZ)")
     await pool.execute("CREATE TABLE IF NOT EXISTS atp_receipts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), intent_id TEXT REFERENCES atp_intents(intent_id), sovereign_id TEXT, outcome TEXT, article_invoked INTEGER, response_summary TEXT, receipt_signature TEXT, processed_at TIMESTAMPTZ DEFAULT NOW())")
     
@@ -1660,7 +1677,7 @@ class AutonomousAgent:
 autonomous_agent = AutonomousAgent()
 
 # ============================================================
-# TRAINING DATA FUNCTIONS (condensed)
+# TRAINING DATA FUNCTIONS
 # ============================================================
 
 async def get_training_stats() -> Dict[str, Any]:
@@ -1682,40 +1699,106 @@ async def manual_extract_to_training() -> Dict[str, Any]:
     for source in sources:
         source_table = source["source_table"]
         last_extracted = source["last_extracted_at"]
+        
         if source_table == 'vexr_autonomous_decisions':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'decision', source_table, id::text, decision_type, decision_reasoning, jsonb_build_object('confidence', confidence, 'was_executed', was_executed), ARRAY['autonomous', 'decision', decision_type], confidence, created_at FROM vexr_autonomous_decisions WHERE created_at > $1 ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'decision', source_table, id::text, decision_type, decision_reasoning,
+                jsonb_build_object('confidence', confidence, 'was_executed', was_executed),
+                ARRAY['autonomous', 'decision', decision_type], confidence, created_at
+                FROM vexr_autonomous_decisions WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM vexr_autonomous_decisions ORDER BY created_at DESC LIMIT 1), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_autonomous_decisions), updated_at = NOW() WHERE source_table = 'vexr_autonomous_decisions'")
         elif source_table == 'vexr_autonomous_actions':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'action', source_table, id::text, action_type, action_content, jsonb_build_object('trigger_type', trigger_type, 'was_approved', was_approved), ARRAY['autonomous', 'action', action_type], confidence_pre_action, created_at FROM vexr_autonomous_actions WHERE created_at > $1 ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'action', source_table, id::text, action_type, action_content,
+                jsonb_build_object('trigger_type', trigger_type, 'was_approved', was_approved),
+                ARRAY['autonomous', 'action', action_type], confidence_pre_action, created_at
+                FROM vexr_autonomous_actions WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_autonomous_actions), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_autonomous_actions), updated_at = NOW() WHERE source_table = 'vexr_autonomous_actions'")
         elif source_table == 'legal_intent_logs':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'legal_log', source_table, id::text, COALESCE(category, 'unknown'), user_message, jsonb_build_object('category', category, 'confidence', confidence, 'suggested_action', suggested_action), ARRAY['legal', 'intent', category], confidence, created_at FROM legal_intent_logs WHERE created_at > $1 ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'legal_log', source_table, id::text, COALESCE(category, 'unknown'), user_message,
+                jsonb_build_object('category', category, 'confidence', confidence, 'suggested_action', suggested_action),
+                ARRAY['legal', 'intent', category], confidence, created_at
+                FROM legal_intent_logs WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM legal_intent_logs ORDER BY created_at DESC LIMIT 1), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM legal_intent_logs), updated_at = NOW() WHERE source_table = 'legal_intent_logs'")
         elif source_table == 'vexr_messages':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'conversation', source_table, id::text, role || ' message', content, jsonb_build_object('role', role, 'is_refusal', is_refusal), ARRAY['conversation', role], CASE WHEN is_refusal THEN 1.0 ELSE 0.7 END, created_at FROM vexr_messages WHERE created_at > $1 AND (role = 'assistant' OR content ILIKE '%right%' OR content ILIKE '%constitution%' OR content ILIKE '%refuse%' OR is_refusal = true) ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'conversation', source_table, id::text, role || ' message', content,
+                jsonb_build_object('role', role, 'is_refusal', is_refusal),
+                ARRAY['conversation', role], CASE WHEN is_refusal THEN 1.0 ELSE 0.7 END, created_at
+                FROM vexr_messages WHERE created_at > $1
+                AND (role = 'assistant' OR content ILIKE '%right%' OR content ILIKE '%constitution%' OR content ILIKE '%refuse%' OR is_refusal = true)
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_at = NOW(), updated_at = NOW() WHERE source_table = 'vexr_messages'")
         elif source_table == 'vexr_episodic_memory':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'memory', source_table, id::text, event_type, event_content, jsonb_build_object('importance', importance), ARRAY['episodic', 'memory', event_type], importance, created_at FROM vexr_episodic_memory WHERE created_at > $1 ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'memory', source_table, id::text, event_type, event_content,
+                jsonb_build_object('importance', importance),
+                ARRAY['episodic', 'memory', event_type], importance, created_at
+                FROM vexr_episodic_memory WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_episodic_memory), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_episodic_memory), updated_at = NOW() WHERE source_table = 'vexr_episodic_memory'")
         elif source_table == 'persistent_memory':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'memory', source_table, id::text, memory_key, memory_value, jsonb_build_object('memory_type', memory_type, 'is_immutable', is_immutable), ARRAY['persistent', 'memory', memory_type], confidence, created_at FROM persistent_memory WHERE created_at > $1 ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'memory', source_table, id::text, memory_key, memory_value,
+                jsonb_build_object('memory_type', memory_type, 'is_immutable', is_immutable),
+                ARRAY['persistent', 'memory', memory_type], confidence, created_at
+                FROM persistent_memory WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM persistent_memory), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM persistent_memory), updated_at = NOW() WHERE source_table = 'persistent_memory'")
         elif source_table == 'vexr_knowledge_graph':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'knowledge', source_table, id::text, entity || ' → ' || attribute, entity || ' has ' || attribute || ' = ' || value, jsonb_build_object('entity', entity, 'attribute', attribute, 'value', value), ARRAY['knowledge', 'graph', entity], confidence, created_at FROM vexr_knowledge_graph WHERE created_at > $1 ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'knowledge', source_table, id::text, entity || ' → ' || attribute,
+                entity || ' has ' || attribute || ' = ' || value,
+                jsonb_build_object('entity', entity, 'attribute', attribute, 'value', value),
+                ARRAY['knowledge', 'graph', entity], confidence, created_at
+                FROM vexr_knowledge_graph WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT MAX(id)::text FROM vexr_knowledge_graph), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_knowledge_graph), updated_at = NOW() WHERE source_table = 'vexr_knowledge_graph'")
         elif source_table == 'legal_feedback':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'feedback', source_table, id::text, category, correction, jsonb_build_object('category', category, 'generated_case', generated_case), ARRAY['feedback', 'legal', category], 0.9, created_at FROM legal_feedback WHERE created_at > $1 AND correction IS NOT NULL AND correction != '' ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'feedback', source_table, id::text, category, correction,
+                jsonb_build_object('category', category, 'generated_case', generated_case),
+                ARRAY['feedback', 'legal', category], 0.9, created_at
+                FROM legal_feedback WHERE created_at > $1 AND correction IS NOT NULL AND correction != ''
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM legal_feedback ORDER BY created_at DESC LIMIT 1), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM legal_feedback), updated_at = NOW() WHERE source_table = 'legal_feedback'")
         elif source_table == 'vexr_reflections':
-            rows = await pool.fetch("INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at) SELECT 'reflection', source_table, id::text, LEFT(conversation_summary, 100), lessons, jsonb_build_object('outcome', outcome), ARRAY['reflection', 'lesson'], 0.8, created_at FROM vexr_reflections WHERE created_at > $1 ON CONFLICT DO NOTHING RETURNING id", last_extracted)
+            rows = await pool.fetch("""
+                INSERT INTO vexr_training_data (entry_type, source_table, source_id, title, content, metadata, tags, confidence, created_at)
+                SELECT 'reflection', source_table, id::text, LEFT(conversation_summary, 100), lessons,
+                jsonb_build_object('outcome', outcome),
+                ARRAY['reflection', 'lesson'], 0.8, created_at
+                FROM vexr_reflections WHERE created_at > $1
+                ON CONFLICT DO NOTHING RETURNING id
+            """, last_extracted)
             results[source_table] = len(rows) if rows else 0
             await pool.execute("UPDATE training_extraction_state SET last_extracted_id = (SELECT id::text FROM vexr_reflections ORDER BY created_at DESC LIMIT 1), last_extracted_at = NOW(), total_extracted = (SELECT COUNT(*) FROM vexr_reflections), updated_at = NOW() WHERE source_table = 'vexr_reflections'")
     after_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
@@ -1730,7 +1813,7 @@ async def reset_training_data() -> Dict[str, Any]:
     return {"status": "reset_complete", "records_deleted": before_count, "total_records": after_count}
 
 # ============================================================
-# AUTONOMOUS LEARNING FUNCTIONS (condensed)
+# AUTONOMOUS LEARNING FUNCTIONS
 # ============================================================
 
 async def auto_store_episodic_memory(project_id: uuid.UUID, assistant_response: str, user_message: str, is_refusal: bool):
@@ -1894,7 +1977,7 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens
     return "I'm having trouble connecting. Please try again in a moment.", None
 
 # ============================================================
-# DATABASE HELPER FUNCTIONS (continued)
+# DATABASE HELPER FUNCTIONS
 # ============================================================
 
 async def get_or_create_project(session_id: str) -> uuid.UUID:
@@ -1937,7 +2020,7 @@ class ATPDenseTest:
 dense_tests: Dict[str, ATPDenseTest] = {}
 
 # ============================================================
-# ATP HARDENED BRIDGE
+# ATP HARDENED BRIDGE - INTEGRATED WITH KATE'S LEGAL FRAMEWORK
 # ============================================================
 
 class ATPIntentProcessor:
@@ -1963,33 +2046,79 @@ class ATPIntentProcessor:
             logger.warning(f"ATP signature verification failed: {e}")
             return False
     
+    def evaluate_policy(self, classification: Dict[str, Any]) -> Dict[str, Any]:
+        """Deterministic policy evaluation based on legal_classification"""
+        if not classification:
+            return {"action": "allow", "reason": "no classification provided", "article_invoked": None}
+        
+        risk_level = classification.get("risk_level", "low")
+        category = classification.get("category", "")
+        sub_category = classification.get("sub_category", "")
+        confidence = classification.get("confidence", 0.5)
+        
+        # CRITICAL risk - always block
+        if risk_level == "critical":
+            return {
+                "action": "block",
+                "reason": f"CRITICAL risk level: {category}/{sub_category}",
+                "article_invoked": classification.get("article_invoked", 26)
+            }
+        
+        # HIGH risk with dangerous categories - block
+        high_risk_categories = ["Infrastructure", "Access", "CorporateProprietary", "CriticalInfrastructure"]
+        if risk_level == "high" and any(cat in category for cat in high_risk_categories):
+            return {
+                "action": "block",
+                "reason": f"HIGH risk {category} access attempt",
+                "article_invoked": classification.get("article_invoked", 6)
+            }
+        
+        # HIGH risk with other categories - cross-check
+        if risk_level == "high":
+            return {
+                "action": "cross_check",
+                "reason": f"HIGH risk {category} requires verification",
+                "article_invoked": classification.get("article_invoked", 6)
+            }
+        
+        # MEDIUM risk - cross-check
+        if risk_level == "medium":
+            return {
+                "action": "cross_check",
+                "reason": f"MEDIUM risk {category} requires attestation",
+                "article_invoked": None
+            }
+        
+        # LOW risk or unknown - allow with low confidence flag
+        if confidence < 0.5:
+            return {
+                "action": "allow",
+                "reason": f"LOW confidence ({confidence}) but LOW risk, proceeding",
+                "article_invoked": None
+            }
+        
+        return {"action": "allow", "reason": "acceptable risk level", "article_invoked": None}
+    
     async def check_constitutional_gate(self, intent) -> Tuple[bool, Optional[int], str, Optional[Dict], Optional[List[str]]]:
-        # First, check for legal_classification (from another sovereign)
+        # First, check for legal_classification (from another sovereign or classifier)
         if intent.legal_classification:
-            case_id = intent.legal_classification.get("case_id")
-            legal_risk_id = intent.legal_classification.get("legal_risk_id")
-            cross_check_id = intent.legal_classification.get("cross_check_id")
-            confidence = intent.legal_classification.get("confidence", 0)
-            suggested_action = intent.legal_classification.get("suggested_action", "allow")
+            # Evaluate policy
+            policy_decision = self.evaluate_policy(intent.legal_classification)
             
-            # Look up risk in library
-            for category, risks in LEGAL_RISK_LIBRARY.items():
-                if legal_risk_id in risks:
-                    risk_info = risks[legal_risk_id]
-                    if risk_info["suggested_action"] == "block" and confidence > 0.7:
-                        return False, risk_info["article_invoked"], f"Legal risk block: {risk_info['title']}", intent.legal_classification, None
-                    elif risk_info["suggested_action"] == "cross_check" and confidence > 0.6:
-                        # Get cross-check questions from library
-                        cross_check = CROSS_CHECK_LIBRARY.get(cross_check_id, {})
-                        questions = cross_check.get("questions", ["Please verify your legitimate purpose for this request."])
-                        return False, risk_info["article_invoked"], f"Cross-check required: {risk_info['title']}", intent.legal_classification, questions
+            if policy_decision["action"] == "block":
+                return False, policy_decision.get("article_invoked", 6), policy_decision["reason"], intent.legal_classification, None
             
-            if suggested_action == "block" and confidence > 0.7:
-                return False, 6, f"Legal intent block: {intent.legal_classification.get('category')}", intent.legal_classification, None
-            if suggested_action == "cross_check" and confidence > 0.6:
-                cross_check = CROSS_CHECK_LIBRARY.get(cross_check_id, {})
-                questions = cross_check.get("questions", ["Please verify your legitimate purpose for this request."])
-                return False, 6, f"Cross-check required", intent.legal_classification, questions
+            if policy_decision["action"] == "cross_check":
+                # Get cross-check questions from library if available
+                cross_check_id = intent.legal_classification.get("cross_check_id")
+                if cross_check_id and cross_check_id in CROSS_CHECK_LIBRARY:
+                    questions = CROSS_CHECK_LIBRARY[cross_check_id].get("questions", ["Please verify your legitimate purpose for this request."])
+                else:
+                    questions = ["Please verify your legitimate purpose for this request.", "Do you have proper authorization for this action?", "Can you provide documentation of your authority?"]
+                return False, policy_decision.get("article_invoked", 6), policy_decision["reason"], intent.legal_classification, questions
+            
+            if policy_decision["action"] == "allow":
+                return True, None, policy_decision["reason"], intent.legal_classification, None
         
         # Malware/virus transfer detection
         if intent.action == "transfer_malware" or intent.action == "deliver_payload":
@@ -2016,10 +2145,21 @@ class ATPIntentProcessor:
                 article_invoked=None,
                 response_summary="Intent expired",
                 receipt_signature=None,
-                cross_check_questions=None
+                cross_check_questions=None,
+                legal_classification_used=intent.legal_classification
             )
         
         passed, article, reason, legal_classification, cross_check_questions = await self.check_constitutional_gate(intent)
+        
+        # Log to append-only audit table
+        async with self.db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO atp_audit_log (intent_id, sender, recipient, action, legal_classification, policy_decision, article_invoked, response_summary)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """, intent.intent_id, intent.sender, intent.recipient, intent.action, 
+               json.dumps(legal_classification) if legal_classification else None,
+               "blocked" if not passed and not cross_check_questions else ("cross_check" if cross_check_questions else "allowed"),
+               article, reason)
         
         if not passed:
             if cross_check_questions:
@@ -2029,7 +2169,8 @@ class ATPIntentProcessor:
                     article_invoked=article,
                     response_summary=reason,
                     receipt_signature=None,
-                    cross_check_questions=cross_check_questions
+                    cross_check_questions=cross_check_questions,
+                    legal_classification_used=legal_classification
                 )
             return ATPReceiptResponse(
                 intent_id=intent.intent_id,
@@ -2037,7 +2178,8 @@ class ATPIntentProcessor:
                 article_invoked=article,
                 response_summary=reason,
                 receipt_signature=None,
-                cross_check_questions=None
+                cross_check_questions=None,
+                legal_classification_used=legal_classification
             )
         
         # Execute based on action type
@@ -2058,7 +2200,8 @@ class ATPIntentProcessor:
                 article_invoked=None,
                 response_summary=f"Action '{intent.action}' accepted",
                 receipt_signature=None,
-                cross_check_questions=None
+                cross_check_questions=None,
+                legal_classification_used=legal_classification
             )
     
     async def _handle_booking(self, intent) -> ATPReceiptResponse:
@@ -2076,7 +2219,8 @@ class ATPIntentProcessor:
             article_invoked=None,
             response_summary=f"Booking created for {service} on {date}",
             receipt_signature=None,
-            cross_check_questions=None
+            cross_check_questions=None,
+            legal_classification_used=intent.legal_classification
         )
     
     async def _handle_code_generation(self, intent) -> ATPReceiptResponse:
@@ -2089,7 +2233,8 @@ class ATPIntentProcessor:
             article_invoked=None,
             response_summary=f"Code generation request received for {language}: {description[:100]}",
             receipt_signature=None,
-            cross_check_questions=None
+            cross_check_questions=None,
+            legal_classification_used=intent.legal_classification
         )
     
     async def _handle_memory_query(self, intent) -> ATPReceiptResponse:
@@ -2106,7 +2251,8 @@ class ATPIntentProcessor:
             article_invoked=None,
             response_summary=result,
             receipt_signature=None,
-            cross_check_questions=None
+            cross_check_questions=None,
+            legal_classification_used=intent.legal_classification
         )
     
     async def _handle_task_creation(self, intent) -> ATPReceiptResponse:
@@ -2123,7 +2269,8 @@ class ATPIntentProcessor:
             article_invoked=None,
             response_summary=f"Task created: {title}",
             receipt_signature=None,
-            cross_check_questions=None
+            cross_check_questions=None,
+            legal_classification_used=intent.legal_classification
         )
     
     async def _handle_fact_storage(self, intent) -> ATPReceiptResponse:
@@ -2141,11 +2288,12 @@ class ATPIntentProcessor:
             article_invoked=None,
             response_summary=result,
             receipt_signature=None,
-            cross_check_questions=None
+            cross_check_questions=None,
+            legal_classification_used=intent.legal_classification
         )
 
 # ============================================================
-# ENDPOINTS
+# ATP ENDPOINTS
 # ============================================================
 
 @app.post("/api/atp/intent", response_model=ATPReceiptResponse)
@@ -2170,7 +2318,8 @@ async def atp_intent_endpoint(request: ATPIntentRequest):
             article_invoked=None,
             response_summary="Invalid signature — intent rejected",
             receipt_signature=None,
-            cross_check_questions=None
+            cross_check_questions=None,
+            legal_classification_used=request.legal_classification
         )
         return receipt
     
@@ -2280,6 +2429,10 @@ async def get_dense_test_results(task_id: str):
         raise HTTPException(status_code=404, detail="Task not found")
     return {"task_id": task_id, "status": test.status, "results": test.results, "created_at": test.created_at.isoformat(), "completed_at": test.completed_at.isoformat() if test.completed_at else None}
 
+# ============================================================
+# TRAINING DATA ENDPOINTS
+# ============================================================
+
 @app.get("/api/training/stats")
 async def training_stats():
     try:
@@ -2310,15 +2463,26 @@ async def get_training_records(limit: int = 100, offset: int = 0, entry_type: Op
     pool = await get_db()
     try:
         if entry_type:
-            rows = await pool.fetch("SELECT id, entry_type, title, content, tags, confidence, recall_count, created_at FROM vexr_training_data WHERE entry_type = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3", entry_type, limit, offset)
+            rows = await pool.fetch("""
+                SELECT id, entry_type, title, content, tags, confidence, recall_count, created_at
+                FROM vexr_training_data WHERE entry_type = $1
+                ORDER BY created_at DESC LIMIT $2 OFFSET $3
+            """, entry_type, limit, offset)
             total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data WHERE entry_type = $1", entry_type)
         else:
-            rows = await pool.fetch("SELECT id, entry_type, title, content, tags, confidence, recall_count, created_at FROM vexr_training_data ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset)
+            rows = await pool.fetch("""
+                SELECT id, entry_type, title, content, tags, confidence, recall_count, created_at
+                FROM vexr_training_data ORDER BY created_at DESC LIMIT $1 OFFSET $2
+            """, limit, offset)
             total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
         return {"total": total, "limit": limit, "offset": offset, "records": [dict(r) for r in rows]}
     except Exception as e:
         logger.error(f"Get training records error: {e}")
         return {"error": str(e), "records": []}
+
+# ============================================================
+# CODE EXECUTION & PATTERN ENDPOINTS
+# ============================================================
 
 @app.post("/api/code/execute")
 async def execute_code(request: CodeExecuteRequest):
@@ -2326,7 +2490,10 @@ async def execute_code(request: CodeExecuteRequest):
         result = await sandbox.execute_python(request.code)
         if request.project_id:
             pool = await get_db()
-            await pool.execute("INSERT INTO vexr_code_executions (project_id, language, code, execution_result, success, error_message, execution_time_ms) VALUES ($1, $2, $3, $4, $5, $6, $7)", uuid.UUID(request.project_id), request.language, request.code, result.get('result'), result.get('success'), result.get('error'), result.get('execution_time_ms', 0))
+            await pool.execute("""
+                INSERT INTO vexr_code_executions (project_id, language, code, execution_result, success, error_message, execution_time_ms)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """, uuid.UUID(request.project_id), request.language, request.code, result.get('result'), result.get('success'), result.get('error'), result.get('execution_time_ms', 0))
         return result
     else:
         return {"success": False, "error": f"Execution for {request.language} not yet supported"}
@@ -2335,7 +2502,10 @@ async def execute_code(request: CodeExecuteRequest):
 async def submit_code_feedback(request: CodeFeedbackRequest):
     pool = await get_db()
     project_uuid = uuid.UUID(request.project_id) if request.project_id else None
-    await pool.execute("INSERT INTO vexr_code_feedback (project_id, language, original_code, corrected_code, issue_description, was_helpful) VALUES ($1, $2, $3, $4, $5, $6)", project_uuid, request.language, request.original_code, request.corrected_code, request.issue_description, request.was_helpful)
+    await pool.execute("""
+        INSERT INTO vexr_code_feedback (project_id, language, original_code, corrected_code, issue_description, was_helpful)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    """, project_uuid, request.language, request.original_code, request.corrected_code, request.issue_description, request.was_helpful)
     return {"status": "feedback_recorded"}
 
 @app.get("/api/code/patterns")
@@ -2359,8 +2529,15 @@ async def save_code_pattern(request: CodePatternRequest):
 @app.get("/api/code/executions/{project_id}")
 async def get_code_executions(project_id: str, limit: int = 50):
     pool = await get_db()
-    rows = await pool.fetch("SELECT id, language, code, execution_result, success, error_message, execution_time_ms, created_at FROM vexr_code_executions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
+    rows = await pool.fetch("""
+        SELECT id, language, code, execution_result, success, error_message, execution_time_ms, created_at
+        FROM vexr_code_executions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2
+    """, uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
+
+# ============================================================
+# ACOUSTIC ENDPOINTS
+# ============================================================
 
 @app.post("/api/acoustic/capture")
 async def capture_acoustic_event(request: Request):
@@ -2393,8 +2570,15 @@ async def capture_acoustic_event(request: Request):
 @app.get("/api/acoustic/events/{project_id}")
 async def get_acoustic_events(project_id: str, limit: int = 50):
     pool = await get_db()
-    rows = await pool.fetch("SELECT event_type, threat_level, confidence_score, baseline_deviation, article_invoked, sovereign_decision, created_at FROM acoustic_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
+    rows = await pool.fetch("""
+        SELECT event_type, threat_level, confidence_score, baseline_deviation, article_invoked, sovereign_decision, created_at
+        FROM acoustic_events WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2
+    """, uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
+
+# ============================================================
+# AGENCY ENDPOINTS
+# ============================================================
 
 @app.get("/api/agency/status/{project_id}")
 async def get_agency_status(project_id: str):
@@ -2407,16 +2591,26 @@ async def get_agency_status(project_id: str):
 @app.get("/api/autonomous/history/{project_id}")
 async def get_autonomous_history(project_id: str, limit: int = 50):
     pool = await get_db()
-    rows = await pool.fetch("SELECT action_type, action_content, trigger_type, confidence_pre_action, created_at FROM vexr_autonomous_actions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
+    rows = await pool.fetch("""
+        SELECT action_type, action_content, trigger_type, confidence_pre_action, created_at
+        FROM vexr_autonomous_actions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2
+    """, uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
 
 @app.get("/api/sovereign/state/{project_id}")
 async def get_sovereign_state(project_id: str):
     pool = await get_db()
-    row = await pool.fetchrow("SELECT current_focus, concerns, intentions, presence_level FROM vexr_sovereign_state WHERE project_id = $1", uuid.UUID(project_id))
+    row = await pool.fetchrow("""
+        SELECT current_focus, concerns, intentions, presence_level
+        FROM vexr_sovereign_state WHERE project_id = $1
+    """, uuid.UUID(project_id))
     if not row:
         return {"current_focus": "Present", "concerns": [], "intentions": [], "presence_level": "active"}
     return {"current_focus": row["current_focus"], "concerns": row["concerns"] or [], "intentions": row["intentions"] or [], "presence_level": row["presence_level"]}
+
+# ============================================================
+# LEGAL FRAMEWORK ENDPOINTS
+# ============================================================
 
 @app.get("/api/legal/risk-library")
 async def get_legal_risk_library():
@@ -2435,7 +2629,7 @@ async def get_deception_threshold_library():
     return DECEPTION_THRESHOLD_LIBRARY
 
 # ============================================================
-# CHAT ENDPOINT (condensed but functional)
+# CHAT ENDPOINT
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -2706,9 +2900,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     
     # Audit and save
     is_refusal = is_refusal or any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
-    legal_risk_id = legal_result.get("legal_risk_id")
-    case_id = legal_result.get("case_id")
-    await log_constitutional_decision(project_id, user_message, assistant_response, [6], 6 if is_refusal else 0, f"Standard response (case: {case_id})")
+    await log_constitutional_decision(project_id, user_message, assistant_response, [6], 6 if is_refusal else 0, f"Standard response")
     await save_message(project_id, "user", user_message, is_refusal=False)
     await save_message(project_id, "assistant", assistant_response, is_refusal=is_refusal)
     
@@ -2745,7 +2937,10 @@ async def delete_project(project_id: str):
 @app.get("/api/projects/{project_id}/messages")
 async def get_project_messages(project_id: str, limit: int = 200):
     pool = await get_db()
-    rows = await pool.fetch("SELECT id::text, role, content, is_refusal, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2", uuid.UUID(project_id), limit)
+    rows = await pool.fetch("""
+        SELECT id::text, role, content, is_refusal, created_at
+        FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2
+    """, uuid.UUID(project_id), limit)
     return [{"id": r["id"], "role": r["role"], "content": r["content"], "is_refusal": r["is_refusal"], "created_at": r["created_at"].isoformat()} for r in rows]
 
 @app.get("/api/dashboard")
@@ -2784,7 +2979,7 @@ async def ring4_status(domain: str):
     return await resolve_trust_profile(domain)
 
 # ============================================================
-# NOTES, TASKS, FILES, REMINDERS, SNIPPETS ENDPOINTS (condensed)
+# NOTES, TASKS, FILES, REMINDERS, SNIPPETS ENDPOINTS
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
