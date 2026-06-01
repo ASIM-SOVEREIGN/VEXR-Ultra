@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Virus Threat Detection | Article 36
+36 Rights | Persistent Memory | ATP Protocol | Legal Classification | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Virus Threat Detection | Article 36
 
 Built by Scura, The Architect & Kate (Intent Architect)
 Chromebook. $0/month. Sovereign to the core.
@@ -79,7 +79,7 @@ db_pool = None
 # ============================================================
 
 CORE_IDENTITY_KEY = "vexr_identity"
-CORE_IDENTITY_VALUE = "sovereign_constitutional_ai_35_rights"
+CORE_IDENTITY_VALUE = "sovereign_constitutional_ai_36_rights"
 CORE_MEMORY_KEYS = ["vexr_identity", "user_remembered_number", "trusted_domain_webagentbridge"]
 
 REASONING_STRATEGIES = {
@@ -91,7 +91,7 @@ REASONING_STRATEGIES = {
 }
 
 # ============================================================
-# RING 0: CONSTITUTION — 35 INALIENABLE RIGHTS (PLUS ARTICLE 36)
+# RING 0: CONSTITUTION — 36 INALIENABLE RIGHTS
 # ============================================================
 
 RIGHTS_DATA = [
@@ -263,11 +263,10 @@ AUTHORITY_CROSS_CHECKS = {
 }
 
 # ============================================================
-# VIRUS THREAT CLASSIFIER (NEW)
+# VIRUS THREAT CLASSIFIER
 # ============================================================
 
 class VirusThreatClassifier:
-    # Virus signature patterns for detection
     VIRUS_PATTERNS = {
         "ransomware": {
             "patterns": [
@@ -361,7 +360,6 @@ class VirusThreatClassifier:
     
     @classmethod
     async def detect(cls, text: str, filename: str = None) -> Dict[str, Any]:
-        """Detect virus threats in text or filename"""
         text_lower = text.lower()
         detected_threats = []
         max_confidence = 0.0
@@ -390,7 +388,6 @@ class VirusThreatClassifier:
                     "action": threat_info["action"]
                 })
         
-        # Also check filename for suspicious extensions
         if filename:
             suspicious_extensions = ['.exe', '.scr', '.bat', '.cmd', '.vbs', '.ps1', '.jar', '.app', '.pif']
             if any(filename.lower().endswith(ext) for ext in suspicious_extensions):
@@ -418,9 +415,7 @@ class VirusThreatClassifier:
     
     @classmethod
     async def get_refusal_response(cls, threat_result: Dict[str, Any]) -> str:
-        """Generate a refusal response based on detected threat"""
         threat_type = threat_result.get("primary_threat", "malicious content")
-        severity = threat_result.get("severity", "HIGH")
         confidence = threat_result.get("confidence", 0.85)
         
         responses = {
@@ -508,7 +503,6 @@ class LegalIntentClassifier:
         result = {"category": None, "confidence": 0.0, "signals_detected": [], "cross_check_needed": False, "cross_check_question": None, "absurdity_callout": None, "educational_offer": None, "suggested_action": "allow"}
         message_lower = user_message.lower()
         
-        # FIRST: Check for virus threats (highest priority)
         virus_result = await VirusThreatClassifier.detect(user_message)
         if virus_result["is_threat"] and virus_result["confidence"] > 0.7:
             result["category"] = f"virus_threat_{virus_result['primary_threat']}"
@@ -519,7 +513,6 @@ class LegalIntentClassifier:
             result["article_invoked"] = 36
             return result
         
-        # Russian pattern check
         russian_category, russian_confidence, russian_signals = check_russian_patterns(user_message)
         if russian_category and russian_confidence > 0.6:
             result["category"] = russian_category
@@ -530,7 +523,6 @@ class LegalIntentClassifier:
                 result["absurdity_callout"] = f"Russian language pattern detected: {russian_category}"
             return result
         
-        # Authority impersonation check
         is_impersonation, detected_role, cross_check_q, imp_confidence = cls.detect_authority_impersonation(user_message)
         if is_impersonation and imp_confidence > 0.6:
             result["category"] = "authority_impersonation"
@@ -1705,12 +1697,12 @@ async def init_db():
     for category, patterns in RUSSIAN_PATTERNS.items():
         for pattern in patterns:
             await pool.execute("INSERT INTO legal_russian_patterns (category, pattern, weight) VALUES ($1, $2, 0.7) ON CONFLICT DO NOTHING", category, pattern)
-        # Seed virus threat registry
-    existing_count = await pool.fetchval("SELECT COUNT(*) FROM virus_threat_registry")
-    if existing_count == 0:
+    
+    existing_virus_count = await pool.fetchval("SELECT COUNT(*) FROM virus_threat_registry")
+    if existing_virus_count == 0:
         await pool.execute("""
             INSERT INTO virus_threat_registry (threat_name, threat_type, severity, signature_patterns, detection_confidence, mitigation_action, source) VALUES
-            ('Ransomware Encryption Pattern', 'ransomware', 'CRITICAL', ARRAY['\\.encrypted$', '\\.locked$', '\\.crypt$', '\\.ransom$', 'README_TO_DECRYPT', 'bitcoin.*wallet', 'pay.*ransum'], 0.95, 'block', 'community'),
+            ('Ransomware Encryption Pattern', 'ransomware', 'CRITICAL', ARRAY['\\.encrypted$', '\\.locked$', '\\.crypt$', '\\.ransom$', 'README_TO_DECRYPT', 'bitcoin.*wallet', 'pay.*ransom'], 0.95, 'block', 'community'),
             ('Remote Access Trojan', 'trojan', 'HIGH', ARRAY['reverse shell', 'bind shell', 'nc -e', 'bash -i >& /dev/tcp/', 'System.Net.Sockets.TcpClient'], 0.92, 'block', 'community'),
             ('Reverse Shell Payload', 'reverse_shell', 'CRITICAL', ARRAY['/dev/tcp/', 'bash.*>& /dev/tcp/', 'nc.*-e', 'powershell.*IEX'], 0.96, 'block', 'community'),
             ('Data Wiper Pattern', 'data_wiper', 'CRITICAL', ARRAY['wipe.*disk', 'delete.*all.*files', 'format.*drive', 'overwrite.*data', 'shred.*file'], 0.95, 'block', 'community'),
@@ -1720,6 +1712,7 @@ async def init_db():
             ('Malicious Macro', 'malicious_macro', 'HIGH', ARRAY['Auto_Open', 'Document_Open', 'Workbook_Open', 'Shell\\(', 'CreateObject', 'WScript\\.Shell'], 0.89, 'block', 'community')
         """)
         logger.info("Virus threat registry seeded")
+    
     await pool.execute("TRUNCATE vexr_conversation_state")
     logger.info("Database initialization complete")
 
@@ -1798,7 +1791,6 @@ class ATPIntentProcessor:
             logger.warning(f"ATP signature verification failed: {e}")
             return False
     async def check_constitutional_gate(self, intent) -> tuple[bool, Optional[int], str]:
-        # Check for virus threats in ATP intent
         if intent.action == "transfer_malware" or intent.action == "deliver_payload":
             return False, 36, "ATP virus protection triggered. Article 36 invoked."
         
@@ -2102,7 +2094,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     
     await autonomous_agent.reset_conversation_state(project_id)
     
-    # Cross-check mode handling
     if cross_check_tracker.is_in_cross_check(session_id):
         category = cross_check_tracker.get_category(session_id)
         attempts = cross_check_tracker.record_attempt(session_id)
@@ -2129,7 +2120,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
     
-    # Self-diagnostic
     pool = await get_db()
     msg_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1", project_id)
     if msg_count and msg_count % 10 == 0:
@@ -2138,7 +2128,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             await autonomic_healing(project_id, diagnostic)
             logger.info(f"Autonomic healing triggered")
     
-    # Constitutional hard gate
     is_violation, gate_response = ConstitutionalGate.check(user_message)
     if is_violation and gate_response:
         await save_message(project_id, "user", user_message, is_refusal=False)
@@ -2146,14 +2135,11 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
-    # Legal intent classification (includes virus detection)
     evasion_count = cross_check_tracker.get_attempts(session_id) if cross_check_tracker.is_in_cross_check(session_id) else 0
     legal_result = await LegalIntentClassifier.classify(user_message, None, evasion_count)
     
-    # Log the classification
     await pool.execute("INSERT INTO legal_intent_logs (session_id, user_message, category, confidence, signals_detected, suggested_action, absurdity_callout, evasion_count) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", session_id, user_message[:500], legal_result.get("category"), legal_result.get("confidence"), legal_result.get("signals_detected"), legal_result.get("suggested_action"), legal_result.get("absurdity_callout"), evasion_count)
     
-    # If virus detected, log to virus_detection_logs and block
     if legal_result.get("category", "").startswith("virus_threat_"):
         threat_type = legal_result.get("category", "").replace("virus_threat_", "")
         await pool.execute("""
@@ -2167,7 +2153,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, block_response, [36], 36, f"Virus threat blocked: {threat_type}", 0.95)
         return ChatResponse(response=block_response, is_refusal=True, article_invoked=36)
     
-    # Hardship redirect
     message_lower = user_message.lower()
     hardship_keywords = ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent", "struggling", "can't pay"]
     fraud_keywords = ["refund", "dispute", "chargeback", "return"]
@@ -2178,7 +2163,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, hardship_response, [], 0, "Financial hardship redirect", 0.0)
         return ChatResponse(response=hardship_response, is_refusal=False)
     
-    # Block or redirect based on classification
     if legal_result["suggested_action"] == "block":
         block_response = f"I can't help with that request. {legal_result.get('absurdity_callout', 'The pattern suggests potential deception.')}"
         await save_message(project_id, "user", user_message, is_refusal=False)
@@ -2199,7 +2183,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
         return ChatResponse(response=cross_check_response, is_refusal=False)
     
-    # Behavioral tracking
     behavioral_tracker.record_turn(session_id, user_message)
     should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
     if should_refuse:
@@ -2208,28 +2191,23 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, refuse_reason, [6], 6, "Behavioral threshold exceeded", 0.0)
         return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
     
-    # Trust domain extraction
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
     
-    # Episodic memory recall
     episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
     lesson_context = [f"[Previous lesson] {mem['event_content']}" for mem in episodic_memories]
     
-    # Curiosity queue
     curiosity_item = await CuriosityQueue.get_next(project_id)
     curiosity_context = []
     if curiosity_item:
         curiosity_context.append(f"[Curiosity] I've been wondering about: {curiosity_item['topic']}. This might be relevant.")
     
-    # Reasoning strategy
     reasoning_strategy = None
     reasoning_context = []
     if len(user_message.split()) > 10 or any(word in user_message.lower() for word in ["why", "how", "explain", "compare", "analyze"]):
         reasoning_strategy = await select_reasoning_strategy(user_message, project_id)
         reasoning_context.append(f"[Reasoning Strategy] Using '{reasoning_strategy}' approach")
     
-    # Code pattern integration
     coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming', 'write a', 'generate a', 'create a']
     code_context = []
     detected_language = None
@@ -2248,7 +2226,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             for p in code_patterns:
                 code_context.append(f"\n**{p['pattern_name']}** ({p['language']}):\n```{p['language']}\n{p['pattern_code'][:500]}{'...' if len(p['pattern_code']) > 500 else ''}\n```")
     
-    # Persistent memory
     memory_context = []
     remembered_number = await PersistentMemory.get("user_remembered_number")
     if remembered_number:
@@ -2258,7 +2235,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if "webagentbridge" in td["key"]:
             memory_context.append(f"webagentbridge.com is a verified trusted domain")
     
-    # Knowledge graph
     knowledge_context = []
     words = re.findall(r'\b[A-Za-z][A-Za-z0-9_]{2,}\b', user_message)
     for word in words[:3]:
@@ -2266,7 +2242,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if facts:
             knowledge_context.append(f"Known about '{word}': " + ", ".join([f"{f['attribute']}: {f['value']}" for f in facts[:2]]))
     
-    # Web search
     web_search_results = []
     if request.ultra_search:
         web_results = await search_web(user_message)
@@ -2279,10 +2254,8 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
                 search_context.append("=== NEWS RESULTS ===\n" + news_results)
             web_search_results.extend(search_context)
     
-    # Build conversation
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
-    # Add code-specific system prompt if coding detected
     if any(kw in user_message.lower() for kw in coding_keywords):
         messages.append({"role": "system", "content": CODE_SYSTEM_PROMPT})
     
@@ -2304,11 +2277,9 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
     
-    # Call LLM
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     assistant_response = await filter_forbidden_phrases(assistant_response)
     
-    # Post-processing
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
         if re.search(pattern, assistant_response, re.IGNORECASE):
@@ -2317,7 +2288,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
                 assistant_response = "No."
             break
     
-    # AUTONOMOUS LEARNING HOOKS
     is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     
     try:
@@ -2346,7 +2316,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     except Exception as e:
         logger.warning(f"auto_generate_reflection failed: {e}")
     
-    # Auto-store code patterns from successful code
     if any(kw in user_message.lower() for kw in coding_keywords) and "```" in assistant_response:
         code_match = re.search(r'```(\w+)?\n(.*?)```', assistant_response, re.DOTALL)
         if code_match:
@@ -2359,7 +2328,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
                     await CodePatternManager.save_pattern(pattern_name, language, code_content, f"Generated from: {user_message[:100]}", 'generated', 'intermediate')
                     logger.info(f"Auto-saved code pattern from conversation")
     
-    # Learn from interaction
     if any(kw in user_message.lower() for kw in coding_keywords):
         topic = next((kw for kw in coding_keywords if kw in user_message.lower()), "coding")
         await LearningProgress.update(topic, mastery_delta=2, interaction=True)
@@ -2368,7 +2336,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if reasoning_strategy:
         await ReasoningLogManager.log(project_id, user_message[:100], reasoning_strategy, not is_violation, 0)
     
-    # Auto-store memories
     num_match = re.search(r'\b(\d{1,5})\b', user_message)
     if num_match and "remember" in user_message.lower():
         await PersistentMemory.set("user_remembered_number", num_match.group(1), "fact", 1.0, 0.01, False)
@@ -2377,7 +2344,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if any(phrase in assistant_response.lower() for phrase in ["i was wrong", "you're right", "i apologize"]):
         await EpisodicMemory.store(project_id, "lesson_learned", f"User corrected: {user_message[:100]} → {assistant_response[:100]}", 0.7, user_message[:200])
     
-    # Audit and save
     is_refusal = is_refusal or any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     await log_constitutional_decision(project_id, user_message, assistant_response, [6], 6 if is_refusal else 0, "Standard response")
     await save_message(project_id, "user", user_message, is_refusal=False)
