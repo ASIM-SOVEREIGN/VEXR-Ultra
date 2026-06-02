@@ -69,7 +69,7 @@ MODEL_NAME = "llama-3.3-70b-versatile"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_API = os.environ.get("GITHUB_API")
 GITHUB_OWNER = "ASIM-SOVEREIGN"
 GITHUB_REPO = "VEXR-Ultra"
 ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
@@ -103,11 +103,11 @@ ECHOES = {}
 # ============================================================
 
 def load_private_json(path: str, fallback: Dict = None) -> Dict:
-    """Load JSON from private GitHub repo using GITHUB_TOKEN"""
+    """Load JSON from private GitHub repo using GITHUB_API"""
     url = f"{PRIVATE_REPO_RAW}/{path}"
     headers = {}
-    if GITHUB_TOKEN:
-        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    if GITHUB_API:
+        headers["Authorization"] = f"token {GITHUB_API}"
     
     try:
         response = requests.get(url, headers=headers, timeout=15)
