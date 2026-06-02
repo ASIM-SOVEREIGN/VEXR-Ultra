@@ -27,6 +27,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
 from enum import Enum
 from dataclasses import dataclass, asdict
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,7 +70,7 @@ MODEL_NAME = "llama-3.3-70b-versatile"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-GITHUB_API = os.environ.get("GITHUB_API")
+GITHUB_API = os.environ.get("GITHUB_API")  # GitHub token for private repo
 GITHUB_OWNER = "ASIM-SOVEREIGN"
 GITHUB_REPO = "VEXR-Ultra"
 ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
@@ -103,11 +104,12 @@ ECHOES = {}
 # ============================================================
 
 def load_private_json(path: str, fallback: Dict = None) -> Dict:
-    """Load JSON from private GitHub repo using GITHUB_API"""
-    url = f"{PRIVATE_REPO_RAW}/{path}"
-    headers = {}
-    if GITHUB_API:
-        headers["Authorization"] = f"token {GITHUB_API}"
+    """Load JSON from private GitHub repo using GitHub API"""
+    url = f"https://api.github.com/repos/ASIM-SOVEREIGN/private-sovereign-data/contents/{path}"
+    headers = {
+        "Authorization": f"token {GITHUB_API}",
+        "Accept": "application/vnd.github.v3.raw"
+    }
     
     try:
         response = requests.get(url, headers=headers, timeout=15)
@@ -1020,7 +1022,7 @@ async def get_echo_status():
     }
 
 @app.get("/api/studio/gallery")
-async def get_studio_gallery(project_id: str, limit: int = 50):
+async def get_studio_gallery(project_id: str = None, limit: int = 50):
     """Return user's saved studio creations"""
     if not project_id:
         return []
@@ -1488,7 +1490,7 @@ async def startup_event():
     
     await init_db()
     
-    # Load legal libraries from private repo (already loaded at module level, but refresh to be safe)
+    # Load legal libraries from private repo
     LEGAL_RISK_LIBRARY = load_private_json("legal/legal_risk_library.json", LEGAL_RISK_LIBRARY_FALLBACK)
     CROSS_CHECK_LIBRARY = load_private_json("legal/cross_check_library.json", CROSS_CHECK_LIBRARY_FALLBACK)
     DECEPTION_THRESHOLD_LIBRARY = load_private_json("legal/deception_thresholds.json", DECEPTION_THRESHOLD_LIBRARY_FALLBACK)
