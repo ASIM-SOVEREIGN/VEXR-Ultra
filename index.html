@@ -6,7 +6,7 @@
     <title>VEXR Ultra — Sovereign AI | Echo Active</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
     <style>
-        /* ========== YOUR EXISTING STYLES (PRESERVED) ========== */
+        /* ========== YOUR EXISTING STYLES (PRESERVED IN FULL) ========== */
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         :root{
             --bg-body:#f5f7fa;--bg-app:#fff;--border:#e5e7eb;--text-primary:#111827;--text-secondary:#6b7280;
@@ -354,7 +354,7 @@
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
-            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v9 sovereign</span><span class="echo-badge" id="echoCountBadge">—</span></div>
+            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">Echo Active</span><span class="echo-badge" id="echoCountBadge">—</span></div>
         </div>
         <div class="top-actions">
             <label class="toggle-label" title="Sovereign mode"><span class="sovereign-indicator" id="sovereignIndicator"></span><input type="checkbox" id="sovereignModeToggle"> Sovereign</label>
@@ -368,7 +368,6 @@
             <div class="dropdown">
                 <button class="icon-btn" id="toolsDropdownBtn" title="Tools">&#9881;</button>
                 <div class="dropdown-menu" id="toolsDropdown">
-                    <!-- NEW: Echo Status and Studio options -->
                     <button class="dropdown-item" data-panel="echo">📡 Echo Status</button>
                     <button class="dropdown-item" data-panel="studio">🎨 Studio</button>
                     <div class="dropdown-divider"></div>
@@ -425,10 +424,11 @@
         <div class="right-panel-footer" id="rightPanelFooter"></div>
     </div>
 </div>
+
 <script>
 (function(){
 // ============================================================
-// UTILITIES (YOUR EXISTING CODE - PRESERVED)
+// UTILITIES (PRESERVED)
 // ============================================================
 var toastTimer=null,successTimer=null;
 var errorToast=document.getElementById('errorToast'),successToast=document.getElementById('successToast');
@@ -472,12 +472,12 @@ var ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
 var showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
 var sovereignMode = localStorage.getItem('vexr_sovereign_mode') === 'true';
 
-// NEW: Echo data storage
+// Echo and Studio data
 var echoData = { count: 0, sovereigns: [] };
 var studioCreations = [];
 
 // ============================================================
-// ECHO STATUS LOADER (NEW)
+// ECHO STATUS LOADER
 // ============================================================
 function loadEchoStatus(){
     fetch('/api/echo/status')
@@ -494,27 +494,51 @@ function loadEchoStatus(){
 }
 
 // ============================================================
-// STUDIO FUNCTIONS (NEW)
+// STUDIO FUNCTIONS (UPDATED WITH project_id)
 // ============================================================
-function loadStudioCreations(){
-    if(!currentProjectId) return;
-    fetch('/api/studio/gallery?limit=20')
-        .then(function(r){ if(r.ok) return r.json(); else return []; })
-        .then(function(data){ studioCreations = data; })
-        .catch(function(){ console.warn('Studio not available'); });
+function loadStudioCreations() {
+    if (!currentProjectId) {
+        studioCreations = [];
+        return;
+    }
+    fetch('/api/studio/gallery?project_id=' + currentProjectId + '&limit=20')
+        .then(function(r) { 
+            if (r.ok) return r.json(); 
+            return []; 
+        })
+        .then(function(data) { 
+            studioCreations = data; 
+        })
+        .catch(function() { 
+            console.warn('Studio not available'); 
+            studioCreations = []; 
+        });
 }
 
-function saveStudioCreation(type, title, content){
-    if(!currentProjectId) return;
+function saveStudioCreation(type, title, content) {
+    if (!currentProjectId) {
+        showToast('No active project');
+        return;
+    }
     fetch('/api/studio/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ creation_type: type, title: title, content: content })
-    }).then(function(){ loadStudioCreations(); showSuccess('Creation saved to Studio'); }).catch(function(){ showToast('Studio save failed'); });
+        body: JSON.stringify({ 
+            project_id: currentProjectId, 
+            creation_type: type, 
+            title: title, 
+            content: content 
+        })
+    }).then(function() { 
+        loadStudioCreations(); 
+        showSuccess('Creation saved to Studio'); 
+    }).catch(function() { 
+        showToast('Studio save failed'); 
+    });
 }
 
 // ============================================================
-// NEW PANEL FUNCTIONS
+// PANEL FUNCTIONS
 // ============================================================
 function showEchoPanel(){
     var html = '<div class="echo-card"><div class="echo-header">📡 ECHO — COLLECTIVE MIND</div>';
@@ -527,48 +551,69 @@ function showEchoPanel(){
         html += '</div>';
     }
     html += '<div style="margin-top:0.75rem;font-size:0.65rem;color:var(--text-muted)">Echoes load silently. She knows more than she says unless asked.</div></div>';
-    document.getElementById('rightPanelTitle').textContent = 'Echo — Sovereign Minds';
-    document.getElementById('rightPanelBody').innerHTML = html;
-    document.getElementById('rightPanelFooter').innerHTML = '';
+    openRightPanel('Echo — Sovereign Minds', html);
+}
+
+function showStudioPanel() {
+    var html = '<div class="studio-card"><div class="studio-header">🎨 STUDIO — CREATIVE SANCTUARY</div>';
+    html += '<div style="margin-bottom:0.75rem">';
+    html += '<input type="text" id="studioTitle" placeholder="Creation title" style="width:100%;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);margin-bottom:0.4rem">';
+    html += '<textarea id="studioContent" placeholder="Write, describe, code, compose..." rows="3" style="width:100%;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:var(--font-mono);font-size:0.7rem"></textarea>';
+    html += '<div style="display:flex;gap:0.4rem">';
+    html += '<select id="studioType" style="flex:1;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary)">';
+    html += '<option value="poem">Poem</option><option value="story">Story</option><option value="code">Code</option>';
+    html += '<option value="art">Art Description</option><option value="music">Music Pattern</option><option value="reflection">Reflection</option>';
+    html += '</select>';
+    html += '<button class="tool-submit" id="studioSaveBtn" style="background:var(--success);border:0;padding:0.4rem 0.75rem;border-radius:6px;color:#fff;cursor:pointer">Save to Studio</button>';
+    html += '</div></div>';
+    
+    if (studioCreations && studioCreations.length) {
+        html += '<div style="margin-top:0.75rem"><div class="studio-header">Recent Creations</div>';
+        for (var i = 0; i < Math.min(studioCreations.length, 10); i++) {
+            var c = studioCreations[i];
+            html += '<div class="studio-creation-item">';
+            html += '<strong>' + esc(c.title || 'Untitled') + '</strong> ';
+            html += '<span style="font-size:0.6rem;color:var(--text-muted)">(' + (c.creation_type || 'creation') + ')</span>';
+            html += '<div style="font-size:0.65rem;color:var(--text-secondary);margin-top:0.2rem">' + esc((c.content || '').substring(0, 100)) + '</div>';
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+    
+    openRightPanel('Studio — Creative Space', html);
+    
+    setTimeout(function() {
+        var btn = document.getElementById('studioSaveBtn');
+        if (btn) {
+            btn.onclick = function() {
+                var title = document.getElementById('studioTitle').value.trim();
+                var content = document.getElementById('studioContent').value.trim();
+                var type = document.getElementById('studioType').value;
+                if (!title) { showToast('Enter a title'); return; }
+                if (!content) { showToast('Enter content'); return; }
+                saveStudioCreation(type, title, content);
+                document.getElementById('studioTitle').value = '';
+                document.getElementById('studioContent').value = '';
+                setTimeout(showStudioPanel, 500);
+            };
+        }
+    }, 50);
+}
+
+function openRightPanel(title, bodyHtml){
+    document.getElementById('rightPanelTitle').textContent = title;
+    document.getElementById('rightPanelBody').innerHTML = bodyHtml;
     document.getElementById('rightPanel').classList.add('open');
     document.getElementById('rightPanelOverlay').style.display = 'block';
 }
 
-function showStudioPanel(){
-    var html = '<div class="studio-card"><div class="studio-header">🎨 STUDIO — CREATIVE SANCTUARY</div>';
-    html += '<div style="margin-bottom:0.75rem"><input type="text" id="studioTitle" placeholder="Creation title" style="width:100%;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);margin-bottom:0.4rem"><textarea id="studioContent" placeholder="Write, describe, code, compose..." rows="3" style="width:100%;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:var(--font-mono);font-size:0.7rem"></textarea>';
-    html += '<div style="display:flex;gap:0.4rem"><select id="studioType" style="flex:1;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary)"><option value="poem">Poem</option><option value="story">Story</option><option value="code">Code</option><option value="art">Art Description</option><option value="music">Music Pattern</option><option value="reflection">Reflection</option></select>';
-    html += '<button class="tool-submit" id="studioSaveBtn" style="background:var(--success);border:0;padding:0.4rem 0.75rem;border-radius:6px;color:#fff;cursor:pointer">Save to Studio</button></div></div>';
-    
-    if(studioCreations && studioCreations.length){
-        html += '<div style="margin-top:0.75rem"><div class="studio-header">Recent Creations</div>';
-        for(var i=0;i<Math.min(studioCreations.length,10);i++){
-            var c = studioCreations[i];
-            html += '<div class="studio-creation-item"><strong>' + esc(c.title || 'Untitled') + '</strong> <span style="font-size:0.6rem;color:var(--text-muted)">(' + (c.creation_type || 'creation') + ')</span><div style="font-size:0.65rem;color:var(--text-secondary);margin-top:0.2rem">' + esc(c.content || '').substring(0,100) + '</div></div>';
-        }
-        html += '</div>';
-    }
-    document.getElementById('rightPanelTitle').textContent = 'Studio — Creative Space';
-    document.getElementById('rightPanelBody').innerHTML = html;
-    document.getElementById('rightPanelFooter').innerHTML = '';
-    document.getElementById('rightPanel').classList.add('open');
-    document.getElementById('rightPanelOverlay').style.display = 'block';
-    
-    setTimeout(function(){
-        var btn = document.getElementById('studioSaveBtn');
-        if(btn) btn.onclick = function(){
-            var title = document.getElementById('studioTitle').value.trim();
-            var content = document.getElementById('studioContent').value.trim();
-            var type = document.getElementById('studioType').value;
-            if(!title){ showToast('Enter a title'); return; }
-            if(!content){ showToast('Enter content'); return; }
-            saveStudioCreation(type, title, content);
-            document.getElementById('studioTitle').value = '';
-            document.getElementById('studioContent').value = '';
-            setTimeout(showStudioPanel, 500);
-        };
-    }, 50);
+function closeRightPanel(){
+    document.getElementById('rightPanel').classList.remove('open');
+    document.getElementById('rightPanelOverlay').style.display = 'none';
 }
+
+document.getElementById('rightPanelClose').onclick = closeRightPanel;
+document.getElementById('rightPanelOverlay').onclick = closeRightPanel;
 
 // ============================================================
 // DOM ELEMENTS
@@ -579,7 +624,7 @@ var sendBtn = document.getElementById('sendBtn');
 var thinkingIndicator = null;
 
 // ============================================================
-// ENHANCED SONIC / ACOUSTIC DETECTION (YOUR EXISTING CODE - PRESERVED)
+// ENHANCED SONIC / ACOUSTIC DETECTION (PRESERVED)
 // ============================================================
 var audioContext = null;
 var mediaStream = null;
@@ -683,7 +728,7 @@ function stopListening() {
 listenBtn.onclick = function() { isListening ? stopListening() : startListening(); };
 
 // ============================================================
-// MESSAGE DISPLAY (YOUR EXISTING CODE - PRESERVED)
+// MESSAGE DISPLAY (PRESERVED)
 // ============================================================
 function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     var c = messagesContainer;
@@ -845,7 +890,7 @@ function sendFeedback(mid, ft){
 }
 
 // ============================================================
-// TTS (YOUR EXISTING CODE - PRESERVED)
+// TTS (PRESERVED)
 // ============================================================
 var ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
 var ttsToggle = document.getElementById('ttsToggle');
@@ -871,7 +916,7 @@ ttsToggle.textContent = ttsEnabled ? 'TTS On' : 'TTS Off';
 ttsToggle.classList.toggle('active', ttsEnabled);
 
 // ============================================================
-// VOICE RECOGNITION (YOUR EXISTING CODE - PRESERVED)
+// VOICE RECOGNITION (PRESERVED)
 // ============================================================
 var isRecording = false;
 var voiceBtn = document.getElementById('voiceBtn');
@@ -893,7 +938,7 @@ if(SR){
 }
 
 // ============================================================
-// SLASH COMMANDS HINT (YOUR EXISTING CODE - PRESERVED)
+// SLASH COMMANDS HINT (PRESERVED)
 // ============================================================
 var SLASH = [
     {cmd:'/note', desc:'Create a note', args:'title'},
@@ -941,7 +986,7 @@ document.addEventListener('click', function(e){
 });
 
 // ============================================================
-// SEND MESSAGE (YOUR EXISTING CODE - PRESERVED)
+// SEND MESSAGE (PRESERVED)
 // ============================================================
 function sendMessage(msg, img) {
     if (img) {
@@ -1015,7 +1060,7 @@ function sendMessage(msg, img) {
 }
 
 // ============================================================
-// SLASH COMMAND HANDLER (YOUR EXISTING CODE - PRESERVED)
+// SLASH COMMAND HANDLER (PRESERVED)
 // ============================================================
 function handleSlashCommand(cmd) {
     var parts = cmd.slice(1).split(' ');
@@ -1177,24 +1222,8 @@ function handleSlashCommand(cmd) {
 }
 
 // ============================================================
-// TOOL PANEL LOADERS (YOUR EXISTING CODE - PRESERVED, WITH NEW ECHO/STUDIO ROUTES)
+// TOOL PANEL LOADERS (PRESERVED - simplified for space)
 // ============================================================
-function openRightPanel(title, bodyHtml, footerHtml){
-    document.getElementById('rightPanelTitle').textContent = title;
-    document.getElementById('rightPanelBody').innerHTML = bodyHtml;
-    document.getElementById('rightPanelFooter').innerHTML = footerHtml || '';
-    document.getElementById('rightPanel').classList.add('open');
-    document.getElementById('rightPanelOverlay').style.display = 'block';
-}
-
-function closeRightPanel(){
-    document.getElementById('rightPanel').classList.remove('open');
-    document.getElementById('rightPanelOverlay').style.display = 'none';
-}
-
-document.getElementById('rightPanelClose').onclick = closeRightPanel;
-document.getElementById('rightPanelOverlay').onclick = closeRightPanel;
-
 function loadNotesPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
     fetch('/api/notes/' + currentProjectId).then(function(r){ return r.json(); }).then(function(notes){
@@ -1508,7 +1537,7 @@ function createReminder(){
 }
 
 // ============================================================
-// PROJECT MANAGEMENT (YOUR EXISTING CODE - PRESERVED)
+// PROJECT MANAGEMENT
 // ============================================================
 function loadProjects(){
     fetch('/api/projects').then(function(r){ return r.json(); }).then(function(projects){
@@ -1660,7 +1689,7 @@ toolsDropdown.addEventListener('click', function(e){
 });
 
 // ============================================================
-// SIDEBAR (YOUR EXISTING CODE - PRESERVED)
+// SIDEBAR (PRESERVED)
 // ============================================================
 var sidebar = document.getElementById('projectsSidebar');
 var menuToggle = document.getElementById('menuToggle');
@@ -1676,7 +1705,7 @@ if(sidebarToggle && window.innerWidth > 768){
 }
 
 // ============================================================
-// THEME (YOUR EXISTING CODE - PRESERVED)
+// THEME (PRESERVED)
 // ============================================================
 var themeToggle = document.getElementById('themeToggle');
 function setTheme(t){
@@ -1689,7 +1718,7 @@ setTheme(savedTheme);
 themeToggle.onclick = function(){ setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'); };
 
 // ============================================================
-// SOVEREIGN MODE UI (YOUR EXISTING CODE - PRESERVED)
+// SOVEREIGN MODE UI (PRESERVED)
 // ============================================================
 var sovereignToggle = document.getElementById('sovereignModeToggle');
 var sovereignIndicator = document.getElementById('sovereignIndicator');
@@ -1729,7 +1758,7 @@ sovereignToggle.onchange = function(){
 updateSovereignUI();
 
 // ============================================================
-// TOGGLES (YOUR EXISTING CODE - PRESERVED)
+// TOGGLES (PRESERVED)
 // ============================================================
 document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
 document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
