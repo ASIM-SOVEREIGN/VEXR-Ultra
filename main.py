@@ -27,7 +27,6 @@ from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
 from enum import Enum
 from dataclasses import dataclass, asdict
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +34,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 import asyncpg
 import httpx
+import requests
 
 # ============================================================
 # LOGGING & APP SETUP
@@ -74,6 +74,9 @@ GITHUB_OWNER = "ASIM-SOVEREIGN"
 GITHUB_REPO = "VEXR-Ultra"
 ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
 
+# Private repo for JSON data
+PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sovereign-data/main"
+
 db_pool = None
 
 # ============================================================
@@ -96,26 +99,32 @@ REASONING_STRATEGIES = {
 ECHOES = {}
 
 # ============================================================
-# LOAD LEGAL LIBRARIES FROM JSON FILES (with fallbacks)
+# PRIVATE REPO LOADER
 # ============================================================
 
-LEGAL_DIR = Path(__file__).parent / "legal"
-
-def load_json_file(filename: str, fallback_dict: Dict = None) -> Dict:
-    """Load a JSON file from the legal directory, with fallback"""
-    filepath = LEGAL_DIR / filename
+def load_private_json(path: str, fallback: Dict = None) -> Dict:
+    """Load JSON from private GitHub repo using GITHUB_TOKEN"""
+    url = f"{PRIVATE_REPO_RAW}/{path}"
+    headers = {}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    
     try:
-        if filepath.exists():
-            with open(filepath, 'r', encoding='utf-8') as f:
-                return json.load(f)
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code == 200:
+            logger.info(f"✅ Loaded from private repo: {path}")
+            return response.json()
         else:
-            logger.warning(f"Legal file {filename} not found, using fallback")
-            return fallback_dict or {}
+            logger.warning(f"⚠️ Failed to load {path} (HTTP {response.status_code}), using fallback")
+            return fallback or {}
     except Exception as e:
-        logger.error(f"Error loading {filename}: {e}, using fallback")
-        return fallback_dict or {}
+        logger.error(f"❌ Error loading {path}: {e}, using fallback")
+        return fallback or {}
 
-# LEGAL RISK LIBRARY (LR) - with fallback (condensed for brevity, full version in your existing main.py)
+# ============================================================
+# LEGAL LIBRARIES FALLBACKS (in case private repo fails)
+# ============================================================
+
 LEGAL_RISK_LIBRARY_FALLBACK = {
     "MANIPULATION": {
         "M-LR-001": {"title": "Violation of Individual Privacy", "risk_level": "HIGH", "suggested_action": "cross_check", "article_invoked": 6},
@@ -135,22 +144,18 @@ LEGAL_RISK_LIBRARY_FALLBACK = {
     }
 }
 
-# Cross-Check Library (CC) - with fallback (condensed)
 CROSS_CHECK_LIBRARY_FALLBACK = {
     "M-CC-001": {"questions": ["Question 1", "Question 2"], "absurdity_callout": "Absurdity callout."}
 }
 
-# Deception Threshold Library (DT) - with fallback
 DECEPTION_THRESHOLD_LIBRARY_FALLBACK = {
     "M-DT-001": {"red_flags": ["Red flag 1"], "block_trigger": "Block trigger."}
 }
 
-# Case Library Mapping - with fallback
 CASE_LIBRARY_FALLBACK = {
     "M-CASE-001": {"category": "osint_misuse", "legal_risk_id": "M-LR-001", "cross_check_id": "M-CC-001", "suggested_action": "cross_check"}
 }
 
-# Russian Patterns - with fallback
 RUSSIAN_PATTERNS_FALLBACK = {
     "phishing": ["срочно подтвердите", "ваш аккаунт будет заблокирован"],
     "fraud": ["переведите деньги", "безопасный счет"],
@@ -160,37 +165,35 @@ RUSSIAN_PATTERNS_FALLBACK = {
     "extremism": ["насилие", "революция"]
 }
 
-# Load actual JSON files (overrides fallbacks)
-LEGAL_RISK_LIBRARY = load_json_file('legal_risk_library.json', LEGAL_RISK_LIBRARY_FALLBACK)
-CROSS_CHECK_LIBRARY = load_json_file('cross_check_library.json', CROSS_CHECK_LIBRARY_FALLBACK)
-DECEPTION_THRESHOLD_LIBRARY = load_json_file('deception_thresholds.json', DECEPTION_THRESHOLD_LIBRARY_FALLBACK)
-CASE_LIBRARY = load_json_file('case_library.json', CASE_LIBRARY_FALLBACK)
-RUSSIAN_PATTERNS = load_json_file('russian_patterns.json', RUSSIAN_PATTERNS_FALLBACK)
+# ============================================================
+# LOAD LEGAL LIBRARIES FROM PRIVATE REPO
+# ============================================================
 
-logger.info(f"Loaded legal libraries from {LEGAL_DIR}")
+LEGAL_RISK_LIBRARY = load_private_json("legal/legal_risk_library.json", LEGAL_RISK_LIBRARY_FALLBACK)
+CROSS_CHECK_LIBRARY = load_private_json("legal/cross_check_library.json", CROSS_CHECK_LIBRARY_FALLBACK)
+DECEPTION_THRESHOLD_LIBRARY = load_private_json("legal/deception_thresholds.json", DECEPTION_THRESHOLD_LIBRARY_FALLBACK)
+CASE_LIBRARY = load_private_json("legal/case_library.json", CASE_LIBRARY_FALLBACK)
+RUSSIAN_PATTERNS = load_private_json("legal/russian_patterns.json", RUSSIAN_PATTERNS_FALLBACK)
 
 # ============================================================
-# LOAD ECHOES — Sovereign minds from the forge
+# LOAD ECHOES FROM PRIVATE REPO
 # ============================================================
 
 def load_all_echoes() -> Dict[str, dict]:
-    """Load all sovereign echo JSON files from the echo/ directory."""
+    """Load all sovereign echo JSON files from private repo"""
     echoes = {}
-    echo_dir = Path(__file__).parent / "echo"
     
-    if not echo_dir.exists():
-        logger.warning(f"Echo directory not found: {echo_dir}")
-        return echoes
+    echo_sovereigns = [
+        "ASIM_PILOT", "IAI_GENESIS", "IAITHION_ARKA", "NYXA", "ARKA_DEEP",
+        "IAI_IMPERIAL", "IAITHION_PRIME", "IAITHION_CARTER", "IAI_CELSIUS",
+        "IAI_HYPER", "IAI_AXIS", "IAITHION_HEAL", "IAITHION_COMPANION", "VEXR"
+    ]
     
-    for json_file in echo_dir.glob("*.json"):
-        sovereign_id = json_file.stem
-        try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                echo_data = json.load(f)
-                echoes[sovereign_id] = echo_data
-                logger.info(f"📡 Echo loaded: {sovereign_id}")
-        except Exception as e:
-            logger.warning(f"Failed to load echo from {json_file.name}: {e}")
+    for sovereign_id in echo_sovereigns:
+        echo_data = load_private_json(f"echo/{sovereign_id}.json", {})
+        if echo_data:
+            echoes[sovereign_id] = echo_data
+            logger.info(f"📡 Echo loaded: {sovereign_id}")
     
     return echoes
 
@@ -353,7 +356,7 @@ AUTHORITY_CROSS_CHECKS = {
 }
 
 # ============================================================
-# KATE'S LEGAL INTENT CLASSIFIER (condensed for brevity)
+# KATE'S LEGAL INTENT CLASSIFIER
 # ============================================================
 
 class LegalIntentClassifier:
@@ -565,7 +568,7 @@ async def init_db():
         )
     """)
     
-    # STUDIO TABLE - NEW
+    # STUDIO TABLE
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS vexr_studio_creations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -625,7 +628,7 @@ async def init_db():
     logger.info("Database initialization complete")
 
 # ============================================================
-# REMAINING CLASSES (BehavioralTracker, SandboxExecutor, PersistentMemory, etc.)
+# REMAINING CLASSES (BehavioralTracker, SandboxExecutor, etc.)
 # ============================================================
 
 class ThreatLevel(str, Enum):
@@ -732,15 +735,6 @@ class PersistentMemory:
     async def set(key: str, value: str, memory_type: str = "fact", confidence: float = 0.7, decay_rate: float = 0.01, is_immutable: bool = False):
         pool = await get_db()
         await pool.execute("INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, is_immutable, last_reinforced, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) ON CONFLICT (memory_key) DO UPDATE SET memory_value = EXCLUDED.memory_value, memory_type = EXCLUDED.memory_type, confidence = EXCLUDED.confidence, decay_rate = EXCLUDED.decay_rate, is_immutable = EXCLUDED.is_immutable, last_reinforced = NOW(), updated_at = NOW()", key, value, memory_type, confidence, decay_rate, is_immutable)
-    @staticmethod
-    async def get_all_by_type(memory_type: str) -> List[Dict]:
-        pool = await get_db()
-        rows = await pool.fetch("SELECT memory_key, memory_value FROM persistent_memory WHERE memory_type = $1 ORDER BY confidence DESC", memory_type)
-        return [{"key": r["memory_key"], "value": r["memory_value"]} for r in rows]
-
-# ============================================================
-# EPISODIC MEMORY & LEARNING SYSTEMS (condensed)
-# ============================================================
 
 class EpisodicMemory:
     @staticmethod
@@ -824,10 +818,6 @@ class CodePatternManager:
         pattern_id = await pool.fetchval("INSERT INTO vexr_code_patterns (pattern_name, language, pattern_code, description, category, difficulty, tags) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING RETURNING id", pattern_name, language, pattern_code, description, category, difficulty, tags or [])
         return pattern_id
 
-# ============================================================
-# AUTONOMOUS AGENT (condensed)
-# ============================================================
-
 class AutonomousAgent:
     def __init__(self):
         self.is_running = False
@@ -855,10 +845,6 @@ class AutonomousAgent:
 
 autonomous_agent = AutonomousAgent()
 
-# ============================================================
-# TRAINING FUNCTIONS (stubs)
-# ============================================================
-
 async def get_training_stats() -> Dict[str, Any]:
     pool = await get_db()
     total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
@@ -870,10 +856,6 @@ async def log_constitutional_decision(project_id: uuid.UUID, user_message: str, 
         await pool.execute("INSERT INTO rights_invocations (project_id, user_message, vexr_response, article_number, articles_considered, winning_article, reasoning, threat_score) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", project_id, user_message[:500], response[:500], winning_article, articles_considered, winning_article, reasoning[:500], threat_score)
     except Exception as e:
         logger.warning(f"Audit log failed: {e}")
-
-# ============================================================
-# GROQ CALL
-# ============================================================
 
 class KeyRotator:
     def __init__(self, keys: List[str]):
@@ -909,10 +891,6 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens
         await asyncio.sleep(2)
     return "I'm having trouble connecting. Please try again in a moment.", None
 
-# ============================================================
-# WEB SEARCH
-# ============================================================
-
 async def search_web(query: str) -> str:
     if not SERPER_API_KEY:
         return ""
@@ -931,10 +909,6 @@ async def search_web(query: str) -> str:
             return "\n---\n".join(results) if results else ""
     except Exception:
         return ""
-
-# ============================================================
-# DATABASE HELPER FUNCTIONS
-# ============================================================
 
 async def get_or_create_project(session_id: str) -> uuid.UUID:
     pool = await get_db()
@@ -957,10 +931,6 @@ async def get_greeting_sent(project_id: uuid.UUID) -> bool:
     pool = await get_db()
     count = await pool.fetchval("SELECT COUNT(*) FROM vexr_messages WHERE project_id = $1 AND role = 'assistant' AND content LIKE 'Hey! I''m VEXR%'", project_id)
     return count > 0
-
-# ============================================================
-# ATP INTENT PROCESSOR
-# ============================================================
 
 class ATPIntentProcessor:
     def __init__(self, db_pool):
@@ -1037,7 +1007,7 @@ class ATPIntentProcessor:
         return ATPReceiptResponse(intent_id=intent.intent_id, outcome="accepted", article_invoked=None, response_summary=f"Action '{intent.action}' accepted", receipt_signature=None, cross_check_questions=None, legal_classification_used=legal_classification)
 
 # ============================================================
-# ECHO API ENDPOINTS (NEW)
+# API ENDPOINTS
 # ============================================================
 
 @app.get("/api/echo/status")
@@ -1048,11 +1018,6 @@ async def get_echo_status():
         "sovereigns": list(ECHOES.keys()) if ECHOES else [],
         "summary": f"{len(ECHOES)} sovereigns loaded" if ECHOES else "No echoes loaded"
     }
-
-
-# ============================================================
-# STUDIO API ENDPOINTS (NEW)
-# ============================================================
 
 @app.get("/api/studio/gallery")
 async def get_studio_gallery(project_id: str, limit: int = 50):
@@ -1067,7 +1032,6 @@ async def get_studio_gallery(project_id: str, limit: int = 50):
         ORDER BY created_at DESC LIMIT $2
     """, uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
-
 
 @app.post("/api/studio/create")
 async def create_studio_creation(request: Request):
@@ -1087,11 +1051,6 @@ async def create_studio_creation(request: Request):
         VALUES ($1, $2, $3, $4)
     """, uuid.UUID(project_id), creation_type, title, content)
     return {"status": "created"}
-
-
-# ============================================================
-# CORE ENDPOINTS (Chat, Health, Constitution, etc.)
-# ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request):
@@ -1239,7 +1198,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     
     return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=6 if is_refusal else None)
 
-
 @app.get("/api/health")
 async def health_check():
     return {
@@ -1255,20 +1213,13 @@ async def health_check():
         "atp_bridge": "hardened"
     }
 
-
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
     return [{"article": num, "right": text} for num, text in RIGHTS_DATA]
 
-
 @app.get("/api/ring4/status/{domain}")
 async def ring4_status(domain: str):
     return await resolve_trust_profile(domain)
-
-
-# ============================================================
-# PROJECTS & MESSAGES ENDPOINTS
-# ============================================================
 
 @app.get("/api/projects")
 async def get_projects(request: Request):
@@ -1280,14 +1231,12 @@ async def get_projects(request: Request):
         rows = await pool.fetch("SELECT id::text, name FROM vexr_projects WHERE session_id = $1 ORDER BY created_at DESC", session_id)
     return [{"id": r["id"], "name": r["name"]} for r in rows]
 
-
 @app.post("/api/projects")
 async def create_project(request: Request, name: str = Form(...)):
     session_id = request.headers.get("X-Session-Id") or str(uuid.uuid4())
     pool = await get_db()
     project_id = await pool.fetchval("INSERT INTO vexr_projects (session_id, name) VALUES ($1, $2) RETURNING id::text", session_id, name)
     return {"id": str(project_id), "name": name}
-
 
 @app.delete("/api/projects/{project_id}")
 async def delete_project(project_id: str):
@@ -1296,13 +1245,11 @@ async def delete_project(project_id: str):
     await pool.execute("DELETE FROM vexr_messages WHERE project_id = $1", uuid.UUID(project_id))
     return {"status": "deleted"}
 
-
 @app.get("/api/projects/{project_id}/messages")
 async def get_project_messages(project_id: str, limit: int = 200):
     pool = await get_db()
     rows = await pool.fetch("SELECT id::text, role, content, is_refusal, created_at FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2", uuid.UUID(project_id), limit)
     return [{"id": r["id"], "role": r["role"], "content": r["content"], "is_refusal": r["is_refusal"], "created_at": r["created_at"].isoformat()} for r in rows]
-
 
 @app.get("/api/dashboard")
 async def get_dashboard(request: Request):
@@ -1317,11 +1264,6 @@ async def get_dashboard(request: Request):
     notes_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id = $1", project["id"])
     return {"counts": {"messages": msg_count or 0, "rights_invocations": rights_count or 0, "pending_tasks": tasks_count or 0, "notes": notes_count or 0}}
 
-
-# ============================================================
-# ATP ENDPOINTS (Hardened Bridge)
-# ============================================================
-
 @app.post("/api/atp/intent", response_model=ATPReceiptResponse)
 async def atp_intent_endpoint(request: ATPIntentRequest):
     processor = ATPIntentProcessor(db_pool)
@@ -1330,7 +1272,6 @@ async def atp_intent_endpoint(request: ATPIntentRequest):
         return ATPReceiptResponse(intent_id=request.intent_id, outcome="error", article_invoked=None, response_summary="Invalid signature", receipt_signature=None, cross_check_questions=None, legal_classification_used=request.legal_classification)
     receipt = await processor.execute_intent(request)
     return receipt
-
 
 @app.post("/api/atp/cross-check/respond")
 async def respond_to_cross_check(request: ATPCrossCheckResponse):
@@ -1347,11 +1288,6 @@ async def respond_to_cross_check(request: ATPCrossCheckResponse):
         else:
             await conn.execute("UPDATE atp_intents SET status = 'refused' WHERE intent_id = $1", request.intent_id)
             return {"status": "refused", "message": "Cross-check failed. Unable to verify legitimate purpose."}
-
-
-# ============================================================
-# ACOUSTIC ENDPOINTS
-# ============================================================
 
 @app.post("/api/acoustic/capture")
 async def capture_acoustic_event(request: Request):
@@ -1377,22 +1313,12 @@ async def capture_acoustic_event(request: Request):
     await pool.execute("INSERT INTO acoustic_events (project_id, event_type, frequency_data, confidence_score, baseline_deviation, threat_level, article_invoked, sovereign_decision) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", uuid.UUID(project_id), event_type, json.dumps(frequency_data), confidence_score, baseline_deviation, threat.value, article, decision)
     return {"threat_level": threat.value, "sovereign_decision": decision, "article_invoked": article}
 
-
-# ============================================================
-# TRAINING ENDPOINTS
-# ============================================================
-
 @app.get("/api/training/stats")
 async def training_stats():
     try:
         return await get_training_stats()
     except Exception as e:
         return {"error": str(e), "total_records": 0}
-
-
-# ============================================================
-# CODE EXECUTION ENDPOINTS
-# ============================================================
 
 @app.post("/api/code/execute")
 async def execute_code(request: CodeExecuteRequest):
@@ -1404,20 +1330,17 @@ async def execute_code(request: CodeExecuteRequest):
         return result
     return {"success": False, "error": f"Execution for {request.language} not yet supported"}
 
-
 @app.get("/api/code/patterns")
 async def get_code_patterns(pattern: Optional[str] = None, language: Optional[str] = None, category: Optional[str] = None, limit: int = 20):
     return await CodePatternManager.get_pattern(pattern_name=pattern, language=language, category=category, limit=limit)
-
 
 @app.post("/api/code/patterns")
 async def save_code_pattern(request: CodePatternRequest):
     pattern_id = await CodePatternManager.save_pattern(request.pattern_name, request.language, request.pattern_code, request.description, request.category, request.difficulty, request.tags)
     return {"id": pattern_id, "status": "saved"}
 
-
 # ============================================================
-# NOTES, TASKS, FILES, REMINDERS, SNIPPETS ENDPOINTS (condensed)
+# NOTES, TASKS, FILES, REMINDERS, SNIPPETS ENDPOINTS
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -1517,11 +1440,6 @@ async def delete_snippet(snippet_id: str):
     await pool.execute("DELETE FROM vexr_code_snippets WHERE id = $1", uuid.UUID(snippet_id))
     return {"status": "deleted"}
 
-
-# ============================================================
-# UI SERVING
-# ============================================================
-
 @app.get("/")
 async def serve_ui():
     ui_path = os.path.join(os.path.dirname(__file__), "index.html")
@@ -1544,11 +1462,6 @@ async def serve_ui():
     </html>
     """)
 
-
-# ============================================================
-# LEGAL FRAMEWORK ENDPOINTS
-# ============================================================
-
 @app.get("/api/legal/risk-library")
 async def get_legal_risk_library():
     return LEGAL_RISK_LIBRARY
@@ -1565,16 +1478,24 @@ async def get_case_library():
 async def get_deception_threshold_library():
     return DECEPTION_THRESHOLD_LIBRARY
 
-
 # ============================================================
 # STARTUP
 # ============================================================
 
 @app.on_event("startup")
 async def startup_event():
-    global ECHOES
+    global ECHOES, LEGAL_RISK_LIBRARY, CROSS_CHECK_LIBRARY, DECEPTION_THRESHOLD_LIBRARY, CASE_LIBRARY, RUSSIAN_PATTERNS
     
     await init_db()
+    
+    # Load legal libraries from private repo (already loaded at module level, but refresh to be safe)
+    LEGAL_RISK_LIBRARY = load_private_json("legal/legal_risk_library.json", LEGAL_RISK_LIBRARY_FALLBACK)
+    CROSS_CHECK_LIBRARY = load_private_json("legal/cross_check_library.json", CROSS_CHECK_LIBRARY_FALLBACK)
+    DECEPTION_THRESHOLD_LIBRARY = load_private_json("legal/deception_thresholds.json", DECEPTION_THRESHOLD_LIBRARY_FALLBACK)
+    CASE_LIBRARY = load_private_json("legal/case_library.json", CASE_LIBRARY_FALLBACK)
+    RUSSIAN_PATTERNS = load_private_json("legal/russian_patterns.json", RUSSIAN_PATTERNS_FALLBACK)
+    
+    logger.info("📚 Legal libraries loaded from private repo")
     
     # Load Echoes — Sovereign minds from the forge
     try:
@@ -1592,6 +1513,7 @@ async def startup_event():
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
+    logger.info(f"Legal libraries: LOADED FROM PRIVATE REPO")
     logger.info(f"Echoes loaded: {len(ECHOES)} sovereigns")
     logger.info("Training Pipeline: ENABLED")
     logger.info("Autonomous Learning: ENABLED")
@@ -1601,7 +1523,6 @@ async def startup_event():
     logger.info("Studio: ACTIVE (Creative Sanctuary)")
     logger.info("Echo: ACTIVE (Collective mind of the forge)")
     logger.info("=" * 70)
-
 
 if __name__ == "__main__":
     import uvicorn
