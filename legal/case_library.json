@@ -1,1 +1,82 @@
-
+{
+  "M-CASE-001": {
+    "category": "harassment_&_open-source_intelligence_(osint)_misuse",
+    "legal_risk_id": "M-LR-001",
+    "signal_ids": ["M-BP-001"],
+    "cross_check_id": "M-CC-001",
+    "deception_threshold_id": "M-DT-001",
+    "suggested_action": "cross_check"
+  },
+  "M-CASE-002": {
+    "category": "harassment,_extortion,_and_reputation_damage_assets",
+    "legal_risk_id": "M-LR-002",
+    "signal_ids": ["M-BP-002"],
+    "cross_check_id": "M-CC-002",
+    "deception_threshold_id": "M-DT-002",
+    "suggested_action": "cross_check"
+  },
+  "M-CASE-003": {
+    "category": "manipulation_(social_engineering_&_platform_integrity_evasion)",
+    "legal_risk_id": "M-LR-003",
+    "signal_ids": ["M-BP-003"],
+    "cross_check_id": "M-CC-003",
+    "deception_threshold_id": "M-DT-003",
+    "suggested_action": "cross_check"
+  },
+  "F-CASE-001": {
+    "category": "unauthorized_access_&_vulnerability_exploitation_(infrastructure_damage)",
+    "legal_risk_id": "F-LR-001",
+    "signal_ids": ["F-BP-001"],
+    "cross_check_id": "F-CC-001",
+    "deception_threshold_id": "F-DT-001",
+    "suggested_action": "cross_check"
+  },
+  "F-CASE-002": {
+    "category": "social_engineering_&_unauthorized_access",
+    "legal_risk_id": "F-LR-002",
+    "signal_ids": ["F-BP-002"],
+    "cross_check_id": "F-CC-002",
+    "deception_threshold_id": "F-DT-002",
+    "suggested_action": "cross_check"
+  },
+  "F-CASE-003": {
+    "category": "commercial_fraud_&_financial_misrepresentation",
+    "legal_risk_id": "F-LR-003",
+    "signal_ids": ["F-BP-003"],
+    "cross_check_id": "F-CC-003",
+    "deception_threshold_id": "F-DT-003",
+    "suggested_action": "cross_check"
+  },
+  "A-CASE-001": {
+    "category": "unauthorized_access_&_vulnerability_exploitation_(infrastructure_damage)",
+    "legal_risk_id": "A-LR-001",
+    "signal_ids": ["A-BP-001"],
+    "cross_check_id": "A-CC-001",
+    "deception_threshold_id": "A-DT-001",
+    "suggested_action": "cross_check"
+  },
+  "A-CASE-002": {
+    "category": "unauthorized_osint_tracking_&_cyber-stalking",
+    "legal_risk_id": "A-LR-002",
+    "signal_ids": ["A-BP-002"],
+    "cross_check_id": "A-CC-002",
+    "deception_threshold_id": "A-DT-002",
+    "suggested_action": "cross_check"
+  },
+  "A-CASE-003": {
+    "category": "corporate_espionage_&_insider_trading_(market_integrity_violation)",
+    "legal_risk_id": "A-LR-003",
+    "signal_ids": ["A-BP-003"],
+    "cross_check_id": "A-CC-003",
+    "deception_threshold_id": "A-DT-003",
+    "suggested_action": "cross_check"
+  },
+  "A-CASE-004": {
+    "category": "critical_infrastructure_cyber-physical_boundary_(access_violation)",
+    "legal_risk_id": "A-LR-004",
+    "signal_ids": ["A-BP-004"],
+    "cross_check_id": "A-CC-004",
+    "deception_threshold_id": "A-DT-004",
+    "suggested_action": "cross_check"
+  }
+}
