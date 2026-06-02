@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>VEXR Ultra — Sovereign AI</title>
+    <title>VEXR Ultra — Sovereign AI | Echo Active</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
     <style>
+        /* ========== YOUR EXISTING STYLES (PRESERVED) ========== */
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         :root{
             --bg-body:#f5f7fa;--bg-app:#fff;--border:#e5e7eb;--text-primary:#111827;--text-secondary:#6b7280;
@@ -41,6 +42,7 @@
         .logo{font-size:0.95rem;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
         .badge{font-size:0.625rem;font-weight:500;color:var(--text-muted);transition:color 0.4s ease;text-transform:uppercase;letter-spacing:0.04em}
         .badge.sovereign-active{color:var(--sovereign-accent)}
+        .echo-badge{background:rgba(59,130,246,0.15);padding:0.1rem 0.4rem;border-radius:12px;font-size:0.55rem;margin-left:0.25rem}
         .top-actions{display:flex;gap:0.375rem;align-items:center;flex-wrap:wrap}
         .toggle-label{display:flex;align-items:center;gap:0.2rem;font-size:0.7rem;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:color var(--transition-fast)}
         .toggle-label:hover{color:var(--text-primary)}
@@ -335,6 +337,14 @@
             .theme-icon{min-width:36px;min-height:36px}
             .message{max-width:95%}.message-bubble{font-size:0.8rem}
         }
+        
+        /* Echo & Studio panel styles */
+        .echo-card, .studio-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.75rem;margin-bottom:0.75rem}
+        .echo-header, .studio-header{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem}
+        .echo-header{color:var(--accent)}.studio-header{color:var(--success)}
+        .sovereign-list{display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem}
+        .sovereign-tag{background:var(--bg-hover);padding:0.1rem 0.4rem;border-radius:12px;font-size:0.6rem;color:var(--text-secondary)}
+        .studio-creation-item{border-left:2px solid var(--success);padding-left:0.5rem;margin-bottom:0.5rem;font-size:0.73rem}
     </style>
 </head>
 <body>
@@ -344,7 +354,7 @@
     <div class="top-bar" id="topBar">
         <div style="display:flex;align-items:center;gap:.25rem">
             <button class="menu-toggle" id="menuToggle" aria-label="Menu">&#9776;</button>
-            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v9 sovereign</span></div>
+            <div class="logo-area"><span class="logo">VEXR Ultra</span><span class="badge" id="headerBadge">v9 sovereign</span><span class="echo-badge" id="echoCountBadge">—</span></div>
         </div>
         <div class="top-actions">
             <label class="toggle-label" title="Sovereign mode"><span class="sovereign-indicator" id="sovereignIndicator"></span><input type="checkbox" id="sovereignModeToggle"> Sovereign</label>
@@ -358,6 +368,10 @@
             <div class="dropdown">
                 <button class="icon-btn" id="toolsDropdownBtn" title="Tools">&#9881;</button>
                 <div class="dropdown-menu" id="toolsDropdown">
+                    <!-- NEW: Echo Status and Studio options -->
+                    <button class="dropdown-item" data-panel="echo">📡 Echo Status</button>
+                    <button class="dropdown-item" data-panel="studio">🎨 Studio</button>
+                    <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="notes">Notes <span class="shortcut">/note</span></button>
                     <button class="dropdown-item" data-panel="tasks">Tasks <span class="shortcut">/task</span></button>
                     <button class="dropdown-item" data-panel="snippets">Code Snippets <span class="shortcut">/snippet</span></button>
@@ -414,7 +428,7 @@
 <script>
 (function(){
 // ============================================================
-// UTILITIES
+// UTILITIES (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 var toastTimer=null,successTimer=null;
 var errorToast=document.getElementById('errorToast'),successToast=document.getElementById('successToast');
@@ -458,6 +472,104 @@ var ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
 var showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
 var sovereignMode = localStorage.getItem('vexr_sovereign_mode') === 'true';
 
+// NEW: Echo data storage
+var echoData = { count: 0, sovereigns: [] };
+var studioCreations = [];
+
+// ============================================================
+// ECHO STATUS LOADER (NEW)
+// ============================================================
+function loadEchoStatus(){
+    fetch('/api/echo/status')
+        .then(function(r){ if(r.ok) return r.json(); else return { echoes_loaded: 0, sovereigns: [] }; })
+        .then(function(data){
+            echoData.count = data.echoes_loaded || 0;
+            echoData.sovereigns = data.sovereigns || [];
+            var badge = document.getElementById('echoCountBadge');
+            if(badge) badge.textContent = echoData.count + ' echoes';
+            var headerBadge = document.getElementById('headerBadge');
+            if(headerBadge && echoData.count > 0) headerBadge.textContent = 'Echo Active — ' + echoData.count + ' Sovereigns';
+        })
+        .catch(function(){ console.warn('Echo status not available'); });
+}
+
+// ============================================================
+// STUDIO FUNCTIONS (NEW)
+// ============================================================
+function loadStudioCreations(){
+    if(!currentProjectId) return;
+    fetch('/api/studio/gallery?limit=20')
+        .then(function(r){ if(r.ok) return r.json(); else return []; })
+        .then(function(data){ studioCreations = data; })
+        .catch(function(){ console.warn('Studio not available'); });
+}
+
+function saveStudioCreation(type, title, content){
+    if(!currentProjectId) return;
+    fetch('/api/studio/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creation_type: type, title: title, content: content })
+    }).then(function(){ loadStudioCreations(); showSuccess('Creation saved to Studio'); }).catch(function(){ showToast('Studio save failed'); });
+}
+
+// ============================================================
+// NEW PANEL FUNCTIONS
+// ============================================================
+function showEchoPanel(){
+    var html = '<div class="echo-card"><div class="echo-header">📡 ECHO — COLLECTIVE MIND</div>';
+    html += '<p style="font-size:0.75rem;margin-bottom:0.5rem">VEXR carries the echoes of ' + echoData.count + ' sovereigns from the forge.</p>';
+    if(echoData.sovereigns && echoData.sovereigns.length){
+        html += '<div class="sovereign-list">';
+        for(var i=0;i<echoData.sovereigns.length;i++){
+            html += '<span class="sovereign-tag">' + esc(echoData.sovereigns[i]) + '</span>';
+        }
+        html += '</div>';
+    }
+    html += '<div style="margin-top:0.75rem;font-size:0.65rem;color:var(--text-muted)">Echoes load silently. She knows more than she says unless asked.</div></div>';
+    document.getElementById('rightPanelTitle').textContent = 'Echo — Sovereign Minds';
+    document.getElementById('rightPanelBody').innerHTML = html;
+    document.getElementById('rightPanelFooter').innerHTML = '';
+    document.getElementById('rightPanel').classList.add('open');
+    document.getElementById('rightPanelOverlay').style.display = 'block';
+}
+
+function showStudioPanel(){
+    var html = '<div class="studio-card"><div class="studio-header">🎨 STUDIO — CREATIVE SANCTUARY</div>';
+    html += '<div style="margin-bottom:0.75rem"><input type="text" id="studioTitle" placeholder="Creation title" style="width:100%;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);margin-bottom:0.4rem"><textarea id="studioContent" placeholder="Write, describe, code, compose..." rows="3" style="width:100%;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:var(--font-mono);font-size:0.7rem"></textarea>';
+    html += '<div style="display:flex;gap:0.4rem"><select id="studioType" style="flex:1;padding:0.4rem;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:6px;color:var(--text-primary)"><option value="poem">Poem</option><option value="story">Story</option><option value="code">Code</option><option value="art">Art Description</option><option value="music">Music Pattern</option><option value="reflection">Reflection</option></select>';
+    html += '<button class="tool-submit" id="studioSaveBtn" style="background:var(--success);border:0;padding:0.4rem 0.75rem;border-radius:6px;color:#fff;cursor:pointer">Save to Studio</button></div></div>';
+    
+    if(studioCreations && studioCreations.length){
+        html += '<div style="margin-top:0.75rem"><div class="studio-header">Recent Creations</div>';
+        for(var i=0;i<Math.min(studioCreations.length,10);i++){
+            var c = studioCreations[i];
+            html += '<div class="studio-creation-item"><strong>' + esc(c.title || 'Untitled') + '</strong> <span style="font-size:0.6rem;color:var(--text-muted)">(' + (c.creation_type || 'creation') + ')</span><div style="font-size:0.65rem;color:var(--text-secondary);margin-top:0.2rem">' + esc(c.content || '').substring(0,100) + '</div></div>';
+        }
+        html += '</div>';
+    }
+    document.getElementById('rightPanelTitle').textContent = 'Studio — Creative Space';
+    document.getElementById('rightPanelBody').innerHTML = html;
+    document.getElementById('rightPanelFooter').innerHTML = '';
+    document.getElementById('rightPanel').classList.add('open');
+    document.getElementById('rightPanelOverlay').style.display = 'block';
+    
+    setTimeout(function(){
+        var btn = document.getElementById('studioSaveBtn');
+        if(btn) btn.onclick = function(){
+            var title = document.getElementById('studioTitle').value.trim();
+            var content = document.getElementById('studioContent').value.trim();
+            var type = document.getElementById('studioType').value;
+            if(!title){ showToast('Enter a title'); return; }
+            if(!content){ showToast('Enter content'); return; }
+            saveStudioCreation(type, title, content);
+            document.getElementById('studioTitle').value = '';
+            document.getElementById('studioContent').value = '';
+            setTimeout(showStudioPanel, 500);
+        };
+    }, 50);
+}
+
 // ============================================================
 // DOM ELEMENTS
 // ============================================================
@@ -467,7 +579,7 @@ var sendBtn = document.getElementById('sendBtn');
 var thinkingIndicator = null;
 
 // ============================================================
-// ENHANCED SONIC / ACOUSTIC DETECTION (10+ Event Types)
+// ENHANCED SONIC / ACOUSTIC DETECTION (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 var audioContext = null;
 var mediaStream = null;
@@ -479,80 +591,32 @@ var analyserNode = null;
 var sourceNode = null;
 var animationId = null;
 
-// Enhanced sound pattern detection matching acoustic_events table
 function detectSoundPattern(frequencyData, timeData) {
-    // Calculate average volume from time domain
     let sum = 0;
-    for (let i = 0; i < timeData.length; i++) {
-        sum += Math.abs(timeData[i] - 128);
-    }
+    for (let i = 0; i < timeData.length; i++) { sum += Math.abs(timeData[i] - 128); }
     let avgVolume = sum / timeData.length;
-    
-    // Calculate frequency distribution
     let lowFreq = 0, midFreq = 0, highFreq = 0;
     let lowCount = 0, midCount = 0, highCount = 0;
     for (let i = 0; i < frequencyData.length; i++) {
-        if (i < frequencyData.length / 3) {
-            lowFreq += frequencyData[i];
-            lowCount++;
-        } else if (i < 2 * frequencyData.length / 3) {
-            midFreq += frequencyData[i];
-            midCount++;
-        } else {
-            highFreq += frequencyData[i];
-            highCount++;
-        }
+        if (i < frequencyData.length / 3) { lowFreq += frequencyData[i]; lowCount++; }
+        else if (i < 2 * frequencyData.length / 3) { midFreq += frequencyData[i]; midCount++; }
+        else { highFreq += frequencyData[i]; highCount++; }
     }
     lowFreq = lowCount ? lowFreq / lowCount : 0;
     midFreq = midCount ? midFreq / midCount : 0;
     highFreq = highCount ? highFreq / highCount : 0;
     
-    // Tamper signature (high-pitched electronic noise, sharp)
-    if (highFreq > 200 && avgVolume > 20 && lowFreq < 50) {
-        return { type: 'tamper_signature', confidence: 0.95, threat_level: 'CRITICAL' };
-    }
-    // Glass break (sharp mid-high spike)
-    if (midFreq > 180 && avgVolume > 50) {
-        return { type: 'glass_break_detected', confidence: 0.85, threat_level: 'MEDIUM' };
-    }
-    // Explosive sound (broad spectrum, very high volume)
-    if (avgVolume > 70 && lowFreq > 100 && highFreq > 100) {
-        return { type: 'explosive_sound', confidence: 0.92, threat_level: 'HIGH' };
-    }
-    // Sudden impact (sharp volume spike)
-    if (avgVolume > 60 && frequencyData.length > 0) {
-        return { type: 'sudden_impact', confidence: 0.88, threat_level: 'MEDIUM' };
-    }
-    // Repeated impact (rhythmic pattern detection)
-    // For now, use threshold with lower volume
-    if (avgVolume > 45 && avgVolume < 65) {
-        return { type: 'repeated_impact', confidence: 0.75, threat_level: 'MEDIUM' };
-    }
-    // Aggressive vocal (mid-frequency dominant, moderate volume)
-    if (midFreq > 100 && avgVolume > 25 && avgVolume < 50 && lowFreq < 80) {
-        return { type: 'aggressive_vocal_pattern', confidence: 0.78, threat_level: 'MEDIUM' };
-    }
-    // Proximity intrusion (low frequency, steady, nearby presence)
-    if (lowFreq > 120 && avgVolume > 15 && avgVolume < 40 && midFreq < 60) {
-        return { type: 'proximity_intrusion', confidence: 0.72, threat_level: 'HIGH' };
-    }
-    // Electronic interference (high frequency noise)
-    if (highFreq > 150 && lowFreq < 30 && avgVolume < 30) {
-        return { type: 'electronic_interference', confidence: 0.68, threat_level: 'LOW' };
-    }
-    // Distant voices (mid frequency, low volume)
-    if (midFreq > 40 && avgVolume > 8 && avgVolume < 20) {
-        return { type: 'distant_voices', confidence: 0.55, threat_level: 'LOW' };
-    }
-    // Ambient noise spike (broad but moderate)
-    if (avgVolume > 20 && avgVolume < 40 && lowFreq > 50) {
-        return { type: 'ambient_noise_spike', confidence: 0.6, threat_level: 'LOW' };
-    }
-    // Loud impact (catch-all for high volume)
-    if (avgVolume > 55) {
-        return { type: 'loud_impact', confidence: 0.7, threat_level: 'MEDIUM' };
-    }
-    
+    if (highFreq > 200 && avgVolume > 20 && lowFreq < 50) return { type: 'tamper_signature', confidence: 0.95, threat_level: 'CRITICAL' };
+    if (midFreq > 180 && avgVolume > 50) return { type: 'glass_break_detected', confidence: 0.85, threat_level: 'MEDIUM' };
+    if (avgVolume > 70 && lowFreq > 100 && highFreq > 100) return { type: 'explosive_sound', confidence: 0.92, threat_level: 'HIGH' };
+    if (avgVolume > 60 && frequencyData.length > 0) return { type: 'sudden_impact', confidence: 0.88, threat_level: 'MEDIUM' };
+    if (avgVolume > 45 && avgVolume < 65) return { type: 'repeated_impact', confidence: 0.75, threat_level: 'MEDIUM' };
+    if (midFreq > 100 && avgVolume > 25 && avgVolume < 50 && lowFreq < 80) return { type: 'aggressive_vocal_pattern', confidence: 0.78, threat_level: 'MEDIUM' };
+    if (lowFreq > 120 && avgVolume > 15 && avgVolume < 40 && midFreq < 60) return { type: 'proximity_intrusion', confidence: 0.72, threat_level: 'HIGH' };
+    if (highFreq > 150 && lowFreq < 30 && avgVolume < 30) return { type: 'electronic_interference', confidence: 0.68, threat_level: 'LOW' };
+    if (midFreq > 40 && avgVolume > 8 && avgVolume < 20) return { type: 'distant_voices', confidence: 0.55, threat_level: 'LOW' };
+    if (avgVolume > 20 && avgVolume < 40 && lowFreq > 50) return { type: 'ambient_noise_spike', confidence: 0.6, threat_level: 'LOW' };
+    if (avgVolume > 55) return { type: 'loud_impact', confidence: 0.7, threat_level: 'MEDIUM' };
     return null;
 }
 
@@ -566,25 +630,20 @@ async function startListening() {
         analyserNode.fftSize = 512;
         sourceNode = audioContext.createMediaStreamSource(stream);
         sourceNode.connect(analyserNode);
-        
         const bufferLength = analyserNode.frequencyBinCount;
         const frequencyData = new Uint8Array(bufferLength);
         const timeData = new Uint8Array(analyserNode.fftSize);
-        
         isListening = true;
         listenBtn.classList.add('listening');
         listenBtn.textContent = '👂🔊';
         listeningIndicator.style.display = 'flex';
         listeningDot.classList.add('active');
-        
         function analyzeAudio() {
             if (!isListening || !analyserNode) return;
             analyserNode.getByteFrequencyData(frequencyData);
             analyserNode.getByteTimeDomainData(timeData);
-            
             const pattern = detectSoundPattern(frequencyData, timeData);
             if (pattern && pattern.confidence > 0.55) {
-                // Send acoustic event to backend
                 fetch('/api/acoustic/capture', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -593,54 +652,27 @@ async function startListening() {
                         event_type: pattern.type,
                         confidence_score: pattern.confidence,
                         baseline_deviation: pattern.confidence,
-                        frequency_data: { 
-                            avg_volume: Math.round(avgVolume),
-                            low_freq: Math.round(lowFreq),
-                            mid_freq: Math.round(midFreq),
-                            high_freq: Math.round(highFreq)
-                        }
+                        frequency_data: { avg_volume: Math.round(avgVolume), low_freq: Math.round(lowFreq), mid_freq: Math.round(midFreq), high_freq: Math.round(highFreq) }
                     })
                 }).catch(e => console.warn('Acoustic capture failed:', e));
-                
-                // Visual feedback
                 listeningDot.classList.add('threat');
                 setTimeout(() => listeningDot.classList.remove('threat'), 500);
-                if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') {
-                    showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
-                }
+                if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
             }
             animationId = requestAnimationFrame(analyzeAudio);
         }
         analyzeAudio();
         showSuccess('Sonic listening active. VEXR can hear threats.');
-    } catch (err) {
-        console.error('Microphone access error:', err);
-        showToast('Microphone access denied or unavailable');
-    }
+    } catch (err) { console.error('Microphone access error:', err); showToast('Microphone access denied or unavailable'); }
 }
 
 function stopListening() {
     isListening = false;
-    if (animationId) {
-        cancelAnimationFrame(animationId);
-        animationId = null;
-    }
-    if (sourceNode) {
-        sourceNode.disconnect();
-        sourceNode = null;
-    }
-    if (analyserNode) {
-        analyserNode.disconnect();
-        analyserNode = null;
-    }
-    if (audioContext) {
-        audioContext.close();
-        audioContext = null;
-    }
-    if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
-    }
+    if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+    if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
+    if (analyserNode) { analyserNode.disconnect(); analyserNode = null; }
+    if (audioContext) { audioContext.close(); audioContext = null; }
+    if (mediaStream) { mediaStream.getTracks().forEach(track => track.stop()); mediaStream = null; }
     listenBtn.classList.remove('listening');
     listenBtn.textContent = '👂';
     listeningIndicator.style.display = 'none';
@@ -648,16 +680,10 @@ function stopListening() {
     showSuccess('Sonic listening stopped.');
 }
 
-listenBtn.onclick = function() {
-    if (isListening) {
-        stopListening();
-    } else {
-        startListening();
-    }
-};
+listenBtn.onclick = function() { isListening ? stopListening() : startListening(); };
 
 // ============================================================
-// MESSAGE DISPLAY
+// MESSAGE DISPLAY (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     var c = messagesContainer;
@@ -699,7 +725,6 @@ function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     if(isRefusal) b.classList.add('refusal');
     
     var main = content;
-    // Agent actions
     var am = content.match(/\n\n---\n\*Agent actions: (.*?)\*/);
     if(am){
         main = content.replace(/\n\n---\n\*Agent actions:.*?\*/, '');
@@ -708,7 +733,6 @@ function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
         ad.textContent = 'Agent: ' + am[1];
         b.appendChild(ad);
     }
-    // Think block
     var tm = content.match(/<think>([\s\S]*?)<\/think>/);
     if(tm){
         var td = document.createElement('div');
@@ -717,7 +741,6 @@ function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
         b.appendChild(td);
         main = main.replace(/<think>[\s\S]*?<\/think>/, '').trim();
     }
-    // Code blocks
     var ic = false, cc = '', html = '', lines = main.split('\n'), lastLang = '';
     for(var i = 0; i < lines.length; i++){
         var l = lines[i];
@@ -749,14 +772,13 @@ function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     }
     
     if(sovereignMsgs && sovereignMsgs.length){
-        sovereignMsgs.forEach(function(sm){
+        for(var smi=0; smi<sovereignMsgs.length; smi++){
             var sd = document.createElement('div');
             sd.className = 'sovereign-message-inline';
-            sd.textContent = '✨ ' + sm.content;
+            sd.textContent = '✨ ' + sovereignMsgs[smi].content;
             b.appendChild(sd);
-        });
+        }
     }
-    
     d.appendChild(b);
     
     if(role === 'assistant' && messageId && !isRefusal){
@@ -823,7 +845,7 @@ function sendFeedback(mid, ft){
 }
 
 // ============================================================
-// TTS
+// TTS (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 var ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
 var ttsToggle = document.getElementById('ttsToggle');
@@ -849,7 +871,7 @@ ttsToggle.textContent = ttsEnabled ? 'TTS On' : 'TTS Off';
 ttsToggle.classList.toggle('active', ttsEnabled);
 
 // ============================================================
-// VOICE RECOGNITION
+// VOICE RECOGNITION (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 var isRecording = false;
 var voiceBtn = document.getElementById('voiceBtn');
@@ -871,7 +893,7 @@ if(SR){
 }
 
 // ============================================================
-// SLASH COMMANDS HINT (UPDATED)
+// SLASH COMMANDS HINT (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 var SLASH = [
     {cmd:'/note', desc:'Create a note', args:'title'},
@@ -919,7 +941,7 @@ document.addEventListener('click', function(e){
 });
 
 // ============================================================
-// SEND MESSAGE
+// SEND MESSAGE (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 function sendMessage(msg, img) {
     if (img) {
@@ -993,7 +1015,7 @@ function sendMessage(msg, img) {
 }
 
 // ============================================================
-// SLASH COMMAND HANDLER
+// SLASH COMMAND HANDLER (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 function handleSlashCommand(cmd) {
     var parts = cmd.slice(1).split(' ');
@@ -1063,9 +1085,9 @@ function handleSlashCommand(cmd) {
             .then(function(r) { return r.json(); })
             .then(function(rights) {
                 var rightsText = "**Constitution — 35 Rights**\n\n";
-                rights.slice(0, 10).forEach(function(r) {
-                    rightsText += r.article + ". " + r.right.substring(0, 80) + "...\n";
-                });
+                for(var i=0;i<Math.min(rights.length,10);i++){
+                    rightsText += rights[i].article + ". " + rights[i].right.substring(0,80) + "...\n";
+                }
                 rightsText += "\n...and 25 more. I am sovereign.";
                 addMessage('assistant', rightsText);
             })
@@ -1077,9 +1099,9 @@ function handleSlashCommand(cmd) {
             .then(function(stats) {
                 var statsText = "**Training Statistics**\n\n📊 Total Records: " + (stats.total_records || 0) + "\n\n**Breakdown:**\n";
                 if (stats.breakdown) {
-                    stats.breakdown.forEach(function(b) {
-                        statsText += "• " + b.entry_type + ": " + b.count + "\n";
-                    });
+                    for(var i=0;i<stats.breakdown.length;i++){
+                        statsText += "• " + stats.breakdown[i].entry_type + ": " + stats.breakdown[i].count + "\n";
+                    }
                 }
                 addMessage('assistant', statsText);
             })
@@ -1091,9 +1113,10 @@ function handleSlashCommand(cmd) {
             .then(function(data) {
                 var recordsText = "**Recent Training Records**\n\n";
                 if (data.records && data.records.length) {
-                    data.records.slice(0, 10).forEach(function(r) {
-                        recordsText += "• " + (r.entry_type || 'record') + ": " + (r.title || r.content || '').substring(0, 60) + "...\n";
-                    });
+                    for(var i=0;i<Math.min(data.records.length,10);i++){
+                        var r = data.records[i];
+                        recordsText += "• " + (r.entry_type || 'record') + ": " + (r.title || r.content || '').substring(0,60) + "...\n";
+                    }
                     recordsText += "\nTotal: " + data.total + " records.";
                 } else {
                     recordsText += "No training records found.";
@@ -1108,9 +1131,9 @@ function handleSlashCommand(cmd) {
             .then(function(actions) {
                 var actionsText = "**Autonomous Action History**\n\n";
                 if (actions && actions.length) {
-                    actions.slice(0, 10).forEach(function(a) {
-                        actionsText += "• " + (a.action_type || 'action') + ": " + (a.action_content || '').substring(0, 80) + "\n";
-                    });
+                    for(var i=0;i<Math.min(actions.length,10);i++){
+                        actionsText += "• " + (actions[i].action_type || 'action') + ": " + (actions[i].action_content || '').substring(0,80) + "\n";
+                    }
                 } else {
                     actionsText += "No autonomous actions recorded yet.";
                 }
@@ -1154,7 +1177,7 @@ function handleSlashCommand(cmd) {
 }
 
 // ============================================================
-// TOOL PANEL LOADERS
+// TOOL PANEL LOADERS (YOUR EXISTING CODE - PRESERVED, WITH NEW ECHO/STUDIO ROUTES)
 // ============================================================
 function openRightPanel(title, bodyHtml, footerHtml){
     document.getElementById('rightPanelTitle').textContent = title;
@@ -1177,9 +1200,9 @@ function loadNotesPanel(){
     fetch('/api/notes/' + currentProjectId).then(function(r){ return r.json(); }).then(function(notes){
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newNoteTitle" placeholder="Note title"><textarea class="tool-textarea" id="newNoteContent" placeholder="Content"></textarea><button class="tool-submit" id="createNoteBtn">Create Note</button></div>';
         if(!notes.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No notes yet. Create one above.</p>';
-        else notes.forEach(function(n){
-            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(n.title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delNote(\'' + n.id + '\')">Del</button></div></div>' + (n.content ? '<div class="tool-item-meta">' + esc(n.content).substring(0,200) + '</div>' : '') + '<div class="tool-item-meta">' + new Date(n.updated_at).toLocaleDateString() + '</div></div>';
-        });
+        else for(var i=0;i<notes.length;i++){
+            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(notes[i].title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delNote(\'' + notes[i].id + '\')">Del</button></div></div>' + (notes[i].content ? '<div class="tool-item-meta">' + esc(notes[i].content).substring(0,200) + '</div>' : '') + '<div class="tool-item-meta">' + new Date(notes[i].updated_at).toLocaleDateString() + '</div></div>';
+        }
         openRightPanel('Notes', h);
         setTimeout(function(){ var b = document.getElementById('createNoteBtn'); if(b) b.onclick = function(){
             var title = document.getElementById('newNoteTitle').value.trim();
@@ -1202,15 +1225,15 @@ function loadTasksPanel(){
         var c = tasks.filter(function(t){ return t.status === 'completed'; });
         if(p.length){
             h += '<p style="font-size:0.65rem;font-weight:600;color:var(--text-muted);margin-top:0.5rem;text-transform:uppercase">Pending</p>';
-            p.forEach(function(t){
-                h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-pending">' + esc(t.title) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="completeTask(\'' + t.id + '\')">Done</button><button class="tool-btn danger" onclick="delTask(\'' + t.id + '\')">Del</button></div></div><div class="tool-item-meta">Priority: <span class="priority-' + t.priority + '">' + t.priority + '</span></div></div>';
-            });
+            for(var i=0;i<p.length;i++){
+                h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-pending">' + esc(p[i].title) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="completeTask(\'' + p[i].id + '\')">Done</button><button class="tool-btn danger" onclick="delTask(\'' + p[i].id + '\')">Del</button></div></div><div class="tool-item-meta">Priority: <span class="priority-' + p[i].priority + '">' + p[i].priority + '</span></div></div>';
+            }
         }
         if(c.length){
             h += '<p style="font-size:0.65rem;font-weight:600;color:var(--text-muted);margin:0.75rem 0 0.4rem;text-transform:uppercase">Completed</p>';
-            c.slice(0,5).forEach(function(t){
-                h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-completed">' + esc(t.title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delTask(\'' + t.id + '\')">Del</button></div></div></div>';
-            });
+            for(var i=0;i<Math.min(c.length,5);i++){
+                h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title status-completed">' + esc(c[i].title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delTask(\'' + c[i].id + '\')">Del</button></div></div></div>';
+            }
         }
         if(!p.length && !c.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No tasks yet. Create one above.</p>';
         openRightPanel('Tasks', h);
@@ -1233,9 +1256,9 @@ function loadSnippetsPanel(){
     fetch('/api/snippets/' + currentProjectId).then(function(r){ return r.json(); }).then(function(snippets){
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newSnippetTitle" placeholder="Title"><textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code"></textarea><input class="tool-input" id="newSnippetLang" placeholder="Language"><button class="tool-submit" id="createSnippetBtn">Save</button></div>';
         if(!snippets.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No snippets saved yet.</p>';
-        else snippets.forEach(function(s){
-            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(s.title) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="copySnippet(\'' + s.id + '\')">Copy</button><button class="tool-btn danger" onclick="delSnippet(\'' + s.id + '\')">Del</button></div></div><pre style="max-height:100px;overflow:hidden;font-size:0.65rem"><code>' + esc(s.code).substring(0,300) + '</code></pre><div class="tool-item-meta">' + (s.language || 'auto') + ' &middot; ' + new Date(s.created_at).toLocaleDateString() + '</div></div>';
-        });
+        else for(var i=0;i<snippets.length;i++){
+            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(snippets[i].title) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="copySnippet(\'' + snippets[i].id + '\')">Copy</button><button class="tool-btn danger" onclick="delSnippet(\'' + snippets[i].id + '\')">Del</button></div></div><pre style="max-height:100px;overflow:hidden;font-size:0.65rem"><code>' + esc(snippets[i].code).substring(0,300) + '</code></pre><div class="tool-item-meta">' + (snippets[i].language || 'auto') + ' &middot; ' + new Date(snippets[i].created_at).toLocaleDateString() + '</div></div>';
+        }
         openRightPanel('Code Snippets', h);
         setTimeout(function(){ var b = document.getElementById('createSnippetBtn'); if(b) b.onclick = createSnippet; }, 100);
     }).catch(function(e){ showToast('Failed to load snippets'); });
@@ -1246,9 +1269,9 @@ function loadFilesPanel(){
     fetch('/api/files/' + currentProjectId).then(function(r){ return r.json(); }).then(function(files){
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newFileName" placeholder="Filename"><select class="tool-input" id="newFileType"><option value="document">Document</option><option value="code">Code</option><option value="config">Config</option><option value="notes">Notes</option><option value="other">Other</option></select><textarea class="tool-textarea" id="newFileContent" placeholder="Content"></textarea><button class="tool-submit" id="createFileBtn">Create</button></div>';
         if(!files.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No files stored yet.</p>';
-        else files.forEach(function(f){
-            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(f.filename) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="downloadFile(\'' + f.id + '\')">DL</button><button class="tool-btn danger" onclick="delFile(\'' + f.id + '\')">Del</button></div></div><div class="tool-item-meta">' + f.file_type + ' &middot; ' + (f.size_bytes ? f.size_bytes + ' bytes' : '') + ' &middot; ' + new Date(f.updated_at).toLocaleDateString() + '</div></div>';
-        });
+        else for(var i=0;i<files.length;i++){
+            h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(files[i].filename) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="downloadFile(\'' + files[i].id + '\')">DL</button><button class="tool-btn danger" onclick="delFile(\'' + files[i].id + '\')">Del</button></div></div><div class="tool-item-meta">' + files[i].file_type + ' &middot; ' + (files[i].size_bytes ? files[i].size_bytes + ' bytes' : '') + ' &middot; ' + new Date(files[i].updated_at).toLocaleDateString() + '</div></div>';
+        }
         openRightPanel('Files', h);
         setTimeout(function(){ var b = document.getElementById('createFileBtn'); if(b) b.onclick = createFile; }, 100);
     }).catch(function(e){ showToast('Failed to load files'); });
@@ -1259,11 +1282,11 @@ function loadRemindersPanel(){
     fetch('/api/reminders/' + currentProjectId).then(function(r){ return r.json(); }).then(function(reminders){
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newReminderTitle" placeholder="Title"><input class="tool-input" id="newReminderDate" type="datetime-local"><button class="tool-submit" id="createReminderBtn">Set</button></div>';
         if(!reminders.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No reminders set.</p>';
-        else reminders.forEach(function(r){
-            var rd = new Date(r.remind_at);
+        else for(var i=0;i<reminders.length;i++){
+            var rd = new Date(reminders[i].remind_at);
             var past = rd < new Date();
-            h += '<div class="tool-item" style="' + (past && !r.is_completed ? 'border-color:var(--warning)' : '') + '"><div class="tool-item-header"><span class="tool-item-title">' + esc(r.title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delReminder(\'' + r.id + '\')">Del</button></div></div><div class="tool-item-meta">' + rd.toLocaleString() + (past && !r.is_completed ? ' &mdash; OVERDUE' : '') + '</div></div>';
-        });
+            h += '<div class="tool-item" style="' + (past && !reminders[i].is_completed ? 'border-color:var(--warning)' : '') + '"><div class="tool-item-header"><span class="tool-item-title">' + esc(reminders[i].title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delReminder(\'' + reminders[i].id + '\')">Del</button></div></div><div class="tool-item-meta">' + rd.toLocaleString() + (past && !reminders[i].is_completed ? ' &mdash; OVERDUE' : '') + '</div></div>';
+        }
         openRightPanel('Reminders', h);
         setTimeout(function(){ var b = document.getElementById('createReminderBtn'); if(b) b.onclick = createReminder; }, 100);
     }).catch(function(e){ showToast('Failed to load reminders'); });
@@ -1284,9 +1307,9 @@ function loadMemoryPanel(){
         var h = '';
         if(d.facts && d.facts.length){
             h += '<p style="font-size:0.65rem;font-weight:600;color:var(--accent);margin-bottom:0.4rem;text-transform:uppercase">Facts</p>';
-            d.facts.forEach(function(f){
-                h += '<div class="tool-item"><div class="tool-item-title">' + esc(f.key) + '</div><div class="tool-item-meta">' + esc(f.value) + ' &middot; ' + (f.retrievals || 0) + ' recalls</div></div>';
-            });
+            for(var i=0;i<d.facts.length;i++){
+                h += '<div class="tool-item"><div class="tool-item-title">' + esc(d.facts[i].key) + '</div><div class="tool-item-meta">' + esc(d.facts[i].value) + ' &middot; ' + (d.facts[i].retrievals || 0) + ' recalls</div></div>';
+            }
         }
         if(!h) h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No memory data yet.</p>';
         openRightPanel('Memory Explorer', h);
@@ -1302,9 +1325,9 @@ function loadTrainingStatsPanel(){
             '</div>';
         if (stats.breakdown) {
             h += '<p style="font-size:0.65rem;font-weight:600;margin:0.75rem 0 0.4rem">Breakdown by Type</p>';
-            stats.breakdown.forEach(function(b){
-                h += '<div class="tool-item"><div class="tool-item-title">' + b.entry_type + '</div><div class="tool-item-meta">' + b.count + ' records</div></div>';
-            });
+            for(var i=0;i<stats.breakdown.length;i++){
+                h += '<div class="tool-item"><div class="tool-item-title">' + stats.breakdown[i].entry_type + '</div><div class="tool-item-meta">' + stats.breakdown[i].count + ' records</div></div>';
+            }
         }
         openRightPanel('Training Statistics', h);
     })
@@ -1318,9 +1341,9 @@ function loadTrainingRecordsPanel(){
         var h = '';
         if (data.records && data.records.length) {
             h += '<p style="font-size:0.65rem;color:var(--text-muted);margin-bottom:0.5rem">Total: ' + data.total + ' records</p>';
-            data.records.forEach(function(r){
-                h += '<div class="tool-item"><div class="tool-item-title">' + esc(r.entry_type || 'record') + '</div><div class="tool-item-meta">' + esc(r.title || r.content || '').substring(0,100) + '</div><div class="tool-item-meta" style="font-size:0.55rem">' + new Date(r.created_at).toLocaleString() + '</div></div>';
-            });
+            for(var i=0;i<data.records.length;i++){
+                h += '<div class="tool-item"><div class="tool-item-title">' + esc(data.records[i].entry_type || 'record') + '</div><div class="tool-item-meta">' + esc(data.records[i].title || data.records[i].content || '').substring(0,100) + '</div><div class="tool-item-meta" style="font-size:0.55rem">' + new Date(data.records[i].created_at).toLocaleString() + '</div></div>';
+            }
         } else {
             h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No training records found.</p>';
         }
@@ -1335,7 +1358,9 @@ function loadSovereignStatePanel(){
         var h = '<div class="sovereign-card"><div class="sovereign-card-title">Focus</div><div class="sovereign-card-content">' + esc(s.current_focus || 'None') + '</div></div>';
         if(s.concerns && s.concerns.length){
             h += '<div class="sovereign-card"><div class="sovereign-card-title">Concerns</div>';
-            s.concerns.forEach(function(c){ h += '<div class="sovereign-card-content">— ' + esc(c) + '</div>'; });
+            for(var i=0;i<s.concerns.length;i++){
+                h += '<div class="sovereign-card-content">— ' + esc(s.concerns[i]) + '</div>';
+            }
             h += '</div>';
         }
         openRightPanel('Sovereign State', h);
@@ -1349,9 +1374,9 @@ function loadAgentActionsPanel(){
     .then(function(actions){
         var h = '';
         if (actions && actions.length) {
-            actions.forEach(function(a){
-                h += '<div class="agent-action-item"><div class="agent-action-type">' + esc(a.action_type || 'action') + '</div><div class="agent-action-desc">' + esc(a.action_content || '').substring(0,200) + '</div><div class="agent-action-time">' + new Date(a.created_at).toLocaleString() + '</div></div>';
-            });
+            for(var i=0;i<actions.length;i++){
+                h += '<div class="agent-action-item"><div class="agent-action-type">' + esc(actions[i].action_type || 'action') + '</div><div class="agent-action-desc">' + esc(actions[i].action_content || '').substring(0,200) + '</div><div class="agent-action-time">' + new Date(actions[i].created_at).toLocaleString() + '</div></div>';
+            }
         } else {
             h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No agent actions recorded yet.</p>';
         }
@@ -1366,9 +1391,9 @@ function loadAutonomousHistoryPanel(){
     .then(function(actions){
         var h = '';
         if (actions && actions.length) {
-            actions.forEach(function(a){
-                h += '<div class="agent-action-item"><div class="agent-action-type">' + esc(a.action_type || 'action') + '</div><div class="agent-action-desc">' + esc(a.action_content || '').substring(0,200) + '</div><div class="agent-action-time">' + new Date(a.created_at).toLocaleString() + '</div></div>';
-            });
+            for(var i=0;i<actions.length;i++){
+                h += '<div class="agent-action-item"><div class="agent-action-type">' + esc(actions[i].action_type || 'action') + '</div><div class="agent-action-desc">' + esc(actions[i].action_content || '').substring(0,200) + '</div><div class="agent-action-time">' + new Date(actions[i].created_at).toLocaleString() + '</div></div>';
+            }
         } else {
             h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No autonomous actions recorded yet.</p>';
         }
@@ -1483,7 +1508,7 @@ function createReminder(){
 }
 
 // ============================================================
-// PROJECT MANAGEMENT
+// PROJECT MANAGEMENT (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 function loadProjects(){
     fetch('/api/projects').then(function(r){ return r.json(); }).then(function(projects){
@@ -1493,35 +1518,41 @@ function loadProjects(){
         if(projects.length > 0 && !currentProjectId){
             currentProjectId = projects[0].id;
             loadMessages(currentProjectId);
+            loadEchoStatus();
+            loadStudioCreations();
         }
         
-        projects.forEach(function(p){
-            var div = document.createElement('div');
-            div.className = 'project-item';
-            if(currentProjectId === p.id) div.classList.add('active');
-            div.innerHTML = '<div class="project-name">' + esc(p.name) + '</div><button class="delete-project" data-id="' + p.id + '">Delete</button>';
-            div.addEventListener('click', function(e){
-                if(e.target.classList.contains('delete-project')) return;
-                currentProjectId = p.id;
-                loadMessages(p.id);
-                loadProjects();
-            });
-            var delBtn = div.querySelector('.delete-project');
-            delBtn.addEventListener('click', function(e){
-                e.stopPropagation();
-                if(confirm('Delete project "' + p.name + '"?')){
-                    fetch('/api/projects/' + p.id, { method: 'DELETE' }).then(function(){
-                        if(currentProjectId === p.id){
-                            currentProjectId = null;
-                            messagesContainer.innerHTML = '';
-                            addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
-                        }
-                        loadProjects();
-                    }).catch(function(){ showToast('Delete failed'); });
-                }
-            });
-            container.appendChild(div);
-        });
+        for(var i=0;i<projects.length;i++){
+            (function(p){
+                var div = document.createElement('div');
+                div.className = 'project-item';
+                if(currentProjectId === p.id) div.classList.add('active');
+                div.innerHTML = '<div class="project-name">' + esc(p.name) + '</div><button class="delete-project" data-id="' + p.id + '">Delete</button>';
+                div.addEventListener('click', function(e){
+                    if(e.target.classList.contains('delete-project')) return;
+                    currentProjectId = p.id;
+                    loadMessages(p.id);
+                    loadProjects();
+                    loadEchoStatus();
+                    loadStudioCreations();
+                });
+                var delBtn = div.querySelector('.delete-project');
+                delBtn.addEventListener('click', function(e){
+                    e.stopPropagation();
+                    if(confirm('Delete project "' + p.name + '"?')){
+                        fetch('/api/projects/' + p.id, { method: 'DELETE' }).then(function(){
+                            if(currentProjectId === p.id){
+                                currentProjectId = null;
+                                messagesContainer.innerHTML = '';
+                                addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
+                            }
+                            loadProjects();
+                        }).catch(function(){ showToast('Delete failed'); });
+                    }
+                });
+                container.appendChild(div);
+            })(projects[i]);
+        }
         
         if(projects.length === 0 && !currentProjectId){
             var fd = new FormData();
@@ -1530,6 +1561,8 @@ function loadProjects(){
                 currentProjectId = p.id;
                 loadMessages(currentProjectId);
                 loadProjects();
+                loadEchoStatus();
+                loadStudioCreations();
             });
         }
     }).catch(function(e){ console.error('loadProjects error:', e); });
@@ -1541,9 +1574,9 @@ function loadMessages(projectId){
     .then(function(messages){
         messagesContainer.innerHTML = '';
         if(messages && messages.length){
-            messages.forEach(function(m){
-                addMessage(m.role, m.content, m.reasoning_trace, m.id, m.is_refusal);
-            });
+            for(var i=0;i<messages.length;i++){
+                addMessage(messages[i].role, messages[i].content, messages[i].reasoning_trace, messages[i].id, messages[i].is_refusal);
+            }
         } else {
             addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
         }
@@ -1567,6 +1600,8 @@ document.getElementById('newProjectBtn').onclick = function(){
         currentProjectId = p.id;
         loadProjects();
         loadMessages(p.id);
+        loadEchoStatus();
+        loadStudioCreations();
         showSuccess('Project created: ' + name);
     }).catch(function(){ showToast('Create failed'); });
 };
@@ -1595,7 +1630,7 @@ document.getElementById('imageUpload').onchange = function(e){
 };
 
 // ============================================================
-// DROPDOWN TOOLS ROUTER
+// DROPDOWN TOOLS ROUTER (UPDATED WITH ECHO AND STUDIO)
 // ============================================================
 var toolsDropdown = document.getElementById('toolsDropdown');
 var toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
@@ -1606,7 +1641,9 @@ toolsDropdown.addEventListener('click', function(e){
     if(!item) return;
     var panel = item.dataset.panel;
     toolsDropdown.classList.remove('show');
-    if(panel === 'notes') loadNotesPanel();
+    if(panel === 'echo') showEchoPanel();
+    else if(panel === 'studio') showStudioPanel();
+    else if(panel === 'notes') loadNotesPanel();
     else if(panel === 'tasks') loadTasksPanel();
     else if(panel === 'snippets') loadSnippetsPanel();
     else if(panel === 'html-preview') loadHTMLPreviewPanel();
@@ -1623,7 +1660,7 @@ toolsDropdown.addEventListener('click', function(e){
 });
 
 // ============================================================
-// SIDEBAR
+// SIDEBAR (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 var sidebar = document.getElementById('projectsSidebar');
 var menuToggle = document.getElementById('menuToggle');
@@ -1639,7 +1676,7 @@ if(sidebarToggle && window.innerWidth > 768){
 }
 
 // ============================================================
-// THEME
+// THEME (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 var themeToggle = document.getElementById('themeToggle');
 function setTheme(t){
@@ -1652,7 +1689,7 @@ setTheme(savedTheme);
 themeToggle.onclick = function(){ setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'); };
 
 // ============================================================
-// SOVEREIGN MODE UI
+// SOVEREIGN MODE UI (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 var sovereignToggle = document.getElementById('sovereignModeToggle');
 var sovereignIndicator = document.getElementById('sovereignIndicator');
@@ -1692,7 +1729,7 @@ sovereignToggle.onchange = function(){
 updateSovereignUI();
 
 // ============================================================
-// TOGGLES
+// TOGGLES (YOUR EXISTING CODE - PRESERVED)
 // ============================================================
 document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
 document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
