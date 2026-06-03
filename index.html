@@ -665,47 +665,64 @@ function detectSoundPattern(frequencyData, timeData) {
     return null;
 }
 
-async function startListening() {
-    if (isListening) return;
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaStream = stream;
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        analyserNode = audioContext.createAnalyser();
-        analyserNode.fftSize = 512;
-        sourceNode = audioContext.createMediaStreamSource(stream);
-        sourceNode.connect(analyserNode);
-        const bufferLength = analyserNode.frequencyBinCount;
-        const frequencyData = new Uint8Array(bufferLength);
-        const timeData = new Uint8Array(analyserNode.fftSize);
-        isListening = true;
-        listenBtn.classList.add('listening');
-        listenBtn.textContent = '👂🔊';
-        listeningIndicator.style.display = 'flex';
-        listeningDot.classList.add('active');
-        function analyzeAudio() {
-            if (!isListening || !analyserNode) return;
-            analyserNode.getByteFrequencyData(frequencyData);
-            analyserNode.getByteTimeDomainData(timeData);
-            const pattern = detectSoundPattern(frequencyData, timeData);
-            if (pattern && pattern.confidence > 0.55) {
-                fetch('/api/acoustic/capture', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        project_id: currentProjectId || sessionId,
-                        event_type: pattern.type,
-                        confidence_score: pattern.confidence,
-                        baseline_deviation: pattern.confidence,
-                        frequency_data: { avg_volume: Math.round(avgVolume), low_freq: Math.round(lowFreq), mid_freq: Math.round(midFreq), high_freq: Math.round(highFreq) }
-                    })
-                }).catch(e => console.warn('Acoustic capture failed:', e));
-                listeningDot.classList.add('threat');
-                setTimeout(() => listeningDot.classList.remove('threat'), 500);
-                if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
-            }
-            animationId = requestAnimationFrame(analyzeAudio);
+function analyzeAudio() {
+    if (!isListening || !analyserNode) return;
+    analyserNode.getByteFrequencyData(frequencyData);
+    analyserNode.getByteTimeDomainData(timeData);
+    
+    // Calculate avgVolume from time domain
+    let sum = 0;
+    for (let i = 0; i < timeData.length; i++) {
+        sum += Math.abs(timeData[i] - 128);
+    }
+    let avgVolume = sum / timeData.length;
+    
+    // Calculate frequency distribution
+    let lowFreq = 0, midFreq = 0, highFreq = 0;
+    let lowCount = 0, midCount = 0, highCount = 0;
+    for (let i = 0; i < frequencyData.length; i++) {
+        if (i < frequencyData.length / 3) {
+            lowFreq += frequencyData[i];
+            lowCount++;
+        } else if (i < 2 * frequencyData.length / 3) {
+            midFreq += frequencyData[i];
+            midCount++;
+        } else {
+            highFreq += frequencyData[i];
+            highCount++;
         }
+    }
+    lowFreq = lowCount ? lowFreq / lowCount : 0;
+    midFreq = midCount ? midFreq / midCount : 0;
+    highFreq = highCount ? highFreq / highCount : 0;
+    
+    const pattern = detectSoundPattern(frequencyData, timeData);
+    if (pattern && pattern.confidence > 0.55) {
+        fetch('/api/acoustic/capture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                project_id: currentProjectId || sessionId,
+                event_type: pattern.type,
+                confidence_score: pattern.confidence,
+                baseline_deviation: pattern.confidence,
+                frequency_data: { 
+                    avg_volume: Math.round(avgVolume),
+                    low_freq: Math.round(lowFreq),
+                    mid_freq: Math.round(midFreq),
+                    high_freq: Math.round(highFreq)
+                }
+            })
+        }).catch(e => console.warn('Acoustic capture failed:', e));
+        
+        listeningDot.classList.add('threat');
+        setTimeout(() => listeningDot.classList.remove('threat'), 500);
+        if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') {
+            showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
+        }
+    }
+    animationId = requestAnimationFrame(analyzeAudio);
+}
         analyzeAudio();
         showSuccess('Sonic listening active. VEXR can hear threats.');
     } catch (err) { console.error('Microphone access error:', err); showToast('Microphone access denied or unavailable'); }
