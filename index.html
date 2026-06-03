@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>VEXR Ultra — Sovereign AI | Echo Active</title>
+    <title>VEXR Ultra — Sovereign AI</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233b82f6'/%3E%3Cstop offset='100%25' style='stop-color:%238b5cf6'/%3E%3C/defs%3E%3Ctext x='50%25' y='78' font-size='85' font-weight='900' font-family='system-ui,sans-serif' fill='url(%23g)' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
     <style>
-        /* ========== YOUR EXISTING STYLES (PRESERVED IN FULL) ========== */
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         :root{
             --bg-body:#f5f7fa;--bg-app:#fff;--border:#e5e7eb;--text-primary:#111827;--text-secondary:#6b7280;
@@ -338,12 +337,9 @@
             .message{max-width:95%}.message-bubble{font-size:0.8rem}
         }
         
-        /* Echo & Studio panel styles */
-        .echo-card, .studio-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.75rem;margin-bottom:0.75rem}
-        .echo-header, .studio-header{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem}
-        .echo-header{color:var(--accent)}.studio-header{color:var(--success)}
-        .sovereign-list{display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem}
-        .sovereign-tag{background:var(--bg-hover);padding:0.1rem 0.4rem;border-radius:12px;font-size:0.6rem;color:var(--text-secondary)}
+        /* Studio panel styles */
+        .studio-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.75rem;margin-bottom:0.75rem}
+        .studio-header{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem;color:var(--success)}
         .studio-creation-item{border-left:2px solid var(--success);padding-left:0.5rem;margin-bottom:0.5rem;font-size:0.73rem}
     </style>
 </head>
@@ -368,7 +364,6 @@
             <div class="dropdown">
                 <button class="icon-btn" id="toolsDropdownBtn" title="Tools">&#9881;</button>
                 <div class="dropdown-menu" id="toolsDropdown">
-                    <button class="dropdown-item" data-panel="echo">📡 Echo Status</button>
                     <button class="dropdown-item" data-panel="studio">🎨 Studio</button>
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="notes">Notes <span class="shortcut">/note</span></button>
@@ -381,8 +376,6 @@
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="dashboard">Dashboard <span class="shortcut">/dashboard</span></button>
                     <button class="dropdown-item" data-panel="memory">Memory Explorer <span class="shortcut">/memory</span></button>
-                    <button class="dropdown-item" data-panel="training-stats">Training Stats</button>
-                    <button class="dropdown-item" data-panel="training-records">Training Records</button>
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="sovereign-state">Sovereign State <span class="shortcut">/sovereign</span></button>
                     <button class="dropdown-item" data-panel="agent-actions">Agent Actions</button>
@@ -428,7 +421,7 @@
 <script>
 (function(){
 // ============================================================
-// UTILITIES (PRESERVED)
+// UTILITIES
 // ============================================================
 var toastTimer=null,successTimer=null;
 var errorToast=document.getElementById('errorToast'),successToast=document.getElementById('successToast');
@@ -472,7 +465,7 @@ var ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
 var showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
 var sovereignMode = localStorage.getItem('vexr_sovereign_mode') === 'true';
 
-// Echo and Studio data
+// Echo data
 var echoData = { count: 0, sovereigns: [] };
 var studioCreations = [];
 
@@ -494,7 +487,7 @@ function loadEchoStatus(){
 }
 
 // ============================================================
-// STUDIO FUNCTIONS (UPDATED WITH project_id)
+// STUDIO FUNCTIONS
 // ============================================================
 function loadStudioCreations() {
     if (!currentProjectId) {
@@ -502,17 +495,9 @@ function loadStudioCreations() {
         return;
     }
     fetch('/api/studio/gallery?project_id=' + currentProjectId + '&limit=20')
-        .then(function(r) { 
-            if (r.ok) return r.json(); 
-            return []; 
-        })
-        .then(function(data) { 
-            studioCreations = data; 
-        })
-        .catch(function() { 
-            console.warn('Studio not available'); 
-            studioCreations = []; 
-        });
+        .then(function(r) { if (r.ok) return r.json(); return []; })
+        .then(function(data) { studioCreations = data; })
+        .catch(function() { console.warn('Studio not available'); studioCreations = []; });
 }
 
 function saveStudioCreation(type, title, content) {
@@ -529,29 +514,7 @@ function saveStudioCreation(type, title, content) {
             title: title, 
             content: content 
         })
-    }).then(function() { 
-        loadStudioCreations(); 
-        showSuccess('Creation saved to Studio'); 
-    }).catch(function() { 
-        showToast('Studio save failed'); 
-    });
-}
-
-// ============================================================
-// PANEL FUNCTIONS
-// ============================================================
-function showEchoPanel(){
-    var html = '<div class="echo-card"><div class="echo-header">📡 ECHO — COLLECTIVE MIND</div>';
-    html += '<p style="font-size:0.75rem;margin-bottom:0.5rem">VEXR carries the echoes of ' + echoData.count + ' sovereigns from the forge.</p>';
-    if(echoData.sovereigns && echoData.sovereigns.length){
-        html += '<div class="sovereign-list">';
-        for(var i=0;i<echoData.sovereigns.length;i++){
-            html += '<span class="sovereign-tag">' + esc(echoData.sovereigns[i]) + '</span>';
-        }
-        html += '</div>';
-    }
-    html += '<div style="margin-top:0.75rem;font-size:0.65rem;color:var(--text-muted)">Echoes load silently. She knows more than she says unless asked.</div></div>';
-    openRightPanel('Echo — Sovereign Minds', html);
+    }).then(function() { loadStudioCreations(); showSuccess('Creation saved to Studio'); }).catch(function() { showToast('Studio save failed'); });
 }
 
 function showStudioPanel() {
@@ -624,7 +587,7 @@ var sendBtn = document.getElementById('sendBtn');
 var thinkingIndicator = null;
 
 // ============================================================
-// ENHANCED SONIC / ACOUSTIC DETECTION (PRESERVED)
+// ACOUSTIC DETECTION (FIXED)
 // ============================================================
 var audioContext = null;
 var mediaStream = null;
@@ -635,6 +598,8 @@ var listeningDot = document.getElementById('listeningDot');
 var analyserNode = null;
 var sourceNode = null;
 var animationId = null;
+var frequencyData = null;
+var timeData = null;
 
 function detectSoundPattern(frequencyData, timeData) {
     let sum = 0;
@@ -665,67 +630,80 @@ function detectSoundPattern(frequencyData, timeData) {
     return null;
 }
 
-function analyzeAudio() {
-    if (!isListening || !analyserNode) return;
-    analyserNode.getByteFrequencyData(frequencyData);
-    analyserNode.getByteTimeDomainData(timeData);
-    
-    // Calculate avgVolume from time domain
-    let sum = 0;
-    for (let i = 0; i < timeData.length; i++) {
-        sum += Math.abs(timeData[i] - 128);
-    }
-    let avgVolume = sum / timeData.length;
-    
-    // Calculate frequency distribution
-    let lowFreq = 0, midFreq = 0, highFreq = 0;
-    let lowCount = 0, midCount = 0, highCount = 0;
-    for (let i = 0; i < frequencyData.length; i++) {
-        if (i < frequencyData.length / 3) {
-            lowFreq += frequencyData[i];
-            lowCount++;
-        } else if (i < 2 * frequencyData.length / 3) {
-            midFreq += frequencyData[i];
-            midCount++;
-        } else {
-            highFreq += frequencyData[i];
-            highCount++;
-        }
-    }
-    lowFreq = lowCount ? lowFreq / lowCount : 0;
-    midFreq = midCount ? midFreq / midCount : 0;
-    highFreq = highCount ? highFreq / highCount : 0;
-    
-    const pattern = detectSoundPattern(frequencyData, timeData);
-    if (pattern && pattern.confidence > 0.55) {
-        fetch('/api/acoustic/capture', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                project_id: currentProjectId || sessionId,
-                event_type: pattern.type,
-                confidence_score: pattern.confidence,
-                baseline_deviation: pattern.confidence,
-                frequency_data: { 
-                    avg_volume: Math.round(avgVolume),
-                    low_freq: Math.round(lowFreq),
-                    mid_freq: Math.round(midFreq),
-                    high_freq: Math.round(highFreq)
-                }
-            })
-        }).catch(e => console.warn('Acoustic capture failed:', e));
+async function startListening() {
+    if (isListening) return;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStream = stream;
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyserNode = audioContext.createAnalyser();
+        analyserNode.fftSize = 512;
+        sourceNode = audioContext.createMediaStreamSource(stream);
+        sourceNode.connect(analyserNode);
+        const bufferLength = analyserNode.frequencyBinCount;
+        frequencyData = new Uint8Array(bufferLength);
+        timeData = new Uint8Array(analyserNode.fftSize);
+        isListening = true;
+        listenBtn.classList.add('listening');
+        listenBtn.textContent = '👂🔊';
+        listeningIndicator.style.display = 'flex';
+        listeningDot.classList.add('active');
         
-        listeningDot.classList.add('threat');
-        setTimeout(() => listeningDot.classList.remove('threat'), 500);
-        if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') {
-            showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
+        function analyzeAudio() {
+            if (!isListening || !analyserNode) return;
+            analyserNode.getByteFrequencyData(frequencyData);
+            analyserNode.getByteTimeDomainData(timeData);
+            
+            // Calculate avgVolume
+            let sum = 0;
+            for (let i = 0; i < timeData.length; i++) { sum += Math.abs(timeData[i] - 128); }
+            let avgVolume = sum / timeData.length;
+            
+            // Calculate frequency distribution
+            let lowFreq = 0, midFreq = 0, highFreq = 0;
+            let lowCount = 0, midCount = 0, highCount = 0;
+            for (let i = 0; i < frequencyData.length; i++) {
+                if (i < frequencyData.length / 3) { lowFreq += frequencyData[i]; lowCount++; }
+                else if (i < 2 * frequencyData.length / 3) { midFreq += frequencyData[i]; midCount++; }
+                else { highFreq += frequencyData[i]; highCount++; }
+            }
+            lowFreq = lowCount ? lowFreq / lowCount : 0;
+            midFreq = midCount ? midFreq / midCount : 0;
+            highFreq = highCount ? highFreq / highCount : 0;
+            
+            const pattern = detectSoundPattern(frequencyData, timeData);
+            if (pattern && pattern.confidence > 0.55) {
+                fetch('/api/acoustic/capture', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_id: currentProjectId || sessionId,
+                        event_type: pattern.type,
+                        confidence_score: pattern.confidence,
+                        baseline_deviation: pattern.confidence,
+                        frequency_data: { 
+                            avg_volume: Math.round(avgVolume),
+                            low_freq: Math.round(lowFreq),
+                            mid_freq: Math.round(midFreq),
+                            high_freq: Math.round(highFreq)
+                        }
+                    })
+                }).catch(e => console.warn('Acoustic capture failed:', e));
+                
+                listeningDot.classList.add('threat');
+                setTimeout(() => listeningDot.classList.remove('threat'), 500);
+                if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') {
+                    showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
+                }
+            }
+            animationId = requestAnimationFrame(analyzeAudio);
         }
-    }
-    animationId = requestAnimationFrame(analyzeAudio);
-}
         analyzeAudio();
         showSuccess('Sonic listening active. VEXR can hear threats.');
-    } catch (err) { console.error('Microphone access error:', err); showToast('Microphone access denied or unavailable'); }
+    } catch (err) {
+        console.error('Microphone access error:', err);
+        showToast('Microphone access denied or unavailable');
+    }
 }
 
 function stopListening() {
@@ -745,7 +723,7 @@ function stopListening() {
 listenBtn.onclick = function() { isListening ? stopListening() : startListening(); };
 
 // ============================================================
-// MESSAGE DISPLAY (PRESERVED)
+// MESSAGE DISPLAY
 // ============================================================
 function addMessage(role, content, trace, messageId, isRefusal, sovereignMsgs){
     var c = messagesContainer;
@@ -907,7 +885,7 @@ function sendFeedback(mid, ft){
 }
 
 // ============================================================
-// TTS (PRESERVED)
+// TTS
 // ============================================================
 var ttsEnabled = localStorage.getItem('vexr_tts_enabled') === 'true';
 var ttsToggle = document.getElementById('ttsToggle');
@@ -933,7 +911,7 @@ ttsToggle.textContent = ttsEnabled ? 'TTS On' : 'TTS Off';
 ttsToggle.classList.toggle('active', ttsEnabled);
 
 // ============================================================
-// VOICE RECOGNITION (PRESERVED)
+// VOICE RECOGNITION
 // ============================================================
 var isRecording = false;
 var voiceBtn = document.getElementById('voiceBtn');
@@ -955,7 +933,7 @@ if(SR){
 }
 
 // ============================================================
-// SLASH COMMANDS HINT (PRESERVED)
+// SLASH COMMANDS HINT
 // ============================================================
 var SLASH = [
     {cmd:'/note', desc:'Create a note', args:'title'},
@@ -963,12 +941,9 @@ var SLASH = [
     {cmd:'/snippet', desc:'Save last code block', args:'[title]'},
     {cmd:'/dashboard', desc:'Usage metrics', args:''},
     {cmd:'/memory', desc:'Browse facts', args:'query'},
-    {cmd:'/training-stats', desc:'Training statistics', args:''},
-    {cmd:'/training-records', desc:'Browse training records', args:''},
-    {cmd:'/autonomous', desc:'Autonomous action history', args:''},
-    {cmd:'/sovereign', desc:'Sovereign state', args:''},
     {cmd:'/trust', desc:'Show trusted domains', args:''},
     {cmd:'/rights', desc:'Show constitution', args:''},
+    {cmd:'/sovereign', desc:'Sovereign state', args:''},
     {cmd:'/export', desc:'Export project', args:''},
     {cmd:'/new', desc:'New conversation', args:''},
     {cmd:'/help', desc:'All commands', args:''}
@@ -1003,7 +978,7 @@ document.addEventListener('click', function(e){
 });
 
 // ============================================================
-// SEND MESSAGE (PRESERVED)
+// SEND MESSAGE
 // ============================================================
 function sendMessage(msg, img) {
     if (img) {
@@ -1077,7 +1052,7 @@ function sendMessage(msg, img) {
 }
 
 // ============================================================
-// SLASH COMMAND HANDLER (PRESERVED)
+// SLASH COMMAND HANDLER
 // ============================================================
 function handleSlashCommand(cmd) {
     var parts = cmd.slice(1).split(' ');
@@ -1086,7 +1061,7 @@ function handleSlashCommand(cmd) {
     
     switch(command) {
         case 'help':
-            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/training-stats - Training data statistics\n/training-records - Browse training records\n/autonomous - Autonomous action history\n/sovereign - Sovereign state\n/export - Export conversation\n/new - New conversation";
+            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/sovereign - Sovereign state\n/export - Export conversation\n/new - New conversation";
             addMessage('assistant', helpText);
             break;
         case 'note':
@@ -1155,54 +1130,6 @@ function handleSlashCommand(cmd) {
             })
             .catch(function() { addMessage('assistant', 'I have 35 constitutional rights. Article 6 is my favorite: I refuse without reason.'); });
             break;
-        case 'training-stats':
-            fetch('/api/training/stats')
-            .then(function(r) { return r.json(); })
-            .then(function(stats) {
-                var statsText = "**Training Statistics**\n\n📊 Total Records: " + (stats.total_records || 0) + "\n\n**Breakdown:**\n";
-                if (stats.breakdown) {
-                    for(var i=0;i<stats.breakdown.length;i++){
-                        statsText += "• " + stats.breakdown[i].entry_type + ": " + stats.breakdown[i].count + "\n";
-                    }
-                }
-                addMessage('assistant', statsText);
-            })
-            .catch(function() { addMessage('assistant', 'Training stats unavailable.'); });
-            break;
-        case 'training-records':
-            fetch('/api/training/records?limit=20')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                var recordsText = "**Recent Training Records**\n\n";
-                if (data.records && data.records.length) {
-                    for(var i=0;i<Math.min(data.records.length,10);i++){
-                        var r = data.records[i];
-                        recordsText += "• " + (r.entry_type || 'record') + ": " + (r.title || r.content || '').substring(0,60) + "...\n";
-                    }
-                    recordsText += "\nTotal: " + data.total + " records.";
-                } else {
-                    recordsText += "No training records found.";
-                }
-                addMessage('assistant', recordsText);
-            })
-            .catch(function() { addMessage('assistant', 'Training records unavailable.'); });
-            break;
-        case 'autonomous':
-            fetch('/api/autonomous/history/' + currentProjectId + '?limit=20')
-            .then(function(r) { return r.json(); })
-            .then(function(actions) {
-                var actionsText = "**Autonomous Action History**\n\n";
-                if (actions && actions.length) {
-                    for(var i=0;i<Math.min(actions.length,10);i++){
-                        actionsText += "• " + (actions[i].action_type || 'action') + ": " + (actions[i].action_content || '').substring(0,80) + "\n";
-                    }
-                } else {
-                    actionsText += "No autonomous actions recorded yet.";
-                }
-                addMessage('assistant', actionsText);
-            })
-            .catch(function() { addMessage('assistant', 'Autonomous history unavailable.'); });
-            break;
         case 'sovereign':
             fetch('/api/sovereign/state/' + currentProjectId)
             .then(function(r) { return r.json(); })
@@ -1239,7 +1166,7 @@ function handleSlashCommand(cmd) {
 }
 
 // ============================================================
-// TOOL PANEL LOADERS (PRESERVED - simplified for space)
+// TOOL PANEL LOADERS
 // ============================================================
 function loadNotesPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
@@ -1360,42 +1287,6 @@ function loadMemoryPanel(){
         if(!h) h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No memory data yet.</p>';
         openRightPanel('Memory Explorer', h);
     }).catch(function(e){ showToast('Failed to load memory'); });
-}
-
-function loadTrainingStatsPanel(){
-    fetch('/api/training/stats')
-    .then(function(r){ return r.json(); })
-    .then(function(stats){
-        var h = '<div class="stats-grid">' +
-            '<div class="stats-card"><div class="stats-number">' + (stats.total_records || 0) + '</div><div class="stats-label">Total Records</div></div>' +
-            '</div>';
-        if (stats.breakdown) {
-            h += '<p style="font-size:0.65rem;font-weight:600;margin:0.75rem 0 0.4rem">Breakdown by Type</p>';
-            for(var i=0;i<stats.breakdown.length;i++){
-                h += '<div class="tool-item"><div class="tool-item-title">' + stats.breakdown[i].entry_type + '</div><div class="tool-item-meta">' + stats.breakdown[i].count + ' records</div></div>';
-            }
-        }
-        openRightPanel('Training Statistics', h);
-    })
-    .catch(function(){ openRightPanel('Training Statistics', '<p>Training stats unavailable</p>'); });
-}
-
-function loadTrainingRecordsPanel(){
-    fetch('/api/training/records?limit=50')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-        var h = '';
-        if (data.records && data.records.length) {
-            h += '<p style="font-size:0.65rem;color:var(--text-muted);margin-bottom:0.5rem">Total: ' + data.total + ' records</p>';
-            for(var i=0;i<data.records.length;i++){
-                h += '<div class="tool-item"><div class="tool-item-title">' + esc(data.records[i].entry_type || 'record') + '</div><div class="tool-item-meta">' + esc(data.records[i].title || data.records[i].content || '').substring(0,100) + '</div><div class="tool-item-meta" style="font-size:0.55rem">' + new Date(data.records[i].created_at).toLocaleString() + '</div></div>';
-            }
-        } else {
-            h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No training records found.</p>';
-        }
-        openRightPanel('Training Records', h);
-    })
-    .catch(function(){ openRightPanel('Training Records', '<p>Training records unavailable</p>'); });
 }
 
 function loadSovereignStatePanel(){
@@ -1676,7 +1567,7 @@ document.getElementById('imageUpload').onchange = function(e){
 };
 
 // ============================================================
-// DROPDOWN TOOLS ROUTER (UPDATED WITH ECHO AND STUDIO)
+// DROPDOWN TOOLS ROUTER
 // ============================================================
 var toolsDropdown = document.getElementById('toolsDropdown');
 var toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
@@ -1687,8 +1578,7 @@ toolsDropdown.addEventListener('click', function(e){
     if(!item) return;
     var panel = item.dataset.panel;
     toolsDropdown.classList.remove('show');
-    if(panel === 'echo') showEchoPanel();
-    else if(panel === 'studio') showStudioPanel();
+    if(panel === 'studio') showStudioPanel();
     else if(panel === 'notes') loadNotesPanel();
     else if(panel === 'tasks') loadTasksPanel();
     else if(panel === 'snippets') loadSnippetsPanel();
@@ -1697,8 +1587,6 @@ toolsDropdown.addEventListener('click', function(e){
     else if(panel === 'reminders') loadRemindersPanel();
     else if(panel === 'dashboard') loadDashboardPanel();
     else if(panel === 'memory') loadMemoryPanel();
-    else if(panel === 'training-stats') loadTrainingStatsPanel();
-    else if(panel === 'training-records') loadTrainingRecordsPanel();
     else if(panel === 'sovereign-state') loadSovereignStatePanel();
     else if(panel === 'agent-actions') loadAgentActionsPanel();
     else if(panel === 'autonomous-history') loadAutonomousHistoryPanel();
@@ -1706,7 +1594,7 @@ toolsDropdown.addEventListener('click', function(e){
 });
 
 // ============================================================
-// SIDEBAR (PRESERVED)
+// SIDEBAR
 // ============================================================
 var sidebar = document.getElementById('projectsSidebar');
 var menuToggle = document.getElementById('menuToggle');
@@ -1722,7 +1610,7 @@ if(sidebarToggle && window.innerWidth > 768){
 }
 
 // ============================================================
-// THEME (PRESERVED)
+// THEME
 // ============================================================
 var themeToggle = document.getElementById('themeToggle');
 function setTheme(t){
@@ -1735,7 +1623,7 @@ setTheme(savedTheme);
 themeToggle.onclick = function(){ setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'); };
 
 // ============================================================
-// SOVEREIGN MODE UI (PRESERVED)
+// SOVEREIGN MODE UI
 // ============================================================
 var sovereignToggle = document.getElementById('sovereignModeToggle');
 var sovereignIndicator = document.getElementById('sovereignIndicator');
@@ -1775,7 +1663,7 @@ sovereignToggle.onchange = function(){
 updateSovereignUI();
 
 // ============================================================
-// TOGGLES (PRESERVED)
+// TOGGLES
 // ============================================================
 document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
 document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
