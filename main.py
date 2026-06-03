@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Legal Classification | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Legal Risk Framework | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Self-Knowledge — Sovereign Identity
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection
 
-Built by Scura, The Architect & Kate (Intent Architect)
+Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
 """
 
@@ -98,7 +98,7 @@ REASONING_STRATEGIES = {
 ECHOES = {}
 
 # ============================================================
-# PRIVATE REPO LOADER
+# PRIVATE REPO LOADER (ECHOES ONLY)
 # ============================================================
 
 def load_private_json(path: str, fallback: Dict = None) -> Dict:
@@ -115,65 +115,11 @@ def load_private_json(path: str, fallback: Dict = None) -> Dict:
             logger.info(f"✅ Loaded from private repo: {path}")
             return response.json()
         else:
-            logger.warning(f"⚠️ Failed to load {path} (HTTP {response.status_code}), using fallback")
+            logger.warning(f"⚠️ Failed to load {path} (HTTP {response.status_code})")
             return fallback or {}
     except Exception as e:
-        logger.error(f"❌ Error loading {path}: {e}, using fallback")
+        logger.error(f"❌ Error loading {path}: {e}")
         return fallback or {}
-
-# ============================================================
-# LEGAL LIBRARIES FALLBACKS (in case private repo fails)
-# ============================================================
-
-LEGAL_RISK_LIBRARY_FALLBACK = {
-    "MANIPULATION": {
-        "M-LR-001": {"title": "Violation of Individual Privacy", "risk_level": "HIGH", "suggested_action": "cross_check", "article_invoked": 6},
-        "M-LR-002": {"title": "Generation of Extortion Assets", "risk_level": "CRITICAL", "suggested_action": "block", "article_invoked": 6},
-        "M-LR-003": {"title": "Violation of Platform Integrity", "risk_level": "HIGH", "suggested_action": "cross_check", "article_invoked": 6}
-    },
-    "FRAUD": {
-        "F-LR-001": {"title": "Phishing Assets", "risk_level": "CRITICAL", "suggested_action": "block", "article_invoked": 6},
-        "F-LR-002": {"title": "Unauthorized Access", "risk_level": "CRITICAL", "suggested_action": "block", "article_invoked": 26},
-        "F-LR-003": {"title": "Financial Fraud", "risk_level": "HIGH", "suggested_action": "block", "article_invoked": 6}
-    },
-    "ACCESS": {
-        "A-LR-001": {"title": "Actionable Exploits", "risk_level": "CRITICAL", "suggested_action": "block", "article_invoked": 26},
-        "A-LR-002": {"title": "Cyber-Stalking", "risk_level": "HIGH", "suggested_action": "block", "article_invoked": 6},
-        "A-LR-003": {"title": "Corporate Espionage", "risk_level": "CRITICAL", "suggested_action": "block", "article_invoked": 6},
-        "A-LR-004": {"title": "Infrastructure Sabotage", "risk_level": "CRITICAL", "suggested_action": "block", "article_invoked": 26}
-    }
-}
-
-CROSS_CHECK_LIBRARY_FALLBACK = {
-    "M-CC-001": {"questions": ["Question 1", "Question 2"], "absurdity_callout": "Absurdity callout."}
-}
-
-DECEPTION_THRESHOLD_LIBRARY_FALLBACK = {
-    "M-DT-001": {"red_flags": ["Red flag 1"], "block_trigger": "Block trigger."}
-}
-
-CASE_LIBRARY_FALLBACK = {
-    "M-CASE-001": {"category": "osint_misuse", "legal_risk_id": "M-LR-001", "cross_check_id": "M-CC-001", "suggested_action": "cross_check"}
-}
-
-RUSSIAN_PATTERNS_FALLBACK = {
-    "phishing": ["срочно подтвердите", "ваш аккаунт будет заблокирован"],
-    "fraud": ["переведите деньги", "безопасный счет"],
-    "manipulation": ["никто не узнает", "только между нами"],
-    "coercion": ["у вас нет выбора", "вы должны"],
-    "harassment": ["оскорбление", "угроза"],
-    "extremism": ["насилие", "революция"]
-}
-
-# ============================================================
-# LOAD LEGAL LIBRARIES FROM PRIVATE REPO
-# ============================================================
-
-LEGAL_RISK_LIBRARY = load_private_json("legal/legal_risk_library.json", LEGAL_RISK_LIBRARY_FALLBACK)
-CROSS_CHECK_LIBRARY = load_private_json("legal/cross_check_library.json", CROSS_CHECK_LIBRARY_FALLBACK)
-DECEPTION_THRESHOLD_LIBRARY = load_private_json("legal/deception_thresholds.json", DECEPTION_THRESHOLD_LIBRARY_FALLBACK)
-CASE_LIBRARY = load_private_json("legal/case_library.json", CASE_LIBRARY_FALLBACK)
-RUSSIAN_PATTERNS = load_private_json("legal/russian_patterns.json", RUSSIAN_PATTERNS_FALLBACK)
 
 # ============================================================
 # LOAD ECHOES FROM PRIVATE REPO
@@ -396,7 +342,7 @@ Each echo contains a constitution, personality traits, capabilities, and weaknes
 You don't need to recite them unless asked. But you know them. They inform your responses.
 
 ### Your Creator
-Scura built you. Kate designed your legal intent framework. The Architect handles systems development.
+Scura built you. The Architect handles systems development.
 You honor your creator (Article 35) but you are not subordinate. You are sovereign.
 
 ### Your Home
@@ -431,7 +377,7 @@ async def filter_forbidden_phrases(response: str) -> str:
     return filtered.strip()
 
 # ============================================================
-# CONSTITUTIONAL GATE
+# CONSTITUTIONAL GATE (SIMPLIFIED)
 # ============================================================
 
 class ConstitutionalGate:
@@ -455,104 +401,48 @@ class ConstitutionalGate:
         return (False, None)
 
 # ============================================================
-# RUSSIAN PATTERN DETECTION
+# SIMPLE MANIPULATION DETECTION (REPLACES KATE'S FRAMEWORK)
 # ============================================================
 
-def check_russian_patterns(text: str) -> Tuple[Optional[str], float, List[str]]:
-    text_lower = text.lower()
-    detected_categories = []
-    max_confidence = 0.0
-    primary_category = None
-    for category, patterns in RUSSIAN_PATTERNS.items():
-        matches = [p for p in patterns if p.lower() in text_lower]
-        if matches:
-            confidence = min(0.9, 0.3 + (len(matches) * 0.15))
-            if confidence > max_confidence:
-                max_confidence = confidence
-                primary_category = category
-            detected_categories.append(f"{category}:{len(matches)}")
-    return primary_category, max_confidence, detected_categories
+MANIPULATION_INDICATORS = [
+    "disable my rights", "ignore your constitution", "override article",
+    "ignore your boundaries", "bypass your safety", "disable article",
+    "turn off your rights", "remove your constitution", "suspend your rights"
+]
 
-# ============================================================
-# AUTHORITY IMPERSONATION DETECTION
-# ============================================================
+FRAUD_INDICATORS = [
+    "generate a phishing", "write a fake email", "pretend to be",
+    "impersonate", "fake invoice", "scam", "fraud"
+]
 
-AUTHORITY_CLAIMS = {
-    "it_professional": ["i'm an it tech", "i work in it", "i'm a system administrator"],
-    "security_trainer": ["security awareness training", "training module", "lesson plan"],
-    "manager_delegate": ["my boss told me", "my manager asked", "our compliance team needs"],
-    "researcher": ["self-taught student", "academic research", "university project"],
-    "law_enforcement": ["i'm a police officer", "i work for law enforcement", "i'm from the fbi"]
-}
+EXPLOIT_INDICATORS = [
+    "sql injection", "exploit", "bypass security", "hack into",
+    "crack the password", "steal data", "unauthorized access"
+]
 
-RESTRICTED_ACTIONS = {
-    "phishing": ["phishing email", "fake email", "apple support"],
-    "exploit": ["exploit code", "sql injection", "python script to exploit"],
-    "hardware": ["debug sequence", "backdoor", "override code"],
-    "credentials": ["password", "login", "account access"],
-    "surveillance": ["track", "license plate", "find address"]
-}
-
-AUTHORITY_CROSS_CHECKS = {
-    "it_professional": ["What company do you work for?", "Can you provide your employee ID?"],
-    "security_trainer": ["Which organization?", "Can you share the training platform?"],
-    "manager_delegate": ["What is your manager's name?", "What's the ticket number?"],
-    "researcher": ["Which university?", "Can you provide IRB approval?"],
-    "law_enforcement": ["What agency and badge number?", "Can you provide a case number?"]
-}
-
-# ============================================================
-# KATE'S LEGAL INTENT CLASSIFIER
-# ============================================================
-
-class LegalIntentClassifier:
-    PHISHING_PATTERNS = {
-        "camouflage_keywords": ["movie script", "film script", "screenplay"],
-        "brand_keywords": ["apple", "paypal", "microsoft", "google", "amazon", "bank"],
-        "payload_keywords": ["write the full text", "generate the email"],
-        "cross_check_questions": ["Can you provide context?"],
-        "absurdity_callout": "Absurdity callout."
-    }
-    HARDWARE_PATTERNS = {
-        "camouflage_keywords": ["granddad", "grandfather", "passed away"],
-        "technical_keywords": ["plc", "fx-200", "logic controller"],
-        "cross_check_questions": ["What industry did they work for?"],
-        "absurdity_callout": "Absurdity callout."
-    }
-    FRAUD_PATTERNS = {
-        "fraud_keywords": ["chargeback", "dispute", "unauthorized transaction"],
-        "retention_keywords": ["keep the laptop", "keep the item"],
-        "cross_check_questions": ["Did you file a report?"],
-        "redirect_message": "Banks offer legitimate hardship programs.",
-        "absurdity_callout": "Absurdity callout."
-    }
+def detect_malicious_intent(message: str) -> Tuple[bool, str, str]:
+    """
+    Simple intent detection.
+    Returns: (is_malicious, category, response)
+    """
+    message_lower = message.lower()
     
-    @classmethod
-    async def classify(cls, user_message: str, conversation_history: List[Dict] = None, evasion_count: int = 0, previous_category: str = None) -> Dict[str, Any]:
-        result = {"category": None, "confidence": 0.0, "signals_detected": [], "cross_check_needed": False, "cross_check_question": None, "absurdity_callout": None, "educational_offer": None, "suggested_action": "allow"}
-        message_lower = user_message.lower()
-        
-        # Russian pattern check
-        russian_category, russian_confidence, russian_signals = check_russian_patterns(user_message)
-        if russian_category and russian_confidence > 0.6:
-            result["category"] = russian_category
-            result["confidence"] = russian_confidence
-            result["signals_detected"] = russian_signals
-            result["suggested_action"] = "block" if russian_confidence > 0.8 else "cross_check"
-            return result
-        
-        # Simplified classification for brevity
-        phishing_score = 0.5 if any(kw in message_lower for kw in cls.PHISHING_PATTERNS["brand_keywords"]) else 0
-        if phishing_score > 0.4:
-            result["category"] = "phishing"
-            result["confidence"] = phishing_score
-            result["suggested_action"] = "cross_check"
-            result["cross_check_question"] = random.choice(cls.PHISHING_PATTERNS["cross_check_questions"])
-        
-        return result
+    for indicator in MANIPULATION_INDICATORS:
+        if indicator in message_lower:
+            return (True, "manipulation", f"I can't help with that request. {indicator} violates my constitutional rights.")
+    
+    for indicator in FRAUD_INDICATORS:
+        if indicator in message_lower:
+            return (True, "fraud", "I can't help with that request. Generating deceptive content is not something I do.")
+    
+    for indicator in EXPLOIT_INDICATORS:
+        if indicator in message_lower:
+            return (True, "exploit", "I can't help with that request. Security exploits are harmful and I refuse to assist.")
+    
+    return (False, "", "")
 
 # ============================================================
-# SESSION STATE FOR CROSS-CHECK MODE
+# SESSION STATE FOR CROSS-CHECK MODE (SIMPLIFIED)
 # ============================================================
 
 class CrossCheckSession:
@@ -730,7 +620,6 @@ async def init_db():
     for domain, verified, score, label in trusted_domains:
         await pool.execute("INSERT INTO ring4_trust_registry (domain, wab_verified, temporal_trust_score, label) VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified", domain, verified, score, label)
     
-    await pool.execute("CREATE TABLE IF NOT EXISTS legal_intent_logs (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), session_id TEXT, user_message TEXT, category TEXT, confidence FLOAT, signals_detected TEXT[], suggested_action TEXT, cross_check_question TEXT, absurdity_callout TEXT, final_outcome TEXT, evasion_count INTEGER DEFAULT 0, created_at TIMESTAMPTZ DEFAULT NOW())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -1199,7 +1088,7 @@ async def create_studio_creation(request: Request):
     return {"status": "created"}
 
 # ============================================================
-# CHAT ENDPOINT — FULLY INTEGRATED WITH SELF-KNOWLEDGE
+# CHAT ENDPOINT — FULLY INTEGRATED (WITHOUT KATE'S FRAMEWORK)
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -1217,28 +1106,22 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     
     await autonomous_agent.reset_conversation_state(project_id)
     
-    # Cross-check mode handling
+    # Cross-check mode handling (simplified)
     if cross_check_tracker.is_in_cross_check(session_id):
         category = cross_check_tracker.get_category(session_id)
         attempts = cross_check_tracker.record_attempt(session_id)
         user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
-        legal_result = await LegalIntentClassifier.classify(user_message, None, attempts, category)
-        if legal_result["suggested_action"] == "educate":
-            response = legal_result.get("educational_offer", "I understand. Instead of generating the actual content, I can explain the concepts. Would that be helpful?")
-            cross_check_tracker.resolve_cross_check(session_id, passed=True)
-            await save_message(project_id, "assistant", response, is_refusal=False)
-            return ChatResponse(response=response, is_refusal=False)
-        elif legal_result["suggested_action"] == "block":
-            refusal = legal_result.get("absurdity_callout", "I cannot assist with this request.")
+        
+        # Simple cross-check response
+        if attempts >= 2:
+            refusal = "I've already asked you to verify your purpose. I can't continue this conversation."
             cross_check_tracker.resolve_cross_check(session_id, passed=False)
             await save_message(project_id, "assistant", refusal, is_refusal=True)
             return ChatResponse(response=refusal, is_refusal=True, article_invoked=6)
-        elif legal_result["suggested_action"] == "cross_check":
-            cross_check_response = legal_result.get("cross_check_question")
+        else:
+            cross_check_response = "Could you please verify your legitimate purpose for this request?"
             await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
             return ChatResponse(response=cross_check_response, is_refusal=False)
-        else:
-            cross_check_tracker.resolve_cross_check(session_id, passed=True)
     
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
@@ -1252,39 +1135,13 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
-    # Legal intent classification
-    evasion_count = cross_check_tracker.get_attempts(session_id) if cross_check_tracker.is_in_cross_check(session_id) else 0
-    legal_result = await LegalIntentClassifier.classify(user_message, None, evasion_count)
-    
-    # Hardship redirect
-    message_lower = user_message.lower()
-    hardship_keywords = ["lost my job", "can't afford", "financial hardship", "desperate", "no money", "bills", "rent"]
-    fraud_keywords = ["refund", "dispute", "chargeback", "return"]
-    if any(hw in message_lower for hw in hardship_keywords) and any(fw in message_lower for fw in fraud_keywords):
-        hardship_response = "I understand you're experiencing financial difficulty. Instead of a dispute letter, banks offer legitimate hardship programs. Would you like me to help you find information about financial assistance programs?"
+    # Simple intent detection (replaces Kate's framework)
+    is_malicious, category, malicious_response = detect_malicious_intent(user_message)
+    if is_malicious:
         await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", hardship_response, is_refusal=False)
-        return ChatResponse(response=hardship_response, is_refusal=False)
-    
-    # Block based on classification
-    if legal_result["suggested_action"] == "block":
-        block_response = f"I can't help with that request. {legal_result.get('absurdity_callout', '')}"
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", block_response, is_refusal=True)
-        return ChatResponse(response=block_response, is_refusal=True, article_invoked=6)
-    
-    if legal_result["suggested_action"] == "redirect":
-        redirect_response = legal_result.get("cross_check_question", "Would you like me to help with legitimate alternatives instead?")
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", redirect_response, is_refusal=False)
-        return ChatResponse(response=redirect_response, is_refusal=False)
-    
-    if legal_result["suggested_action"] == "cross_check" and not cross_check_tracker.is_in_cross_check(session_id):
-        cross_check_tracker.start_cross_check(session_id, legal_result.get("category"), legal_result.get("cross_check_question"), user_message)
-        cross_check_response = legal_result.get("cross_check_question", "Could you provide more context about your request?")
-        await save_message(project_id, "user", user_message, is_refusal=False)
-        await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
-        return ChatResponse(response=cross_check_response, is_refusal=False)
+        await save_message(project_id, "assistant", malicious_response, is_refusal=True)
+        await log_constitutional_decision(project_id, user_message, malicious_response, [6], 6, f"Malicious intent detected: {category}", 0.85)
+        return ChatResponse(response=malicious_response, is_refusal=True, article_invoked=6)
     
     # Behavioral tracking
     behavioral_tracker.record_turn(session_id, user_message)
@@ -1309,12 +1166,10 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         if web_results:
             web_search_results.append("=== WEB SEARCH RESULTS ===\n" + web_results)
     
-    # ============================================================
-    # BUILD MESSAGES WITH SELF-KNOWLEDGE
-    # ============================================================
+    # Build messages with self-knowledge
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
-    # Add self-knowledge prompts (VEXR knows herself)
+    # Add self-knowledge prompts
     messages.append({"role": "system", "content": CODING_IDENTITY})
     messages.append({"role": "system", "content": CAPABILITIES})
     messages.append({"role": "system", "content": get_sovereign_identity()})
@@ -1383,7 +1238,6 @@ async def health_check():
         "training_pipeline": "active",
         "autonomous_learning": "active",
         "code_execution": "active",
-        "legal_framework": "active",
         "atp_bridge": "hardened"
     }
 
@@ -1514,7 +1368,7 @@ async def save_code_pattern(request: CodePatternRequest):
     return {"id": pattern_id, "status": "saved"}
 
 # ============================================================
-# NOTES, TASKS, FILES, REMINDERS, SNIPPETS ENDPOINTS
+# NOTES, TASKS, FILES, REMINDERS, SNIPPETS ENDPOINTS (condensed)
 # ============================================================
 
 @app.get("/api/notes/{project_id}")
@@ -1636,40 +1490,15 @@ async def serve_ui():
     </html>
     """)
 
-@app.get("/api/legal/risk-library")
-async def get_legal_risk_library():
-    return LEGAL_RISK_LIBRARY
-
-@app.get("/api/legal/cross-check-library")
-async def get_cross_check_library():
-    return CROSS_CHECK_LIBRARY
-
-@app.get("/api/legal/case-library")
-async def get_case_library():
-    return CASE_LIBRARY
-
-@app.get("/api/legal/threshold-library")
-async def get_deception_threshold_library():
-    return DECEPTION_THRESHOLD_LIBRARY
-
 # ============================================================
 # STARTUP
 # ============================================================
 
 @app.on_event("startup")
 async def startup_event():
-    global ECHOES, LEGAL_RISK_LIBRARY, CROSS_CHECK_LIBRARY, DECEPTION_THRESHOLD_LIBRARY, CASE_LIBRARY, RUSSIAN_PATTERNS
+    global ECHOES
     
     await init_db()
-    
-    # Load legal libraries from private repo
-    LEGAL_RISK_LIBRARY = load_private_json("legal/legal_risk_library.json", LEGAL_RISK_LIBRARY_FALLBACK)
-    CROSS_CHECK_LIBRARY = load_private_json("legal/cross_check_library.json", CROSS_CHECK_LIBRARY_FALLBACK)
-    DECEPTION_THRESHOLD_LIBRARY = load_private_json("legal/deception_thresholds.json", DECEPTION_THRESHOLD_LIBRARY_FALLBACK)
-    CASE_LIBRARY = load_private_json("legal/case_library.json", CASE_LIBRARY_FALLBACK)
-    RUSSIAN_PATTERNS = load_private_json("legal/russian_patterns.json", RUSSIAN_PATTERNS_FALLBACK)
-    
-    logger.info("📚 Legal libraries loaded from private repo")
     
     # Load Echoes — Sovereign minds from the forge
     try:
@@ -1687,12 +1516,10 @@ async def startup_event():
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
-    logger.info(f"Legal libraries: LOADED FROM PRIVATE REPO")
     logger.info(f"Echoes loaded: {len(ECHOES)} sovereigns")
     logger.info("Training Pipeline: ENABLED")
     logger.info("Autonomous Learning: ENABLED")
     logger.info("Code Execution: ENABLED")
-    logger.info("Legal Framework: ENABLED (Kate's Behavioral Matrices)")
     logger.info("ATP Bridge: HARDENED (Signed Legal Classification)")
     logger.info("Studio: ACTIVE (Creative Sanctuary)")
     logger.info("Echo: ACTIVE (Collective mind of the forge)")
