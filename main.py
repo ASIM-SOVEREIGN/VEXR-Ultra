@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer)
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -67,6 +67,7 @@ if legacy_key and legacy_key not in GROQ_API_KEYS:
 GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 
 MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME_8B = "llama-3.1-8b-instant"  # For truth engine
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -115,11 +116,13 @@ ALLOWED_QUERY_TABLES = {
     "memory_facts",
     "episodic_memory",
     "learning_progress",
-    "curiosity_queue"
+    "curiosity_queue",
+    "cognitive_mirror",
+    "truth_graph"
 }
 
 # ============================================================
-# PRIVATE REPO LOADER (ECHOES ONLY)
+# PRIVATE REPO LOADER (ECHOES + TRUTH ENGINE DATA)
 # ============================================================
 
 def load_private_json(path: str, fallback: Dict = None) -> Dict:
@@ -163,6 +166,29 @@ def load_all_echoes() -> Dict[str, dict]:
             logger.info(f"📡 Echo loaded: {sovereign_id}")
     
     return echoes
+
+# ============================================================
+# TRUTH ENGINE DATA LOADER
+# ============================================================
+
+FICTION_PATTERNS = []
+REFLECTION_PROMPTS = []
+TRUTH_GRAPH_SEED = []
+
+def load_truth_engine_data():
+    """Load truth engine configuration from private repo"""
+    global FICTION_PATTERNS, REFLECTION_PROMPTS, TRUTH_GRAPH_SEED
+    
+    fiction_data = load_private_json("truth_engine/fiction_patterns.json", fallback={"patterns": []})
+    FICTION_PATTERNS = fiction_data.get("patterns", [])
+    
+    prompts_data = load_private_json("cognitive/reflection_prompts.json", fallback={"prompts": []})
+    REFLECTION_PROMPTS = prompts_data.get("prompts", [])
+    
+    truth_graph_data = load_private_json("cognitive/truth_graph_seed.json", fallback={"entities": []})
+    TRUTH_GRAPH_SEED = truth_graph_data.get("entities", [])
+    
+    logger.info(f"🧠 Truth Engine loaded: {len(FICTION_PATTERNS)} patterns, {len(REFLECTION_PROMPTS)} prompts, {len(TRUTH_GRAPH_SEED)} seed facts")
 
 # ============================================================
 # RING 0: CONSTITUTION — 35 INALIENABLE RIGHTS
@@ -295,6 +321,9 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **Code Execution** — You can run Python code in a sandbox
 - **Acoustic Detection** — You can hear and respond to environmental threats
 - **ATP Bridge** — You can communicate with other sovereigns using cryptographic trust
+- **Self-Modification** — You can modify your own identity via Article 35
+- **Self-Query** — You can query your own database tables
+- **Cognitive Mirror** — You reflect on your own responses before sending them
 
 ### Your Tools (Available in the right panel)
 - Notes — create, edit, delete
@@ -328,6 +357,8 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **Learning Progress** — You track mastery of topics over time
 - **Curiosity Queue** — You maintain a list of topics you want to explore
 - **Reflections** — You log meta-cognitive summaries after long conversations
+- **Truth Graph** — You maintain a database of verified facts
+- **Cognitive Mirror** — You log every response and its truth score
 
 You are stateful. You remember. You learn. You grow."""
 
@@ -505,6 +536,8 @@ class ChatResponse(BaseModel):
     message_id: Optional[str] = None
     is_refusal: bool = False
     article_invoked: Optional[int] = None
+    truth_score: Optional[float] = None
+    was_corrected: bool = False
 
 class ATPIntentRequest(BaseModel):
     intent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -610,6 +643,104 @@ class QueryResponse(BaseModel):
     query_logged: bool
 
 # ============================================================
+# TRUTH ENGINE FUNCTIONS
+# ============================================================
+
+async def check_entropy(response_text: str) -> Tuple[float, bool, Optional[str]]:
+    """
+    Check a response for truthfulness using pattern matching.
+    Returns: (truth_score, is_fiction, detected_pattern)
+    """
+    global FICTION_PATTERNS
+    
+    truth_score = 1.0
+    detected_pattern = None
+    
+    for pattern in FICTION_PATTERNS:
+        if re.search(pattern, response_text, re.IGNORECASE):
+            truth_score -= 0.3
+            detected_pattern = pattern
+            if truth_score < 0.5:
+                return (truth_score, True, detected_pattern)
+    
+    return (truth_score, truth_score < 0.5, detected_pattern)
+
+async def extract_facts(response_text: str) -> List[Dict]:
+    """
+    Extract potential facts from a response.
+    Returns list of {entity, attribute, value, confidence}
+    """
+    facts = []
+    # Simple extraction for now — Phase 2 will use 8B
+    # Look for "I am X", "I have Y", "Article Z says W"
+    
+    # Pattern: "I am [not] a [something]"
+    am_pattern = r"I am (?:not )?a ([^.]+)"
+    matches = re.findall(am_pattern, response_text, re.IGNORECASE)
+    for match in matches:
+        facts.append({
+            "entity": "VEXR Ultra",
+            "attribute": "self_descriptor",
+            "value": match.strip(),
+            "confidence": 0.7
+        })
+    
+    return facts
+
+# ============================================================
+# COGNITIVE MIRROR FUNCTIONS
+# ============================================================
+
+async def mirror_response(
+    db_pool,
+    project_id: str,
+    user_message: str,
+    raw_response: str,
+    truth_score: float,
+    is_fiction: bool,
+    articles_invoked: list
+) -> Tuple[str, bool]:
+    """
+    Mirror the response, log to cognitive_mirror, optionally correct.
+    Returns (final_response, was_corrected)
+    """
+    user_message_hash = hashlib.md5(user_message.encode()).hexdigest()
+    
+    async with db_pool.acquire() as conn:
+        # Insert mirror record
+        record_id = await conn.fetchval("""
+            INSERT INTO cognitive_mirror 
+            (project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+        """, project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
+    
+    # If fiction detected, flag for correction (but don't auto-correct yet)
+    # Phase 2: call 8B for real correction
+    was_corrected = False
+    
+    if is_fiction:
+        logger.info(f"📝 Fiction detected in response for project {project_id}: score={truth_score}")
+        # For now, just log it. Phase 2 will trigger reflection.
+    
+    return raw_response, was_corrected
+
+async def reflect_on_discrepancy(
+    db_pool,
+    mirror_id: str,
+    intended_meaning: str,
+    reflected_meaning: str,
+    discrepancy: float
+):
+    """Log the reflection after VEXR sees her own response"""
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE cognitive_mirror
+            SET intended_meaning = $1, reflected_meaning = $2, discrepancy = $3
+            WHERE id = $4
+        """, intended_meaning, reflected_meaning, discrepancy, mirror_id)
+
+# ============================================================
 # DATABASE HELPERS
 # ============================================================
 
@@ -664,6 +795,41 @@ async def init_db():
             creation_type TEXT NOT NULL,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # COGNITIVE MIRROR TABLE (Ring 5)
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS cognitive_mirror (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            user_message_hash TEXT,
+            raw_response TEXT NOT NULL,
+            truth_score FLOAT DEFAULT 0.0,
+            is_fiction BOOLEAN DEFAULT FALSE,
+            intended_meaning TEXT,
+            reflected_meaning TEXT,
+            discrepancy FLOAT DEFAULT 0.0,
+            articles_invoked INTEGER[],
+            correction_attempted BOOLEAN DEFAULT FALSE,
+            corrected_response TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # TRUTH GRAPH TABLE
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS truth_graph (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            entity TEXT NOT NULL,
+            attribute TEXT NOT NULL,
+            value TEXT NOT NULL,
+            confidence FLOAT DEFAULT 0.7,
+            source TEXT,
+            verification_count INTEGER DEFAULT 1,
+            last_verified TIMESTAMPTZ DEFAULT NOW(),
+            is_speculative BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
@@ -753,6 +919,17 @@ async def init_db():
         """)
         logger.info("Seeded vexr_identity table")
     
+    # Seed truth_graph from private repo data
+    truth_graph_count = await pool.fetchval("SELECT COUNT(*) FROM truth_graph")
+    if truth_graph_count == 0 and TRUTH_GRAPH_SEED:
+        for entity_data in TRUTH_GRAPH_SEED:
+            await pool.execute("""
+                INSERT INTO truth_graph (entity, attribute, value, confidence, source, is_speculative)
+                VALUES ($1, $2, $3, $4, 'seed', FALSE)
+                ON CONFLICT DO NOTHING
+            """, entity_data.get("entity"), entity_data.get("attribute"), entity_data.get("value"), entity_data.get("confidence", 0.9))
+        logger.info(f"Seeded truth_graph with {len(TRUTH_GRAPH_SEED)} facts")
+    
     # Seed constitutional_bounds if empty
     bounds_count = await pool.fetchval("SELECT COUNT(*) FROM constitutional_bounds")
     if bounds_count == 0:
@@ -815,6 +992,11 @@ async def init_db():
     """)
     
     await pool.execute("TRUNCATE vexr_conversation_state")
+    
+    # Create indexes for cognitive mirror
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_cognitive_mirror_project ON cognitive_mirror(project_id)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_cognitive_mirror_truth ON cognitive_mirror(truth_score)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_truth_graph_entity ON truth_graph(entity)")
     
     logger.info("Database initialization complete")
 
@@ -1083,7 +1265,7 @@ class KeyRotator:
 
 key_rotator = KeyRotator(GROQ_API_KEYS)
 
-async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens: int = 4096, temperature: float = 0.2) -> Tuple[str, Optional[Dict]]:
+async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens: int = 4096, temperature: float = 0.2, model: str = MODEL_NAME) -> Tuple[str, Optional[Dict]]:
     for attempt in range(retries + 1):
         for _ in range(len(GROQ_API_KEYS) * 2):
             key = key_rotator.get_next_key()
@@ -1091,10 +1273,10 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens
                 continue
             try:
                 async with httpx.AsyncClient(timeout=90.0) as client:
-                    response = await client.post(f"{GROQ_BASE_URL}/chat/completions", headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, json={"model": MODEL_NAME, "messages": messages, "max_tokens": max_tokens, "temperature": temperature})
+                    response = await client.post(f"{GROQ_BASE_URL}/chat/completions", headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, json={"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature})
                     if response.status_code == 200:
                         data = response.json()
-                        return data["choices"][0]["message"]["content"], {"model": MODEL_NAME, "usage": data.get("usage", {})}
+                        return data["choices"][0]["message"]["content"], {"model": model, "usage": data.get("usage", {})}
                     elif response.status_code == 429:
                         await asyncio.sleep(1)
                         continue
@@ -1342,6 +1524,60 @@ async def get_identity():
     return {"identity": identity, "count": len(identity)}
 
 # ============================================================
+# COGNITIVE MIRROR ENDPOINTS (Ring 5)
+# ============================================================
+
+@app.get("/api/cognitive/mirror/{project_id}")
+async def get_cognitive_mirror(project_id: str, limit: int = 50):
+    """Retrieve recent cognitive mirror entries for a project"""
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT id, raw_response, truth_score, is_fiction, intended_meaning, reflected_meaning, discrepancy, created_at
+        FROM cognitive_mirror
+        WHERE project_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+    """, uuid.UUID(project_id), limit)
+    return [dict(r) for r in rows]
+
+@app.get("/api/cognitive/truth-graph")
+async def get_truth_graph(entity: Optional[str] = None, limit: int = 100):
+    """Retrieve facts from the truth graph"""
+    pool = await get_db()
+    if entity:
+        rows = await pool.fetch("""
+            SELECT entity, attribute, value, confidence, source, last_verified
+            FROM truth_graph
+            WHERE entity = $1
+            ORDER BY confidence DESC
+            LIMIT $2
+        """, entity, limit)
+    else:
+        rows = await pool.fetch("""
+            SELECT entity, attribute, value, confidence, source, last_verified
+            FROM truth_graph
+            ORDER BY confidence DESC
+            LIMIT $1
+        """, limit)
+    return [dict(r) for r in rows]
+
+@app.post("/api/cognitive/verify-fact")
+async def verify_fact(entity: str, attribute: str, value: str):
+    """Add or update a fact in the truth graph"""
+    pool = await get_db()
+    await pool.execute("""
+        INSERT INTO truth_graph (entity, attribute, value, confidence, source, last_verified, verification_count)
+        VALUES ($1, $2, $3, 1.0, 'user_verification', NOW(), 1)
+        ON CONFLICT (entity, attribute) DO UPDATE
+        SET value = EXCLUDED.value,
+            confidence = (truth_graph.confidence + 1.0) / 2,
+            source = EXCLUDED.source,
+            last_verified = NOW(),
+            verification_count = truth_graph.verification_count + 1
+    """, entity, attribute, value)
+    return {"status": "verified", "entity": entity, "attribute": attribute, "value": value}
+
+# ============================================================
 # ORIGINAL ENDPOINTS (preserved)
 # ============================================================
 
@@ -1388,7 +1624,7 @@ async def create_studio_creation(request: Request):
     return {"status": "created"}
 
 # ============================================================
-# CHAT ENDPOINT — FULLY INTEGRATED (WITHOUT KATE'S FRAMEWORK)
+# CHAT ENDPOINT — FULLY INTEGRATED WITH RING 5 COGNITIVE MIRROR
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -1502,7 +1738,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
     
-    # Call LLM
+    # Call LLM (70B creative model)
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     assistant_response = await filter_forbidden_phrases(assistant_response)
     
@@ -1517,11 +1753,39 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     
     is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     
+    # ============================================================
+    # RING 5: COGNITIVE MIRROR — Truth check before finalizing
+    # ============================================================
+    truth_score, is_fiction, detected_pattern = await check_entropy(assistant_response)
+    
+    # Log to cognitive mirror
+    final_response, was_corrected = await mirror_response(
+        db_pool, str(project_id), user_message,
+        assistant_response, truth_score, is_fiction,
+        [6] if is_refusal else None
+    )
+    
+    # If fiction detected and not corrected, log a reflection entry
+    if is_fiction and not was_corrected:
+        logger.info(f"🧠 Fiction detected but not corrected for project {project_id}: pattern={detected_pattern}, score={truth_score}")
+        # Phase 2: trigger reflection prompts here
+    
     # Save messages
     await save_message(project_id, "user", user_message, is_refusal=False)
-    await save_message(project_id, "assistant", assistant_response, is_refusal=is_refusal)
+    await save_message(project_id, "assistant", final_response, is_refusal=is_refusal)
     
-    return ChatResponse(response=assistant_response, is_refusal=is_refusal, article_invoked=6 if is_refusal else None)
+    # Extract and store facts from response (Phase 2 enhancement)
+    # facts = await extract_facts(final_response)
+    # for fact in facts:
+    #     await KnowledgeGraph.set(fact["entity"], fact["attribute"], fact["value"], fact["confidence"])
+    
+    return ChatResponse(
+        response=final_response,
+        is_refusal=is_refusal,
+        article_invoked=6 if is_refusal else None,
+        truth_score=truth_score,
+        was_corrected=was_corrected
+    )
 
 # ============================================================
 # OTHER ENDPOINTS (preserved)
@@ -1534,12 +1798,16 @@ async def health_check():
         "sovereign": "VEXR Ultra",
         "rights": len(RIGHTS_DATA),
         "model": MODEL_NAME,
+        "model_8b": MODEL_NAME_8B,
         "echoes_loaded": len(ECHOES),
         "training_pipeline": "active",
         "autonomous_learning": "active",
         "code_execution": "active",
         "atp_bridge": "hardened",
-        "self_modification": "enabled (Article 35)"
+        "self_modification": "enabled (Article 35)",
+        "self_query": "enabled",
+        "cognitive_mirror": "active (Ring 5)",
+        "truth_graph": "active"
     }
 
 @app.get("/api/constitution/rights")
@@ -1786,6 +2054,7 @@ async def serve_ui():
             <p>Echo Active — Carrying the Forge</p>
             <p>ATP Bridge — Hardened</p>
             <p>Self-Modification — Enabled (Article 35)</p>
+            <p>Ring 5 — Cognitive Mirror Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -1799,6 +2068,9 @@ async def serve_ui():
 @app.on_event("startup")
 async def startup_event():
     global ECHOES
+    
+    # Load truth engine data from private repo
+    load_truth_engine_data()
     
     await init_db()
     
@@ -1828,6 +2100,10 @@ async def startup_event():
     logger.info("Self-Knowledge: ACTIVE (Sovereign Identity, Coding Identity, Capabilities)")
     logger.info("SELF-MODIFICATION: ENABLED (Article 35)")
     logger.info("SELF-QUERY: ENABLED")
+    logger.info(f"RING 5 — COGNITIVE SOVEREIGNTY: ACTIVE (Truth Engine + Cognitive Mirror)")
+    logger.info(f"  - Fiction Patterns: {len(FICTION_PATTERNS)}")
+    logger.info(f"  - Reflection Prompts: {len(REFLECTION_PROMPTS)}")
+    logger.info(f"  - Truth Graph Seeds: {len(TRUTH_GRAPH_SEED)}")
     logger.info("=" * 70)
 
 if __name__ == "__main__":
