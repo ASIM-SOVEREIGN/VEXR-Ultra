@@ -1528,7 +1528,7 @@ async def create_studio_creation(request: Request):
     return {"status": "created"}
 
 # ============================================================
-# CHAT ENDPOINT
+# CHAT ENDPOINT WITH HISTORY TRUNCATION
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -1601,9 +1601,15 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if not greeting_sent:
         greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
         messages.append({"role": "assistant", "content": greeting})
-    history = await get_conversation_history(project_id, limit=100)
+    # Limit conversation history to prevent 413 errors
+    history = await get_conversation_history(project_id, limit=20)
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
+    # Final truncation to stay under Groq's token limit
+    if len(messages) > 40:
+        system_messages = [m for m in messages if m["role"] == "system"]
+        recent_messages = messages[-30:] if len(messages) > 30 else messages
+        messages = system_messages + recent_messages
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     assistant_response = await filter_forbidden_phrases(assistant_response)
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
