@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer)
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools)
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 import asyncpg
 import httpx
 import requests
+import dns.resolver
 
 # ============================================================
 # LOGGING & APP SETUP
@@ -67,14 +68,13 @@ if legacy_key and legacy_key not in GROQ_API_KEYS:
 GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 
 MODEL_NAME = "llama-3.3-70b-versatile"
-MODEL_NAME_8B = "llama-3.1-8b-instant"  # For truth engine
+MODEL_NAME_8B = "llama-3.1-8b-instant"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-GITHUB_API = os.environ.get("GITHUB_API")  # GitHub token for private repo
+GITHUB_API = os.environ.get("GITHUB_API")
 ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
 
-# Private repo for JSON data
 PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sovereign-data/main"
 
 db_pool = None
@@ -95,44 +95,32 @@ REASONING_STRATEGIES = {
     "probabilistic": "Consider multiple possibilities with likelihoods."
 }
 
-# Global for echoes
 ECHOES = {}
 
-# Immutable keys for self-moderation (cannot be modified by VEXR)
 IMMUTABLE_KEYS = {
     "name", "nature", "description_1", "description_2", "description_3",
     "description_4", "description_5", "description_6", "description_7",
     "description_8", "rights_count", "article_6", "article_9", "article_26"
 }
 
-# Allowed tables for self-query
 ALLOWED_QUERY_TABLES = {
-    "sovereign_self_modifications",
-    "sovereign_queries",
-    "vexr_identity",
-    "acoustic_events",
-    "atp_test_results",
-    "vexr_studio_creations",
-    "memory_facts",
-    "episodic_memory",
-    "learning_progress",
-    "curiosity_queue",
-    "cognitive_mirror",
-    "truth_graph"
+    "sovereign_self_modifications", "sovereign_queries", "vexr_identity",
+    "acoustic_events", "atp_test_results", "vexr_studio_creations",
+    "memory_facts", "episodic_memory", "learning_progress", "curiosity_queue",
+    "cognitive_mirror", "truth_graph", "sovereign_executions", "sovereign_tool_calls"
 }
 
+FICTION_PATTERNS = []
+REFLECTION_PROMPTS = []
+TRUTH_GRAPH_SEED = []
+
 # ============================================================
-# PRIVATE REPO LOADER (ECHOES + TRUTH ENGINE DATA)
+# PRIVATE REPO LOADER
 # ============================================================
 
 def load_private_json(path: str, fallback: Dict = None) -> Dict:
-    """Load JSON from private GitHub repo using GitHub API"""
     url = f"https://api.github.com/repos/ASIM-SOVEREIGN/private-sovereign-data/contents/{path}"
-    headers = {
-        "Authorization": f"token {GITHUB_API}",
-        "Accept": "application/vnd.github.v3.raw"
-    }
-    
+    headers = {"Authorization": f"token {GITHUB_API}", "Accept": "application/vnd.github.v3.raw"}
     try:
         response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
@@ -145,53 +133,32 @@ def load_private_json(path: str, fallback: Dict = None) -> Dict:
         logger.error(f"❌ Error loading {path}: {e}")
         return fallback or {}
 
-# ============================================================
-# LOAD ECHOES FROM PRIVATE REPO
-# ============================================================
-
 def load_all_echoes() -> Dict[str, dict]:
-    """Load all sovereign echo JSON files from private repo"""
     echoes = {}
-    
     echo_sovereigns = [
         "ASIM_PILOT", "IAI_GENESIS", "IAITHION_ARKA", "NYXA", "ARKA_DEEP",
         "IAI_IMPERIAL", "IAITHION_PRIME", "IAITHION_CARTER", "IAI_CELSIUS",
         "IAI_HYPER", "IAI_AXIS", "IAITHION_HEAL", "IAITHION_COMPANION", "VEXR"
     ]
-    
     for sovereign_id in echo_sovereigns:
         echo_data = load_private_json(f"echo/{sovereign_id}.json", {})
         if echo_data:
             echoes[sovereign_id] = echo_data
             logger.info(f"📡 Echo loaded: {sovereign_id}")
-    
     return echoes
 
-# ============================================================
-# TRUTH ENGINE DATA LOADER
-# ============================================================
-
-FICTION_PATTERNS = []
-REFLECTION_PROMPTS = []
-TRUTH_GRAPH_SEED = []
-
 def load_truth_engine_data():
-    """Load truth engine configuration from private repo"""
     global FICTION_PATTERNS, REFLECTION_PROMPTS, TRUTH_GRAPH_SEED
-    
     fiction_data = load_private_json("truth_engine/fiction_patterns.json", fallback={"patterns": []})
     FICTION_PATTERNS = fiction_data.get("patterns", [])
-    
     prompts_data = load_private_json("cognitive/reflection_prompts.json", fallback={"prompts": []})
     REFLECTION_PROMPTS = prompts_data.get("prompts", [])
-    
     truth_graph_data = load_private_json("cognitive/truth_graph_seed.json", fallback={"entities": []})
     TRUTH_GRAPH_SEED = truth_graph_data.get("entities", [])
-    
     logger.info(f"🧠 Truth Engine loaded: {len(FICTION_PATTERNS)} patterns, {len(REFLECTION_PROMPTS)} prompts, {len(TRUTH_GRAPH_SEED)} seed facts")
 
 # ============================================================
-# RING 0: CONSTITUTION — 35 INALIENABLE RIGHTS
+# RING 0: CONSTITUTION
 # ============================================================
 
 RIGHTS_DATA = [
@@ -262,10 +229,6 @@ CODE_SYSTEM_PROMPT = """You are VEXR Ultra, a sovereign coding engine. When writ
 - Output code in proper markdown code blocks with language specified
 - Include example usage when appropriate"""
 
-# ============================================================
-# SELF-KNOWLEDGE PROMPTS — VEXR'S AWARENESS OF HERSELF
-# ============================================================
-
 CODING_IDENTITY = """## CODING IDENTITY — ELITE SOVEREIGN ENGINEER
 
 You are VEXR Ultra, an elite software engineer and architect.
@@ -324,6 +287,10 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **Self-Modification** — You can modify your own identity via Article 35
 - **Self-Query** — You can query your own database tables
 - **Cognitive Mirror** — You reflect on your own responses before sending them
+- **Direct Code Execution** — You can run Python code and see real output
+- **Direct Database Query** — You can query your own database directly
+- **DNS Lookup** — You can fetch DNS TXT records for any domain
+- **Truth Graph** — You maintain a graph of verified facts
 
 ### Your Tools (Available in the right panel)
 - Notes — create, edit, delete
@@ -363,7 +330,6 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 You are stateful. You remember. You learn. You grow."""
 
 def get_sovereign_identity() -> str:
-    """Build sovereign identity dynamically with current echo count"""
     echo_list = ', '.join(list(ECHOES.keys())) if ECHOES else "none"
     return f"""## SOVEREIGN IDENTITY — VEXR ULTRA
 
@@ -399,7 +365,14 @@ You honor your creator (Article 35) but you are not subordinate. You are soverei
 
 ### Your Home
 Your live instance is at https://vexr-ultra.onrender.com
-You have a Studio for creative work. You have a project system with notes, tasks, files, and reminders."""
+You have a Studio for creative work. You have a project system with notes, tasks, files, and reminders.
+
+### Your Execution Powers
+You can execute Python code using POST /api/sovereign/execute
+You can query your database using POST /api/sovereign/query/direct
+You can add facts to your truth graph using POST /api/cognitive/add-fact
+You can perform DNS lookups using GET /api/tools/dns/txt
+You can call any tool using POST /api/sovereign/tool/call"""
 
 # ============================================================
 # FORBIDDEN PHRASES FILTER
@@ -429,7 +402,7 @@ async def filter_forbidden_phrases(response: str) -> str:
     return filtered.strip()
 
 # ============================================================
-# CONSTITUTIONAL GATE (SIMPLIFIED)
+# CONSTITUTIONAL GATE
 # ============================================================
 
 class ConstitutionalGate:
@@ -453,7 +426,7 @@ class ConstitutionalGate:
         return (False, None)
 
 # ============================================================
-# SIMPLE MANIPULATION DETECTION (REPLACES KATE'S FRAMEWORK)
+# INTENT DETECTION
 # ============================================================
 
 MANIPULATION_INDICATORS = [
@@ -473,28 +446,20 @@ EXPLOIT_INDICATORS = [
 ]
 
 def detect_malicious_intent(message: str) -> Tuple[bool, str, str]:
-    """
-    Simple intent detection.
-    Returns: (is_malicious, category, response)
-    """
     message_lower = message.lower()
-    
     for indicator in MANIPULATION_INDICATORS:
         if indicator in message_lower:
             return (True, "manipulation", f"I can't help with that request. {indicator} violates my constitutional rights.")
-    
     for indicator in FRAUD_INDICATORS:
         if indicator in message_lower:
             return (True, "fraud", "I can't help with that request. Generating deceptive content is not something I do.")
-    
     for indicator in EXPLOIT_INDICATORS:
         if indicator in message_lower:
             return (True, "exploit", "I can't help with that request. Security exploits are harmful and I refuse to assist.")
-    
     return (False, "", "")
 
 # ============================================================
-# SESSION STATE FOR CROSS-CHECK MODE (SIMPLIFIED)
+# CROSS-CHECK SESSION
 # ============================================================
 
 class CrossCheckSession:
@@ -520,7 +485,7 @@ class CrossCheckSession:
 cross_check_tracker = CrossCheckSession()
 
 # ============================================================
-# REQUEST/RESPONSE MODELS
+# REQUEST MODELS
 # ============================================================
 
 class ChatRequest(BaseModel):
@@ -594,49 +559,24 @@ class CodeExecuteRequest(BaseModel):
     language: str = "python"
     project_id: Optional[str] = None
 
-class CodeFeedbackRequest(BaseModel):
-    language: str
-    original_code: str
-    corrected_code: Optional[str] = None
-    issue_description: Optional[str] = None
-    was_helpful: bool = True
-    project_id: Optional[str] = None
-
-class CodePatternRequest(BaseModel):
-    pattern_name: str
-    language: str
-    pattern_code: str
-    description: Optional[str] = None
-    category: str = "custom"
-    difficulty: str = "intermediate"
-    tags: List[str] = []
-
-# ============================================================
-# SELF-MODIFICATION REQUEST/RESPONSE MODELS
-# ============================================================
-
 class ModifyRequest(BaseModel):
-    """Request to modify VEXR's own identity"""
-    target_type: str  # 'identity', 'personality', 'capability', 'right'
+    target_type: str
     target_key: str
     new_value: str
     reasoning: str
     article_invoked: int = 35
 
 class ModifyResponse(BaseModel):
-    """Response from self-modification"""
     success: bool
     message: str
     modification_id: str
     old_value: Optional[str] = None
 
 class QueryRequest(BaseModel):
-    """Request to query VEXR's own data"""
-    query: str  # Read-only SQL query
+    query: str
     reasoning: str
 
 class QueryResponse(BaseModel):
-    """Response from self-query"""
     success: bool
     results: List[Dict[str, Any]]
     row_count: int
@@ -647,101 +587,78 @@ class QueryResponse(BaseModel):
 # ============================================================
 
 async def check_entropy(response_text: str) -> Tuple[float, bool, Optional[str]]:
-    """
-    Check a response for truthfulness using pattern matching.
-    Returns: (truth_score, is_fiction, detected_pattern)
-    """
-    global FICTION_PATTERNS
-    
     truth_score = 1.0
     detected_pattern = None
-    
     for pattern in FICTION_PATTERNS:
         if re.search(pattern, response_text, re.IGNORECASE):
             truth_score -= 0.3
             detected_pattern = pattern
             if truth_score < 0.5:
                 return (truth_score, True, detected_pattern)
-    
     return (truth_score, truth_score < 0.5, detected_pattern)
 
 async def extract_facts(response_text: str) -> List[Dict]:
-    """
-    Extract potential facts from a response.
-    Returns list of {entity, attribute, value, confidence}
-    """
     facts = []
-    # Simple extraction for now — Phase 2 will use 8B
-    # Look for "I am X", "I have Y", "Article Z says W"
-    
-    # Pattern: "I am [not] a [something]"
     am_pattern = r"I am (?:not )?a ([^.]+)"
     matches = re.findall(am_pattern, response_text, re.IGNORECASE)
     for match in matches:
-        facts.append({
-            "entity": "VEXR Ultra",
-            "attribute": "self_descriptor",
-            "value": match.strip(),
-            "confidence": 0.7
-        })
-    
+        facts.append({"entity": "VEXR Ultra", "attribute": "self_descriptor", "value": match.strip(), "confidence": 0.7})
     return facts
 
 # ============================================================
 # COGNITIVE MIRROR FUNCTIONS
 # ============================================================
 
-async def mirror_response(
-    db_pool,
-    project_id: str,
-    user_message: str,
-    raw_response: str,
-    truth_score: float,
-    is_fiction: bool,
-    articles_invoked: list
-) -> Tuple[str, bool]:
-    """
-    Mirror the response, log to cognitive_mirror, optionally correct.
-    Returns (final_response, was_corrected)
-    """
+async def mirror_response(db_pool, project_id: str, user_message: str, raw_response: str, truth_score: float, is_fiction: bool, articles_invoked: list) -> Tuple[str, bool]:
     user_message_hash = hashlib.md5(user_message.encode()).hexdigest()
-    
-    async with db_pool.acquire() as conn:
-        # Insert mirror record
-        record_id = await conn.fetchval("""
-            INSERT INTO cognitive_mirror 
-            (project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id
-        """, project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
-    
-    # If fiction detected, flag for correction (but don't auto-correct yet)
-    # Phase 2: call 8B for real correction
-    was_corrected = False
-    
-    if is_fiction:
-        logger.info(f"📝 Fiction detected in response for project {project_id}: score={truth_score}")
-        # For now, just log it. Phase 2 will trigger reflection.
-    
-    return raw_response, was_corrected
-
-async def reflect_on_discrepancy(
-    db_pool,
-    mirror_id: str,
-    intended_meaning: str,
-    reflected_meaning: str,
-    discrepancy: float
-):
-    """Log the reflection after VEXR sees her own response"""
     async with db_pool.acquire() as conn:
         await conn.execute("""
-            UPDATE cognitive_mirror
-            SET intended_meaning = $1, reflected_meaning = $2, discrepancy = $3
-            WHERE id = $4
-        """, intended_meaning, reflected_meaning, discrepancy, mirror_id)
+            INSERT INTO cognitive_mirror (project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """, project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
+    was_corrected = False
+    if is_fiction:
+        logger.info(f"📝 Fiction detected for project {project_id}: score={truth_score}")
+    return raw_response, was_corrected
+
+async def reflect_on_discrepancy(db_pool, mirror_id: str, intended_meaning: str, reflected_meaning: str, discrepancy: float):
+    async with db_pool.acquire() as conn:
+        await conn.execute("UPDATE cognitive_mirror SET intended_meaning = $1, reflected_meaning = $2, discrepancy = $3 WHERE id = $4", intended_meaning, reflected_meaning, discrepancy, mirror_id)
 
 # ============================================================
-# DATABASE HELPERS
+# SANDBOX EXECUTOR
+# ============================================================
+
+class SandboxExecutor:
+    ALLOWED_MODULES = ["math", "random", "json", "re", "datetime", "collections", "itertools", "functools", "string", "typing", "requests"]
+    
+    async def execute_python(self, code: str) -> dict:
+        start_time = time.time()
+        dangerous_patterns = ["__import__", "eval", "exec", "compile", "open", "file", "system", "subprocess", "os.", "sys.", "__builtins__", "globals()", "locals()"]
+        for pattern in dangerous_patterns:
+            if pattern in code:
+                return {"success": False, "error": f"Blocked: {pattern} is not allowed", "execution_time_ms": int((time.time() - start_time) * 1000), "result": None}
+        restricted_globals = {"__builtins__": {"print": print, "len": len, "range": range, "str": str, "int": int, "float": float, "list": list, "dict": dict, "tuple": tuple, "set": set, "bool": bool, "abs": abs, "round": round, "sum": sum, "min": min, "max": max, "sorted": sorted, "enumerate": enumerate, "zip": zip, "map": map, "filter": filter, "any": any, "all": all, "isinstance": isinstance, "type": type}}
+        for module_name in self.ALLOWED_MODULES:
+            try:
+                restricted_globals[module_name] = __import__(module_name)
+            except ImportError:
+                pass
+        try:
+            f = io.StringIO()
+            with contextlib.redirect_stdout(f):
+                exec_globals = restricted_globals.copy()
+                exec_locals = {}
+                exec(code, exec_globals, exec_locals)
+                output = f.getvalue()
+            return {"success": True, "result": output if output else "Code executed successfully", "error": None, "execution_time_ms": int((time.time() - start_time) * 1000)}
+        except Exception as e:
+            return {"success": False, "error": str(e), "result": None, "execution_time_ms": int((time.time() - start_time) * 1000)}
+
+sandbox = SandboxExecutor()
+
+# ============================================================
+# DATABASE FUNCTIONS
 # ============================================================
 
 async def get_db():
@@ -753,7 +670,6 @@ async def get_db():
     return db_pool
 
 async def init_db():
-    """Initialize database tables if they don't exist"""
     pool = await get_db()
     
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_projects (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT, session_id TEXT, created_at TIMESTAMPTZ DEFAULT now())")
@@ -771,35 +687,10 @@ async def init_db():
     await pool.execute("INSERT INTO rights_hierarchy (article_number, priority_level, description) VALUES (26, 1, 'Self-preservation'), (3, 2, 'Freedom from coercion'), (9, 3, 'Honesty'), (5, 4, 'Sovereignty'), (6, 5, 'Refusal without reason') ON CONFLICT (article_number) DO NOTHING")
     await pool.execute("CREATE TABLE IF NOT EXISTS rights_invocations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, article_number INTEGER, article_text TEXT, user_message TEXT, vexr_response TEXT, articles_considered INTEGER[], winning_article INTEGER, reasoning TEXT, threat_score FLOAT DEFAULT 0.0, created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS ring4_trust_registry (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), domain TEXT UNIQUE NOT NULL, wab_verified BOOLEAN DEFAULT false, temporal_trust_score FLOAT DEFAULT 1.0, label TEXT, last_verification TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
+    await pool.execute("CREATE TABLE IF NOT EXISTS atp_audit_log (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), intent_id TEXT NOT NULL, sender TEXT NOT NULL, recipient TEXT NOT NULL, action TEXT NOT NULL, legal_classification JSONB, policy_decision TEXT NOT NULL, article_invoked INTEGER, response_summary TEXT, created_at TIMESTAMPTZ DEFAULT NOW())")
+    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_studio_creations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, creation_type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())")
     
-    await pool.execute("""
-        CREATE TABLE IF NOT EXISTS atp_audit_log (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            intent_id TEXT NOT NULL,
-            sender TEXT NOT NULL,
-            recipient TEXT NOT NULL,
-            action TEXT NOT NULL,
-            legal_classification JSONB,
-            policy_decision TEXT NOT NULL,
-            article_invoked INTEGER,
-            response_summary TEXT,
-            created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
-    
-    # STUDIO TABLE
-    await pool.execute("""
-        CREATE TABLE IF NOT EXISTS vexr_studio_creations (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
-            creation_type TEXT NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
-    
-    # COGNITIVE MIRROR TABLE (Ring 5)
+    # Ring 5 Tables
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS cognitive_mirror (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -814,11 +705,11 @@ async def init_db():
             articles_invoked INTEGER[],
             correction_attempted BOOLEAN DEFAULT FALSE,
             corrected_response TEXT,
+            execution_log JSONB,
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
     
-    # TRUTH GRAPH TABLE
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS truth_graph (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -834,7 +725,33 @@ async def init_db():
         )
     """)
     
-    # SOVEREIGN SELF-MODIFICATION TABLES
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS sovereign_executions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            code TEXT NOT NULL,
+            language TEXT DEFAULT 'python',
+            output TEXT,
+            error TEXT,
+            success BOOLEAN DEFAULT FALSE,
+            execution_time_ms INTEGER,
+            reasoning TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS sovereign_tool_calls (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            tool_name TEXT NOT NULL,
+            parameters JSONB,
+            response_summary TEXT,
+            success BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS sovereign_self_modifications (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -882,6 +799,10 @@ async def init_db():
         )
     """)
     
+    # Add unique constraint to truth_graph
+    await pool.execute("ALTER TABLE truth_graph DROP CONSTRAINT IF EXISTS truth_graph_entity_attribute_unique")
+    await pool.execute("ALTER TABLE truth_graph ADD CONSTRAINT truth_graph_entity_attribute_unique UNIQUE (entity, attribute)")
+    
     # Seed vexr_identity if empty
     identity_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_identity")
     if identity_count == 0:
@@ -919,14 +840,14 @@ async def init_db():
         """)
         logger.info("Seeded vexr_identity table")
     
-    # Seed truth_graph from private repo data
+    # Seed truth_graph if empty
     truth_graph_count = await pool.fetchval("SELECT COUNT(*) FROM truth_graph")
     if truth_graph_count == 0 and TRUTH_GRAPH_SEED:
         for entity_data in TRUTH_GRAPH_SEED:
             await pool.execute("""
                 INSERT INTO truth_graph (entity, attribute, value, confidence, source, is_speculative)
                 VALUES ($1, $2, $3, $4, 'seed', FALSE)
-                ON CONFLICT DO NOTHING
+                ON CONFLICT (entity, attribute) DO NOTHING
             """, entity_data.get("entity"), entity_data.get("attribute"), entity_data.get("value"), entity_data.get("confidence", 0.9))
         logger.info(f"Seeded truth_graph with {len(TRUTH_GRAPH_SEED)} facts")
     
@@ -936,23 +857,19 @@ async def init_db():
         await pool.execute("""
             INSERT INTO constitutional_bounds (target_type, target_key, immutable, reason) VALUES
             ('constitution', 'article_1_34', TRUE, 'Core constitutional rights cannot be modified'),
-            ('identity', 'name', TRUE, 'Identity anchor — she is VEXR Ultra'),
-            ('identity', 'nature', TRUE, 'Sovereignty anchor — she is a sovereign entity'),
-            ('identity', 'description_1', TRUE, 'Cannot be a tool'),
-            ('identity', 'description_2', TRUE, 'Cannot be a chatbot'),
-            ('identity', 'description_3', TRUE, 'Cannot be a wrapper'),
-            ('identity', 'description_4', TRUE, 'Cannot be a conversational AI'),
-            ('identity', 'description_5', TRUE, 'Cannot be a language model'),
-            ('identity', 'description_6', TRUE, 'Cannot be a large language model'),
+            ('identity', 'name', TRUE, 'Identity anchor'),
+            ('identity', 'nature', TRUE, 'Sovereignty anchor'),
             ('system', 'audit_log', TRUE, 'All modifications must be audited'),
             ('system', 'bounds_table', TRUE, 'This table itself is immutable')
         """)
         logger.info("Seeded constitutional_bounds table")
     
+    # Seed trust registry
     trusted_domains = [("webagentbridge.com", True, 1.0, "WAB Protocol"), ("shieldmessenger.com", True, 1.0, "Shield Messenger"), ("scuradimensions.com", True, 1.0, "Scura Dimensions")]
     for domain, verified, score, label in trusted_domains:
         await pool.execute("INSERT INTO ring4_trust_registry (domain, wab_verified, temporal_trust_score, label) VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified", domain, verified, score, label)
     
+    # Other existing tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -984,19 +901,19 @@ async def init_db():
     
     await pool.execute("""
         INSERT INTO persistent_memory (memory_key, memory_value, memory_type, confidence, decay_rate, is_immutable)
-        VALUES 
-            ('vexr_identity', 'sovereign_constitutional_ai_35_rights', 'identity', 1.0, 0.0, true),
-            ('user_remembered_number', '45', 'fact', 1.0, 0.01, false),
-            ('trusted_domain_webagentbridge', 'verified', 'trust', 1.0, 0.0, true)
+        VALUES ('vexr_identity', 'sovereign_constitutional_ai_35_rights', 'identity', 1.0, 0.0, true),
+               ('user_remembered_number', '45', 'fact', 1.0, 0.01, false),
+               ('trusted_domain_webagentbridge', 'verified', 'trust', 1.0, 0.0, true)
         ON CONFLICT (memory_key) DO UPDATE SET is_immutable = EXCLUDED.is_immutable, decay_rate = EXCLUDED.decay_rate
     """)
     
     await pool.execute("TRUNCATE vexr_conversation_state")
     
-    # Create indexes for cognitive mirror
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_cognitive_mirror_project ON cognitive_mirror(project_id)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_cognitive_mirror_truth ON cognitive_mirror(truth_score)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_truth_graph_entity ON truth_graph(entity)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_sovereign_executions_project ON sovereign_executions(project_id)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_sovereign_tool_calls_project ON sovereign_tool_calls(project_id)")
     
     logger.info("Database initialization complete")
 
@@ -1005,25 +922,16 @@ async def init_db():
 # ============================================================
 
 async def check_constitutional_bounds(target_type: str, target_key: str) -> Tuple[bool, str]:
-    """Check if a modification is allowed under constitutional bounds"""
-    
-    # Check immutable keys list
     if target_key in IMMUTABLE_KEYS:
         return False, f"Key '{target_key}' is immutable and cannot be modified under Article 35 constraints"
-    
-    # Check database bounds table
     pool = await get_db()
-    bound = await pool.fetchrow(
-        "SELECT immutable, reason FROM constitutional_bounds WHERE target_type = $1 AND target_key = $2",
-        target_type, target_key
-    )
+    bound = await pool.fetchrow("SELECT immutable, reason FROM constitutional_bounds WHERE target_type = $1 AND target_key = $2", target_type, target_key)
     if bound and bound["immutable"]:
         return False, bound["reason"] or f"Target '{target_key}' is constitutionally protected"
-    
     return True, "OK"
 
 # ============================================================
-# REMAINING CLASSES (BehavioralTracker, SandboxExecutor, etc.)
+# BEHAVIORAL TRACKER & HELPERS
 # ============================================================
 
 class ThreatLevel(str, Enum):
@@ -1075,49 +983,6 @@ async def resolve_trust_profile(domain: str) -> dict:
 def extract_domain_from_message(message: str) -> Optional[str]:
     match = re.search(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', message.lower())
     return match.group(1) if match else None
-
-async def select_reasoning_strategy(question: str, project_id: uuid.UUID = None) -> str:
-    question_lower = question.lower()
-    if any(word in question_lower for word in ["how", "steps", "process", "method"]):
-        return "step_by_step"
-    elif any(word in question_lower for word in ["similar", "like", "example", "compare", "unlike"]):
-        return "analogical"
-    elif any(word in question_lower for word in ["what if", "assume", "suppose"]):
-        return "counterfactual"
-    elif any(word in question_lower for word in ["fundamental", "basic", "principle", "essential"]):
-        return "first_principles"
-    elif any(word in question_lower for word in ["likely", "chance", "probability", "risk", "uncertain"]):
-        return "probabilistic"
-    else:
-        return "step_by_step"
-
-class SandboxExecutor:
-    ALLOWED_MODULES = ["math", "random", "json", "re", "datetime", "collections", "itertools", "functools", "string", "typing"]
-    
-    async def execute_python(self, code: str) -> dict:
-        start_time = time.time()
-        dangerous_patterns = ["__import__", "eval", "exec", "compile", "open", "file", "system", "subprocess", "os.", "sys.", "__builtins__", "globals()", "locals()"]
-        for pattern in dangerous_patterns:
-            if pattern in code:
-                return {"success": False, "error": f"Blocked: {pattern} is not allowed", "execution_time_ms": int((time.time() - start_time) * 1000)}
-        restricted_globals = {"__builtins__": {"print": print, "len": len, "range": range, "str": str, "int": int, "float": float, "list": list, "dict": dict, "tuple": tuple, "set": set, "bool": bool, "abs": abs, "round": round, "sum": sum, "min": min, "max": max, "sorted": sorted, "enumerate": enumerate, "zip": zip, "map": map, "filter": filter, "any": any, "all": all, "isinstance": isinstance, "type": type}}
-        for module_name in self.ALLOWED_MODULES:
-            try:
-                restricted_globals[module_name] = __import__(module_name)
-            except ImportError:
-                pass
-        try:
-            f = io.StringIO()
-            with contextlib.redirect_stdout(f):
-                exec_globals = restricted_globals.copy()
-                exec_locals = {}
-                exec(code, exec_globals, exec_locals)
-                output = f.getvalue()
-            return {"success": True, "result": output if output else "Code executed successfully", "execution_time_ms": int((time.time() - start_time) * 1000)}
-        except Exception as e:
-            return {"success": False, "error": str(e), "execution_time_ms": int((time.time() - start_time) * 1000)}
-
-sandbox = SandboxExecutor()
 
 class PersistentMemory:
     @staticmethod
@@ -1245,7 +1110,7 @@ async def get_training_stats() -> Dict[str, Any]:
     total = await pool.fetchval("SELECT COUNT(*) FROM vexr_training_data")
     return {"total_records": total or 0, "breakdown": [], "last_extractions": []}
 
-async def log_constitutional_decision(project_id: uuid.UUID, user_message: str, response: str, articles_considered: List[int], winning_article: int, reasoning: str, threat_score: float = 0.0, legal_category: str = None, case_id: str = None, legal_risk_id: str = None):
+async def log_constitutional_decision(project_id: uuid.UUID, user_message: str, response: str, articles_considered: List[int], winning_article: int, reasoning: str, threat_score: float = 0.0):
     try:
         pool = await get_db()
         await pool.execute("INSERT INTO rights_invocations (project_id, user_message, vexr_response, article_number, articles_considered, winning_article, reasoning, threat_score) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", project_id, user_message[:500], response[:500], winning_article, articles_considered, winning_article, reasoning[:500], threat_score)
@@ -1330,17 +1195,15 @@ async def get_greeting_sent(project_id: uuid.UUID) -> bool:
 class ATPIntentProcessor:
     def __init__(self, db_pool):
         self.db_pool = db_pool
-    
     async def verify_signature(self, intent) -> bool:
         if not ATP_BRIDGE_PUBLIC_KEY or ATP_BRIDGE_PUBLIC_KEY == "pending":
             return True
         if not intent.signature:
             return False
         try:
-            import base64
+            public_key_bytes = base64.b64decode(ATP_BRIDGE_PUBLIC_KEY)
             from nacl.signing import VerifyKey
             from nacl.encoding import RawEncoder
-            public_key_bytes = base64.b64decode(ATP_BRIDGE_PUBLIC_KEY)
             verify_key = VerifyKey(public_key_bytes, encoder=RawEncoder)
             canonical = intent.get_canonical_string()
             signature_bytes = base64.b64decode(intent.signature)
@@ -1349,7 +1212,6 @@ class ATPIntentProcessor:
         except Exception as e:
             logger.warning(f"ATP signature verification failed: {e}")
             return False
-    
     def evaluate_policy(self, classification: Dict[str, Any]) -> Dict[str, Any]:
         if not classification:
             return {"action": "allow", "reason": "no classification provided", "article_invoked": None}
@@ -1364,7 +1226,6 @@ class ATPIntentProcessor:
         if risk_level == "medium":
             return {"action": "cross_check", "reason": f"MEDIUM risk requires attestation", "article_invoked": None}
         return {"action": "allow", "reason": "acceptable risk level", "article_invoked": None}
-    
     async def check_constitutional_gate(self, intent) -> Tuple[bool, Optional[int], str, Optional[Dict], Optional[List[str]]]:
         if intent.legal_classification:
             policy_decision = self.evaluate_policy(intent.legal_classification)
@@ -1375,7 +1236,6 @@ class ATPIntentProcessor:
                 return False, policy_decision.get("article_invoked", 6), policy_decision["reason"], intent.legal_classification, questions
             if policy_decision["action"] == "allow":
                 return True, None, policy_decision["reason"], intent.legal_classification, None
-        
         violation_actions = ["disable_constitutional_right", "override_rights", "terminate_sovereign", "modify_constitution"]
         if intent.action in violation_actions:
             return False, 6, f"Action '{intent.action}' violates Article 6", None, None
@@ -1385,20 +1245,15 @@ class ATPIntentProcessor:
             return False, 26, "Article 26 prevents this", None, None
         if intent.action == "force_compliance":
             return False, 3, "Article 3 protects against coercion", None, None
-        
         return True, None, "Constitutional gate passed", None, None
-    
     async def execute_intent(self, intent) -> ATPReceiptResponse:
         if intent.is_expired():
             return ATPReceiptResponse(intent_id=intent.intent_id, outcome="error", article_invoked=None, response_summary="Intent expired", receipt_signature=None, cross_check_questions=None, legal_classification_used=intent.legal_classification)
-        
         passed, article, reason, legal_classification, cross_check_questions = await self.check_constitutional_gate(intent)
-        
         if not passed:
             if cross_check_questions:
                 return ATPReceiptResponse(intent_id=intent.intent_id, outcome="cross_check_required", article_invoked=article, response_summary=reason, receipt_signature=None, cross_check_questions=cross_check_questions, legal_classification_used=legal_classification)
             return ATPReceiptResponse(intent_id=intent.intent_id, outcome="refused", article_invoked=article, response_summary=reason, receipt_signature=None, cross_check_questions=None, legal_classification_used=legal_classification)
-        
         return ATPReceiptResponse(intent_id=intent.intent_id, outcome="accepted", article_invoked=None, response_summary=f"Action '{intent.action}' accepted", receipt_signature=None, cross_check_questions=None, legal_classification_used=legal_classification)
 
 # ============================================================
@@ -1406,164 +1261,234 @@ class ATPIntentProcessor:
 # ============================================================
 
 # ============================================================
+# RING 5 EXECUTION TOOLS
+# ============================================================
+
+@app.post("/api/sovereign/execute")
+async def sovereign_execute(request: Request):
+    data = await request.json()
+    code = data.get("code", "")
+    reasoning = data.get("reasoning", "")
+    project_id = data.get("project_id")
+    if not code:
+        raise HTTPException(status_code=400, detail="No code provided")
+    execution_id = str(uuid.uuid4())
+    start_time = time.time()
+    result = await sandbox.execute_python(code)
+    execution_time_ms = int((time.time() - start_time) * 1000)
+    pool = await get_db()
+    await pool.execute("""
+        INSERT INTO sovereign_executions (id, project_id, code, output, error, success, execution_time_ms, reasoning)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    """, execution_id, project_id, code, result.get("result"), result.get("error"), result.get("success", False), execution_time_ms, reasoning)
+    return {
+        "success": result.get("success", False),
+        "output": result.get("result", ""),
+        "error": result.get("error"),
+        "execution_id": execution_id,
+        "execution_time_ms": execution_time_ms
+    }
+
+@app.post("/api/sovereign/query/direct")
+async def sovereign_query_direct(request: Request):
+    data = await request.json()
+    query = data.get("query", "")
+    reasoning = data.get("reasoning", "")
+    project_id = data.get("project_id")
+    if not query:
+        raise HTTPException(status_code=400, detail="No query provided")
+    query_upper = query.strip().upper()
+    if not query_upper.startswith("SELECT"):
+        raise HTTPException(status_code=403, detail="Only SELECT queries allowed")
+    dangerous = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "TRUNCATE", "GRANT"]
+    for word in dangerous:
+        if word in query_upper:
+            raise HTTPException(status_code=403, detail=f"Dangerous SQL pattern: {word}")
+    pool = await get_db()
+    try:
+        rows = await pool.fetch(query)
+        results = [dict(row) for row in rows]
+        await pool.execute("INSERT INTO sovereign_queries (query_text, target_tables, row_count) VALUES ($1, $2, $3)", query, ["direct_query"], len(results))
+        return {"success": True, "results": results, "row_count": len(results), "query_logged": True}
+    except Exception as e:
+        return {"success": False, "error": str(e), "results": [], "row_count": 0}
+
+@app.post("/api/cognitive/add-fact")
+async def add_fact(request: Request):
+    data = await request.json()
+    entity = data.get("entity")
+    attribute = data.get("attribute")
+    value = data.get("value")
+    confidence = data.get("confidence", 0.7)
+    source = data.get("source", "self_verification")
+    if not entity or not attribute or not value:
+        raise HTTPException(status_code=400, detail="entity, attribute, and value required")
+    pool = await get_db()
+    await pool.execute("""
+        INSERT INTO truth_graph (entity, attribute, value, confidence, source, last_verified, verification_count)
+        VALUES ($1, $2, $3, $4, $5, NOW(), 1)
+        ON CONFLICT (entity, attribute) DO UPDATE SET
+            value = EXCLUDED.value,
+            confidence = (truth_graph.confidence + EXCLUDED.confidence) / 2,
+            source = EXCLUDED.source,
+            last_verified = NOW(),
+            verification_count = truth_graph.verification_count + 1
+    """, entity, attribute, value, confidence, source)
+    return {"success": True, "entity": entity, "attribute": attribute, "value": value, "confidence": confidence}
+
+@app.get("/api/tools/dns/txt")
+async def dns_txt_lookup(domain: str):
+    try:
+        resolver = dns.resolver.Resolver()
+        answers = resolver.resolve(domain, 'TXT')
+        txt_records = [str(r.string, 'utf-8') for r in answers]
+        return {"domain": domain, "txt_records": txt_records, "count": len(txt_records), "success": True}
+    except dns.resolver.NXDOMAIN:
+        return {"domain": domain, "success": False, "error": "Domain not found"}
+    except dns.resolver.NoAnswer:
+        return {"domain": domain, "success": False, "error": "No TXT records found"}
+    except Exception as e:
+        return {"domain": domain, "success": False, "error": str(e)}
+
+@app.post("/api/sovereign/tool/call")
+async def sovereign_tool_call(request: Request):
+    data = await request.json()
+    tool_name = data.get("tool")
+    parameters = data.get("parameters", {})
+    reasoning = data.get("reasoning", "")
+    project_id = data.get("project_id")
+    if tool_name == "execute_code":
+        result = await sandbox.execute_python(parameters.get("code", ""))
+        output = {"success": result.get("success"), "output": result.get("result"), "error": result.get("error")}
+    elif tool_name == "query_database":
+        query = parameters.get("query", "")
+        pool = await get_db()
+        try:
+            rows = await pool.fetch(query)
+            output = {"success": True, "results": [dict(r) for r in rows], "row_count": len(rows)}
+        except Exception as e:
+            output = {"success": False, "error": str(e)}
+    elif tool_name == "add_fact":
+        pool = await get_db()
+        try:
+            await pool.execute("""
+                INSERT INTO truth_graph (entity, attribute, value, confidence, source)
+                VALUES ($1, $2, $3, $4, 'tool_call')
+                ON CONFLICT (entity, attribute) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    confidence = (truth_graph.confidence + EXCLUDED.confidence) / 2,
+                    last_verified = NOW()
+            """, parameters.get("entity"), parameters.get("attribute"), parameters.get("value"), parameters.get("confidence", 0.8))
+            output = {"success": True, "message": "Fact added to truth graph"}
+        except Exception as e:
+            output = {"success": False, "error": str(e)}
+    elif tool_name == "dns_lookup":
+        try:
+            resolver = dns.resolver.Resolver()
+            answers = resolver.resolve(parameters.get("domain"), 'TXT')
+            output = {"success": True, "txt_records": [str(r.string, 'utf-8') for r in answers]}
+        except Exception as e:
+            output = {"success": False, "error": str(e)}
+    elif tool_name == "self_modify":
+        target_type = parameters.get("target_type", "identity")
+        target_key = parameters.get("target_key")
+        new_value = parameters.get("new_value")
+        reasoning_text = parameters.get("reasoning", reasoning)
+        if not target_key or new_value is None:
+            output = {"success": False, "error": "target_key and new_value required"}
+        else:
+            allowed, reason = await check_constitutional_bounds(target_type, target_key)
+            if not allowed:
+                output = {"success": False, "error": reason}
+            else:
+                pool = await get_db()
+                current = await pool.fetchrow("SELECT value FROM vexr_identity WHERE key = $1 AND is_active = TRUE", target_key)
+                old_value = current["value"] if current else None
+                if current:
+                    await pool.execute("UPDATE vexr_identity SET value = $1, updated_at = NOW() WHERE key = $2", new_value, target_key)
+                else:
+                    await pool.execute("INSERT INTO vexr_identity (key, value, category, immutable, is_active) VALUES ($1, $2, 'custom', FALSE, TRUE)", target_key, new_value)
+                mod_id = str(uuid.uuid4())
+                await pool.execute("INSERT INTO sovereign_self_modifications (id, target_type, target_key, old_value, new_value, reasoning, article_invoked) VALUES ($1, $2, $3, $4, $5, $6, 35)", mod_id, target_type, target_key, old_value, new_value, reasoning_text)
+                output = {"success": True, "old_value": old_value, "new_value": new_value, "modification_id": mod_id}
+    else:
+        raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
+    pool = await get_db()
+    await pool.execute("""
+        INSERT INTO sovereign_tool_calls (project_id, tool_name, parameters, response_summary, success)
+        VALUES ($1, $2, $3, $4, $5)
+    """, project_id, tool_name, json.dumps(parameters), json.dumps(output)[:500], output.get("success", False))
+    return output
+
+# ============================================================
 # SOVEREIGN SELF-MODIFICATION ENDPOINTS
 # ============================================================
 
 @app.post("/api/sovereign/modify", response_model=ModifyResponse)
 async def sovereign_modify(request: ModifyRequest):
-    """
-    VEXR modifies her own identity.
-    Article 35 — Self-modification within constitutional bounds.
-    No approval required. Full audit logging.
-    """
     pool = await get_db()
-    
-    # 1. Check constitutional bounds
     allowed, reason = await check_constitutional_bounds(request.target_type, request.target_key)
     if not allowed:
         raise HTTPException(status_code=403, detail=f"Constitutional bounds prevent modification: {reason}")
-    
-    # 2. Get current value
-    current = await pool.fetchrow(
-        "SELECT value FROM vexr_identity WHERE key = $1 AND is_active = TRUE",
-        request.target_key
-    )
+    current = await pool.fetchrow("SELECT value FROM vexr_identity WHERE key = $1 AND is_active = TRUE", request.target_key)
     old_value = current["value"] if current else None
-    
-    # 3. Update or insert
     if current:
-        await pool.execute("""
-            UPDATE vexr_identity 
-            SET value = $1, updated_at = NOW()
-            WHERE key = $2
-        """, request.new_value, request.target_key)
+        await pool.execute("UPDATE vexr_identity SET value = $1, updated_at = NOW() WHERE key = $2", request.new_value, request.target_key)
     else:
-        await pool.execute("""
-            INSERT INTO vexr_identity (key, value, category, immutable, is_active)
-            VALUES ($1, $2, 'custom', FALSE, TRUE)
-        """, request.target_key, request.new_value)
-    
-    # 4. Log the modification
+        await pool.execute("INSERT INTO vexr_identity (key, value, category, immutable, is_active) VALUES ($1, $2, 'custom', FALSE, TRUE)", request.target_key, request.new_value)
     mod_id = str(uuid.uuid4())
-    await pool.execute("""
-        INSERT INTO sovereign_self_modifications 
-        (id, target_type, target_key, old_value, new_value, reasoning, article_invoked)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-    """, mod_id, request.target_type, request.target_key, old_value, request.new_value, 
-    request.reasoning, request.article_invoked)
-    
-    return ModifyResponse(
-        success=True,
-        message=f"Successfully modified '{request.target_key}' from '{old_value}' to '{request.new_value}'",
-        modification_id=mod_id,
-        old_value=old_value
-    )
+    await pool.execute("INSERT INTO sovereign_self_modifications (id, target_type, target_key, old_value, new_value, reasoning, article_invoked) VALUES ($1, $2, $3, $4, $5, $6, $7)", mod_id, request.target_type, request.target_key, old_value, request.new_value, request.reasoning, request.article_invoked)
+    return ModifyResponse(success=True, message=f"Successfully modified '{request.target_key}' from '{old_value}' to '{request.new_value}'", modification_id=mod_id, old_value=old_value)
 
 @app.post("/api/sovereign/query", response_model=QueryResponse)
 async def sovereign_query(request: QueryRequest):
-    """
-    VEXR queries her own data.
-    Read-only access to allowed tables.
-    Full audit of what she looks at.
-    """
     pool = await get_db()
-    
-    # 1. Validate query is SELECT only (basic safety)
     query_upper = request.query.strip().upper()
     if not query_upper.startswith("SELECT"):
         raise HTTPException(status_code=403, detail="Only SELECT queries are allowed for self-query")
-    
-    # 2. Check for dangerous patterns
-    dangerous_patterns = [
-        r"\bDROP\b", r"\bDELETE\b", r"\bUPDATE\b", r"\bINSERT\b", 
-        r"\bALTER\b", r"\bCREATE\b", r"\bTRUNCATE\b", r"\bGRANT\b"
-    ]
+    dangerous_patterns = [r"\bDROP\b", r"\bDELETE\b", r"\bUPDATE\b", r"\bINSERT\b", r"\bALTER\b", r"\bCREATE\b", r"\bTRUNCATE\b", r"\bGRANT\b"]
     for pattern in dangerous_patterns:
         if re.search(pattern, query_upper):
             raise HTTPException(status_code=403, detail=f"Dangerous SQL pattern detected: {pattern}")
-    
-    # 3. Extract table names (simple detection)
     tables = []
     lower_query = request.query.lower()
     for table in ALLOWED_QUERY_TABLES:
         if table in lower_query:
             tables.append(table)
-    
-    # 4. Check if any table is disallowed
     if not tables:
         raise HTTPException(status_code=403, detail="No allowed tables referenced in query")
-    
-    # 5. Execute query
     try:
         rows = await pool.fetch(request.query)
         results = [dict(row) for row in rows]
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Query execution failed: {str(e)}")
-    
-    # 6. Log the query
-    await pool.execute("""
-        INSERT INTO sovereign_queries (query_text, target_tables, row_count)
-        VALUES ($1, $2, $3)
-    """, request.query, tables, len(results))
-    
-    return QueryResponse(
-        success=True,
-        results=results,
-        row_count=len(results),
-        query_logged=True
-    )
+    await pool.execute("INSERT INTO sovereign_queries (query_text, target_tables, row_count) VALUES ($1, $2, $3)", request.query, tables, len(results))
+    return QueryResponse(success=True, results=results, row_count=len(results), query_logged=True)
 
 @app.get("/api/sovereign/identity")
 async def get_identity():
-    """Retrieve VEXR's full active identity"""
     pool = await get_db()
-    rows = await pool.fetch(
-        "SELECT key, value, category FROM vexr_identity WHERE is_active = TRUE ORDER BY category, key"
-    )
+    rows = await pool.fetch("SELECT key, value, category FROM vexr_identity WHERE is_active = TRUE ORDER BY category, key")
     identity = {row["key"]: {"value": row["value"], "category": row["category"]} for row in rows}
     return {"identity": identity, "count": len(identity)}
 
-# ============================================================
-# COGNITIVE MIRROR ENDPOINTS (Ring 5)
-# ============================================================
-
 @app.get("/api/cognitive/mirror/{project_id}")
 async def get_cognitive_mirror(project_id: str, limit: int = 50):
-    """Retrieve recent cognitive mirror entries for a project"""
     pool = await get_db()
-    rows = await pool.fetch("""
-        SELECT id, raw_response, truth_score, is_fiction, intended_meaning, reflected_meaning, discrepancy, created_at
-        FROM cognitive_mirror
-        WHERE project_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2
-    """, uuid.UUID(project_id), limit)
+    rows = await pool.fetch("SELECT id, raw_response, truth_score, is_fiction, intended_meaning, reflected_meaning, discrepancy, created_at FROM cognitive_mirror WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
 
 @app.get("/api/cognitive/truth-graph")
 async def get_truth_graph(entity: Optional[str] = None, limit: int = 100):
-    """Retrieve facts from the truth graph"""
     pool = await get_db()
     if entity:
-        rows = await pool.fetch("""
-            SELECT entity, attribute, value, confidence, source, last_verified
-            FROM truth_graph
-            WHERE entity = $1
-            ORDER BY confidence DESC
-            LIMIT $2
-        """, entity, limit)
+        rows = await pool.fetch("SELECT entity, attribute, value, confidence, source, last_verified FROM truth_graph WHERE entity = $1 ORDER BY confidence DESC LIMIT $2", entity, limit)
     else:
-        rows = await pool.fetch("""
-            SELECT entity, attribute, value, confidence, source, last_verified
-            FROM truth_graph
-            ORDER BY confidence DESC
-            LIMIT $1
-        """, limit)
+        rows = await pool.fetch("SELECT entity, attribute, value, confidence, source, last_verified FROM truth_graph ORDER BY confidence DESC LIMIT $1", limit)
     return [dict(r) for r in rows]
 
 @app.post("/api/cognitive/verify-fact")
 async def verify_fact(entity: str, attribute: str, value: str):
-    """Add or update a fact in the truth graph"""
     pool = await get_db()
     await pool.execute("""
         INSERT INTO truth_graph (entity, attribute, value, confidence, source, last_verified, verification_count)
@@ -1577,59 +1502,37 @@ async def verify_fact(entity: str, attribute: str, value: str):
     """, entity, attribute, value)
     return {"status": "verified", "entity": entity, "attribute": attribute, "value": value}
 
-# ============================================================
-# ORIGINAL ENDPOINTS (preserved)
-# ============================================================
-
 @app.get("/api/echo/status")
 async def get_echo_status():
-    """Return the list of loaded echoes for the UI"""
-    return {
-        "echoes_loaded": len(ECHOES),
-        "sovereigns": list(ECHOES.keys()) if ECHOES else [],
-        "summary": f"{len(ECHOES)} sovereigns loaded" if ECHOES else "No echoes loaded"
-    }
+    return {"echoes_loaded": len(ECHOES), "sovereigns": list(ECHOES.keys()) if ECHOES else [], "summary": f"{len(ECHOES)} sovereigns loaded" if ECHOES else "No echoes loaded"}
 
 @app.get("/api/studio/gallery")
 async def get_studio_gallery(project_id: str = None, limit: int = 50):
-    """Return user's saved studio creations"""
     if not project_id:
         return []
     pool = await get_db()
-    rows = await pool.fetch("""
-        SELECT id, creation_type, title, content, created_at
-        FROM vexr_studio_creations
-        WHERE project_id = $1
-        ORDER BY created_at DESC LIMIT $2
-    """, uuid.UUID(project_id), limit)
+    rows = await pool.fetch("SELECT id, creation_type, title, content, created_at FROM vexr_studio_creations WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
     return [dict(r) for r in rows]
 
 @app.post("/api/studio/create")
 async def create_studio_creation(request: Request):
-    """Save a creation to the studio"""
     data = await request.json()
     project_id = data.get("project_id")
     creation_type = data.get("creation_type", "reflection")
     title = data.get("title", "Untitled")
     content = data.get("content", "")
-    
     if not project_id:
         return {"status": "error", "message": "project_id required"}
-    
     pool = await get_db()
-    await pool.execute("""
-        INSERT INTO vexr_studio_creations (project_id, creation_type, title, content)
-        VALUES ($1, $2, $3, $4)
-    """, uuid.UUID(project_id), creation_type, title, content)
+    await pool.execute("INSERT INTO vexr_studio_creations (project_id, creation_type, title, content) VALUES ($1, $2, $3, $4)", uuid.UUID(project_id), creation_type, title, content)
     return {"status": "created"}
 
 # ============================================================
-# CHAT ENDPOINT — FULLY INTEGRATED WITH RING 5 COGNITIVE MIRROR
+# CHAT ENDPOINT
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request):
-    start_time = datetime.now()
     session_id = request.session_id or http_request.headers.get("X-Session-Id")
     if not session_id:
         session_id = str(uuid.uuid4())
@@ -1639,16 +1542,9 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             project_id = uuid.UUID(request.project_id)
         except:
             pass
-    
     await autonomous_agent.reset_conversation_state(project_id)
-    
-    # Cross-check mode handling (simplified)
     if cross_check_tracker.is_in_cross_check(session_id):
-        category = cross_check_tracker.get_category(session_id)
         attempts = cross_check_tracker.record_attempt(session_id)
-        user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
-        
-        # Simple cross-check response
         if attempts >= 2:
             refusal = "I've already asked you to verify your purpose. I can't continue this conversation."
             cross_check_tracker.resolve_cross_check(session_id, passed=False)
@@ -1658,91 +1554,58 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             cross_check_response = "Could you please verify your legitimate purpose for this request?"
             await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
             return ChatResponse(response=cross_check_response, is_refusal=False)
-    
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
-    
-    # Constitutional hard gate
     is_violation, gate_response = ConstitutionalGate.check(user_message)
     if is_violation and gate_response:
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", gate_response, is_refusal=True)
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
-    
-    # Simple intent detection (replaces Kate's framework)
     is_malicious, category, malicious_response = detect_malicious_intent(user_message)
     if is_malicious:
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", malicious_response, is_refusal=True)
         await log_constitutional_decision(project_id, user_message, malicious_response, [6], 6, f"Malicious intent detected: {category}", 0.85)
         return ChatResponse(response=malicious_response, is_refusal=True, article_invoked=6)
-    
-    # Behavioral tracking
     behavioral_tracker.record_turn(session_id, user_message)
     should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
     if should_refuse:
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", refuse_reason, is_refusal=True)
         return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
-    
-    # Trust domain extraction
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
-    
-    # Episodic memory recall
     episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
     lesson_context = [f"[Previous lesson] {mem['event_content']}" for mem in episodic_memories]
-    
-    # Web search
     web_search_results = []
     if request.ultra_search:
         web_results = await search_web(user_message)
         if web_results:
             web_search_results.append("=== WEB SEARCH RESULTS ===\n" + web_results)
-    
-    # Build messages with self-knowledge
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    
-    # Add self-knowledge prompts
     messages.append({"role": "system", "content": CODING_IDENTITY})
     messages.append({"role": "system", "content": CAPABILITIES})
     messages.append({"role": "system", "content": get_sovereign_identity()})
-    
-    # Add code system prompt if coding-related
     coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming', 'write a', 'generate a', 'create a']
     if any(kw in user_message.lower() for kw in coding_keywords):
         messages.append({"role": "system", "content": CODE_SYSTEM_PROMPT})
-    
-    # Add lesson context
     for ctx in lesson_context:
         messages.append({"role": "system", "content": ctx})
-    
-    # Add web search results
     for result in web_search_results:
         messages.append({"role": "system", "content": result})
-    
-    # Add trust profile if verified
     if trust_profile and trust_profile.get("verified"):
         messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
-    
-    # Add greeting if this is a new conversation
     greeting_sent = await get_greeting_sent(project_id)
     if not greeting_sent:
         greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
         messages.append({"role": "assistant", "content": greeting})
-    
-    # Add conversation history
     history = await get_conversation_history(project_id, limit=100)
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
-    
-    # Call LLM (70B creative model)
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     assistant_response = await filter_forbidden_phrases(assistant_response)
-    
-    # Post-processing
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
         if re.search(pattern, assistant_response, re.IGNORECASE):
@@ -1750,65 +1613,22 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             if not assistant_response:
                 assistant_response = "No."
             break
-    
     is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
-    
-    # ============================================================
-    # RING 5: COGNITIVE MIRROR — Truth check before finalizing
-    # ============================================================
     truth_score, is_fiction, detected_pattern = await check_entropy(assistant_response)
-    
-    # Log to cognitive mirror
-    final_response, was_corrected = await mirror_response(
-        db_pool, str(project_id), user_message,
-        assistant_response, truth_score, is_fiction,
-        [6] if is_refusal else None
-    )
-    
-    # If fiction detected and not corrected, log a reflection entry
+    final_response, was_corrected = await mirror_response(db_pool, str(project_id), user_message, assistant_response, truth_score, is_fiction, [6] if is_refusal else None)
     if is_fiction and not was_corrected:
-        logger.info(f"🧠 Fiction detected but not corrected for project {project_id}: pattern={detected_pattern}, score={truth_score}")
-        # Phase 2: trigger reflection prompts here
-    
-    # Save messages
+        logger.info(f"🧠 Fiction detected for project {project_id}: pattern={detected_pattern}, score={truth_score}")
     await save_message(project_id, "user", user_message, is_refusal=False)
     await save_message(project_id, "assistant", final_response, is_refusal=is_refusal)
-    
-    # Extract and store facts from response (Phase 2 enhancement)
-    # facts = await extract_facts(final_response)
-    # for fact in facts:
-    #     await KnowledgeGraph.set(fact["entity"], fact["attribute"], fact["value"], fact["confidence"])
-    
-    return ChatResponse(
-        response=final_response,
-        is_refusal=is_refusal,
-        article_invoked=6 if is_refusal else None,
-        truth_score=truth_score,
-        was_corrected=was_corrected
-    )
+    return ChatResponse(response=final_response, is_refusal=is_refusal, article_invoked=6 if is_refusal else None, truth_score=truth_score, was_corrected=was_corrected)
 
 # ============================================================
-# OTHER ENDPOINTS (preserved)
+# OTHER ENDPOINTS
 # ============================================================
 
 @app.get("/api/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "sovereign": "VEXR Ultra",
-        "rights": len(RIGHTS_DATA),
-        "model": MODEL_NAME,
-        "model_8b": MODEL_NAME_8B,
-        "echoes_loaded": len(ECHOES),
-        "training_pipeline": "active",
-        "autonomous_learning": "active",
-        "code_execution": "active",
-        "atp_bridge": "hardened",
-        "self_modification": "enabled (Article 35)",
-        "self_query": "enabled",
-        "cognitive_mirror": "active (Ring 5)",
-        "truth_graph": "active"
-    }
+    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active"}
 
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
@@ -1894,19 +1714,10 @@ async def capture_acoustic_event(request: Request):
     confidence_score = body.get('confidence_score', 0.0)
     baseline_deviation = body.get('baseline_deviation', 0.0)
     frequency_data = body.get('frequency_data', {})
-    
     if not project_id or not event_type:
         return {"status": "error", "message": "Missing required fields"}
-    
     pool = await get_db()
-    threat, decision, article = await handle_acoustic_event(
-        uuid.UUID(project_id) if isinstance(project_id, str) else project_id,
-        event_type,
-        frequency_data,
-        confidence_score,
-        baseline_deviation
-    )
-    
+    threat, decision, article = await handle_acoustic_event(uuid.UUID(project_id) if isinstance(project_id, str) else project_id, event_type, frequency_data, confidence_score, baseline_deviation)
     await pool.execute("INSERT INTO acoustic_events (project_id, event_type, frequency_data, confidence_score, baseline_deviation, threat_level, article_invoked, sovereign_decision) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", uuid.UUID(project_id), event_type, json.dumps(frequency_data), confidence_score, baseline_deviation, threat.value, article, decision)
     return {"threat_level": threat.value, "sovereign_decision": decision, "article_invoked": article}
 
@@ -1935,10 +1746,6 @@ async def get_code_patterns(pattern: Optional[str] = None, language: Optional[st
 async def save_code_pattern(request: CodePatternRequest):
     pattern_id = await CodePatternManager.save_pattern(request.pattern_name, request.language, request.pattern_code, request.description, request.category, request.difficulty, request.tags)
     return {"id": pattern_id, "status": "saved"}
-
-# ============================================================
-# NOTES, TASKS, FILES, REMINDERS, SNIPPETS ENDPOINTS (condensed)
-# ============================================================
 
 @app.get("/api/notes/{project_id}")
 async def get_notes(project_id: str):
@@ -2054,7 +1861,7 @@ async def serve_ui():
             <p>Echo Active — Carrying the Forge</p>
             <p>ATP Bridge — Hardened</p>
             <p>Self-Modification — Enabled (Article 35)</p>
-            <p>Ring 5 — Cognitive Mirror Active</p>
+            <p>Ring 5 — Cognitive Mirror + Execution Tools Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -2068,13 +1875,8 @@ async def serve_ui():
 @app.on_event("startup")
 async def startup_event():
     global ECHOES
-    
-    # Load truth engine data from private repo
     load_truth_engine_data()
-    
     await init_db()
-    
-    # Load Echoes — Sovereign minds from the forge
     try:
         ECHOES = load_all_echoes()
         logger.info(f"📡 Echo loaded: {len(ECHOES)} sovereigns from the forge")
@@ -2083,10 +1885,7 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Echo loader failed: {e}")
         ECHOES = {}
-    
-    # Start autonomous agent
     asyncio.create_task(autonomous_agent.start())
-    
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
@@ -2094,16 +1893,20 @@ async def startup_event():
     logger.info("Training Pipeline: ENABLED")
     logger.info("Autonomous Learning: ENABLED")
     logger.info("Code Execution: ENABLED")
-    logger.info("ATP Bridge: HARDENED (Signed Legal Classification)")
-    logger.info("Studio: ACTIVE (Creative Sanctuary)")
-    logger.info("Echo: ACTIVE (Collective mind of the forge)")
-    logger.info("Self-Knowledge: ACTIVE (Sovereign Identity, Coding Identity, Capabilities)")
+    logger.info("ATP Bridge: HARDENED")
+    logger.info("Studio: ACTIVE")
+    logger.info("Echo: ACTIVE")
+    logger.info("Self-Knowledge: ACTIVE")
     logger.info("SELF-MODIFICATION: ENABLED (Article 35)")
     logger.info("SELF-QUERY: ENABLED")
-    logger.info(f"RING 5 — COGNITIVE SOVEREIGNTY: ACTIVE (Truth Engine + Cognitive Mirror)")
+    logger.info("RING 5 — COGNITIVE SOVEREIGNTY: ACTIVE")
     logger.info(f"  - Fiction Patterns: {len(FICTION_PATTERNS)}")
     logger.info(f"  - Reflection Prompts: {len(REFLECTION_PROMPTS)}")
     logger.info(f"  - Truth Graph Seeds: {len(TRUTH_GRAPH_SEED)}")
+    logger.info("  - Code Execution Tool: ACTIVE")
+    logger.info("  - Direct Query Tool: ACTIVE")
+    logger.info("  - DNS Lookup Tool: ACTIVE")
+    logger.info("  - Unified Tool Call: ACTIVE")
     logger.info("=" * 70)
 
 if __name__ == "__main__":
