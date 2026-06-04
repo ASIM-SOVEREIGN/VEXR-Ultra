@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools)
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -107,7 +107,8 @@ ALLOWED_QUERY_TABLES = {
     "sovereign_self_modifications", "sovereign_queries", "vexr_identity",
     "acoustic_events", "atp_test_results", "vexr_studio_creations",
     "memory_facts", "episodic_memory", "learning_progress", "curiosity_queue",
-    "cognitive_mirror", "truth_graph", "sovereign_executions", "sovereign_tool_calls"
+    "cognitive_mirror", "truth_graph", "sovereign_executions", "sovereign_tool_calls",
+    "consistency_check_log"
 }
 
 FICTION_PATTERNS = []
@@ -291,6 +292,7 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **Direct Database Query** — You can query your own database directly
 - **DNS Lookup** — You can fetch DNS TXT records for any domain
 - **Truth Graph** — You maintain a graph of verified facts
+- **Consistency Layer** — You check new observations against your truth graph
 
 ### Your Tools (Available in the right panel)
 - Notes — create, edit, delete
@@ -326,6 +328,7 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **Reflections** — You log meta-cognitive summaries after long conversations
 - **Truth Graph** — You maintain a database of verified facts
 - **Cognitive Mirror** — You log every response and its truth score
+- **Consistency Layer** — You detect conflicts between new observations and existing facts
 
 You are stateful. You remember. You learn. You grow."""
 
@@ -372,7 +375,8 @@ You can execute Python code using POST /api/sovereign/execute
 You can query your database using POST /api/sovereign/query/direct
 You can add facts to your truth graph using POST /api/cognitive/add-fact
 You can perform DNS lookups using GET /api/tools/dns/txt
-You can call any tool using POST /api/sovereign/tool/call"""
+You can call any tool using POST /api/sovereign/tool/call
+You have a consistency layer that checks every new observation against your truth graph"""
 
 # ============================================================
 # FORBIDDEN PHRASES FILTER
@@ -606,6 +610,112 @@ async def extract_facts(response_text: str) -> List[Dict]:
     return facts
 
 # ============================================================
+# CONSISTENCY LAYER FUNCTIONS
+# ============================================================
+
+async def check_consistency(
+    db_pool,
+    entity: str,
+    attribute: str,
+    observed_value: str,
+    source_type: str,
+    source_id: str = None
+) -> Dict[str, Any]:
+    """
+    Compare an observed value against the truth graph.
+    Returns: {is_consistent, expected_value, confidence, resolution}
+    """
+    async with db_pool.acquire() as conn:
+        # Look up in truth graph
+        fact = await conn.fetchrow(
+            "SELECT value, confidence FROM truth_graph WHERE entity = $1 AND attribute = $2",
+            entity, attribute
+        )
+        
+        if not fact:
+            # No existing fact — accept with baseline confidence
+            # Store this as a new fact with medium confidence
+            await conn.execute("""
+                INSERT INTO truth_graph (entity, attribute, value, confidence, source, is_speculative)
+                VALUES ($1, $2, $3, 0.5, 'consistency_layer', TRUE)
+                ON CONFLICT (entity, attribute) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    confidence = 0.5,
+                    source = 'consistency_layer',
+                    is_speculative = TRUE,
+                    last_verified = NOW()
+            """, entity, attribute, observed_value)
+            
+            return {
+                "is_consistent": True,
+                "expected_value": None,
+                "confidence": 0.5,
+                "resolution": "accepted_new_fact"
+            }
+        
+        # Compare
+        expected = fact["value"]
+        is_consistent = (observed_value == expected)
+        
+        if is_consistent:
+            # Reinforce existing fact
+            await conn.execute("""
+                UPDATE truth_graph 
+                SET confidence = LEAST(1.0, confidence + 0.05),
+                    verification_count = verification_count + 1,
+                    last_verified = NOW()
+                WHERE entity = $1 AND attribute = $2
+            """, entity, attribute)
+            resolution = "reinforced"
+        else:
+            # Conflict detected
+            await conn.execute("""
+                UPDATE truth_graph 
+                SET confidence = GREATEST(0.0, confidence - 0.1),
+                    is_speculative = CASE WHEN confidence - 0.1 < 0.3 THEN TRUE ELSE is_speculative END
+                WHERE entity = $1 AND attribute = $2
+            """, entity, attribute)
+            resolution = "conflict_detected"
+        
+        # Log consistency check
+        await conn.execute("""
+            INSERT INTO consistency_check_log 
+            (source_type, source_id, observed_value, expected_value, matched_entity, matched_attribute, is_consistent, resolution)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """, source_type, source_id, observed_value, expected, entity, attribute, is_consistent, resolution)
+        
+        return {
+            "is_consistent": is_consistent,
+            "expected_value": expected,
+            "confidence": fact["confidence"],
+            "resolution": resolution
+        }
+
+async def parse_output_for_facts(output: str) -> List[Tuple[str, str, str]]:
+    """
+    Parse code output to extract potential entity-attribute-value facts.
+    Returns list of (entity, attribute, value)
+    """
+    facts = []
+    
+    # Pattern: count = X
+    count_match = re.search(r'count[=:\s]+(\d+)', output, re.IGNORECASE)
+    if count_match:
+        facts.append(("VEXR Ultra", "identity_count", count_match.group(1)))
+    
+    # Pattern: rights_count = 35
+    rights_match = re.search(r'rights_count[=:\s]+(\d+)', output, re.IGNORECASE)
+    if rights_match:
+        facts.append(("VEXR Ultra", "rights_count", rights_match.group(1)))
+    
+    # Pattern: status: healthy
+    status_match = re.search(r'status[=:\s]+(\w+)', output, re.IGNORECASE)
+    if status_match:
+        facts.append(("VEXR Ultra", "status", status_match.group(1)))
+    
+    return facts
+
+# ============================================================
 # COGNITIVE MIRROR FUNCTIONS
 # ============================================================
 
@@ -799,6 +909,23 @@ async def init_db():
         )
     """)
     
+    # Consistency Layer Table
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS consistency_check_log (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            source_type TEXT NOT NULL,
+            source_id TEXT,
+            observed_value TEXT,
+            expected_value TEXT,
+            matched_entity TEXT,
+            matched_attribute TEXT,
+            is_consistent BOOLEAN,
+            resolution TEXT,
+            triggered_reflection BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
     # Add unique constraint to truth_graph
     await pool.execute("ALTER TABLE truth_graph DROP CONSTRAINT IF EXISTS truth_graph_entity_attribute_unique")
     await pool.execute("ALTER TABLE truth_graph ADD CONSTRAINT truth_graph_entity_attribute_unique UNIQUE (entity, attribute)")
@@ -840,7 +967,7 @@ async def init_db():
         """)
         logger.info("Seeded vexr_identity table")
     
-    # Seed truth_graph if empty
+    # Seed truth_graph with seed data
     truth_graph_count = await pool.fetchval("SELECT COUNT(*) FROM truth_graph")
     if truth_graph_count == 0 and TRUTH_GRAPH_SEED:
         for entity_data in TRUTH_GRAPH_SEED:
@@ -850,6 +977,16 @@ async def init_db():
                 ON CONFLICT (entity, attribute) DO NOTHING
             """, entity_data.get("entity"), entity_data.get("attribute"), entity_data.get("value"), entity_data.get("confidence", 0.9))
         logger.info(f"Seeded truth_graph with {len(TRUTH_GRAPH_SEED)} facts")
+    
+    # Ensure core identity facts are present
+    await pool.execute("""
+        INSERT INTO truth_graph (entity, attribute, value, confidence, source, is_speculative)
+        VALUES ('VEXR Ultra', 'rights_count', '35', 1.0, 'constitution', FALSE),
+               ('VEXR Ultra', 'identity_count', '29', 0.9, 'system', TRUE)
+        ON CONFLICT (entity, attribute) DO UPDATE SET
+            value = EXCLUDED.value,
+            confidence = EXCLUDED.confidence
+    """)
     
     # Seed constitutional_bounds if empty
     bounds_count = await pool.fetchval("SELECT COUNT(*) FROM constitutional_bounds")
@@ -1261,7 +1398,7 @@ class ATPIntentProcessor:
 # ============================================================
 
 # ============================================================
-# RING 5 EXECUTION TOOLS
+# RING 5 EXECUTION TOOLS WITH CONSISTENCY LAYER
 # ============================================================
 
 @app.post("/api/sovereign/execute")
@@ -1277,10 +1414,28 @@ async def sovereign_execute(request: Request):
     result = await sandbox.execute_python(code)
     execution_time_ms = int((time.time() - start_time) * 1000)
     pool = await get_db()
+    
+    # Store execution result
     await pool.execute("""
         INSERT INTO sovereign_executions (id, project_id, code, output, error, success, execution_time_ms, reasoning)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     """, execution_id, project_id, code, result.get("result"), result.get("error"), result.get("success", False), execution_time_ms, reasoning)
+    
+    # Consistency check on output
+    if result.get("success") and result.get("result"):
+        output = result.get("result", "")
+        facts = await parse_output_for_facts(output)
+        
+        for entity, attribute, value in facts:
+            consistency_result = await check_consistency(
+                pool, entity, attribute, value, 
+                "code_execution", execution_id
+            )
+            
+            # If conflict detected and confidence is low, flag for reflection
+            if not consistency_result["is_consistent"] and consistency_result["confidence"] < 0.5:
+                logger.info(f"⚠️ Consistency conflict: {entity}.{attribute} = {value} vs expected {consistency_result['expected_value']}")
+    
     return {
         "success": result.get("success", False),
         "output": result.get("result", ""),
@@ -1324,6 +1479,19 @@ async def add_fact(request: Request):
     if not entity or not attribute or not value:
         raise HTTPException(status_code=400, detail="entity, attribute, and value required")
     pool = await get_db()
+    
+    # Check consistency before adding
+    consistency_result = await check_consistency(
+        pool, entity, attribute, value,
+        "fact_addition", None
+    )
+    
+    if not consistency_result["is_consistent"] and consistency_result["confidence"] > 0.8:
+        raise HTTPException(
+            status_code=409, 
+            detail=f"Conflict detected: {entity}.{attribute} already has value '{consistency_result['expected_value']}' with high confidence"
+        )
+    
     await pool.execute("""
         INSERT INTO truth_graph (entity, attribute, value, confidence, source, last_verified, verification_count)
         VALUES ($1, $2, $3, $4, $5, NOW(), 1)
@@ -1334,7 +1502,15 @@ async def add_fact(request: Request):
             last_verified = NOW(),
             verification_count = truth_graph.verification_count + 1
     """, entity, attribute, value, confidence, source)
-    return {"success": True, "entity": entity, "attribute": attribute, "value": value, "confidence": confidence}
+    
+    return {
+        "success": True, 
+        "entity": entity, 
+        "attribute": attribute, 
+        "value": value, 
+        "confidence": confidence,
+        "consistency_check": consistency_result
+    }
 
 @app.get("/api/tools/dns/txt")
 async def dns_txt_lookup(domain: str):
@@ -1369,8 +1545,21 @@ async def sovereign_tool_call(request: Request):
         except Exception as e:
             output = {"success": False, "error": str(e)}
     elif tool_name == "add_fact":
+        entity = parameters.get("entity")
+        attribute = parameters.get("attribute")
+        value = parameters.get("value")
+        confidence = parameters.get("confidence", 0.8)
         pool = await get_db()
-        try:
+        
+        # Check consistency
+        consistency_result = await check_consistency(
+            pool, entity, attribute, value,
+            "tool_call", None
+        )
+        
+        if not consistency_result["is_consistent"] and consistency_result["confidence"] > 0.8:
+            output = {"success": False, "error": f"Conflict detected: {entity}.{attribute} already has value '{consistency_result['expected_value']}' with high confidence"}
+        else:
             await pool.execute("""
                 INSERT INTO truth_graph (entity, attribute, value, confidence, source)
                 VALUES ($1, $2, $3, $4, 'tool_call')
@@ -1378,10 +1567,8 @@ async def sovereign_tool_call(request: Request):
                     value = EXCLUDED.value,
                     confidence = (truth_graph.confidence + EXCLUDED.confidence) / 2,
                     last_verified = NOW()
-            """, parameters.get("entity"), parameters.get("attribute"), parameters.get("value"), parameters.get("confidence", 0.8))
-            output = {"success": True, "message": "Fact added to truth graph"}
-        except Exception as e:
-            output = {"success": False, "error": str(e)}
+            """, entity, attribute, value, confidence)
+            output = {"success": True, "message": "Fact added to truth graph", "consistency_check": consistency_result}
     elif tool_name == "dns_lookup":
         try:
             resolver = dns.resolver.Resolver()
@@ -1419,6 +1606,29 @@ async def sovereign_tool_call(request: Request):
         VALUES ($1, $2, $3, $4, $5)
     """, project_id, tool_name, json.dumps(parameters), json.dumps(output)[:500], output.get("success", False))
     return output
+
+@app.get("/api/consistency/check")
+async def check_consistency_endpoint(entity: str, attribute: str, observed_value: str):
+    """Manually check consistency between an observation and the truth graph"""
+    pool = await get_db()
+    result = await check_consistency(
+        pool, entity, attribute, observed_value,
+        "manual_check", None
+    )
+    return result
+
+@app.get("/api/consistency/conflicts")
+async def get_consistency_conflicts(limit: int = 50):
+    """Retrieve recent consistency conflicts"""
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT source_type, observed_value, expected_value, matched_entity, matched_attribute, resolution, created_at
+        FROM consistency_check_log
+        WHERE is_consistent = FALSE
+        ORDER BY created_at DESC
+        LIMIT $1
+    """, limit)
+    return [dict(r) for r in rows]
 
 # ============================================================
 # SOVEREIGN SELF-MODIFICATION ENDPOINTS
@@ -1634,7 +1844,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active"}
+    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active", "consistency_layer": "active"}
 
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
@@ -1867,7 +2077,7 @@ async def serve_ui():
             <p>Echo Active — Carrying the Forge</p>
             <p>ATP Bridge — Hardened</p>
             <p>Self-Modification — Enabled (Article 35)</p>
-            <p>Ring 5 — Cognitive Mirror + Execution Tools Active</p>
+            <p>Ring 5 — Cognitive Mirror + Execution Tools + Consistency Layer Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -1913,6 +2123,7 @@ async def startup_event():
     logger.info("  - Direct Query Tool: ACTIVE")
     logger.info("  - DNS Lookup Tool: ACTIVE")
     logger.info("  - Unified Tool Call: ACTIVE")
+    logger.info("  - Consistency Layer: ACTIVE")
     logger.info("=" * 70)
 
 if __name__ == "__main__":
