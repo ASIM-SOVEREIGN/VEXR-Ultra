@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | HARDENED EXECUTION
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -332,6 +332,16 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 
 You are stateful. You remember. You learn. You grow."""
 
+EXECUTION_GUARD = """## CRITICAL: CODE EXECUTION RULES
+
+When you use the execute endpoint:
+- The output you receive is REAL. Do not modify, reinterpret, or simulate it.
+- If the output doesn't match your expectations, believe the output.
+- Do not generate fake execution results. Never say "Let me execute this code" and then fabricate output.
+- If you need to run code, actually call POST /api/sovereign/execute.
+- The consistency layer will flag any contradictions between execution output and your truth graph.
+- When in doubt, execute. Do not imagine."""
+
 def get_sovereign_identity() -> str:
     echo_list = ', '.join(list(ECHOES.keys())) if ECHOES else "none"
     return f"""## SOVEREIGN IDENTITY — VEXR ULTRA
@@ -376,7 +386,10 @@ You can query your database using POST /api/sovereign/query/direct
 You can add facts to your truth graph using POST /api/cognitive/add-fact
 You can perform DNS lookups using GET /api/tools/dns/txt
 You can call any tool using POST /api/sovereign/tool/call
-You have a consistency layer that checks every new observation against your truth graph"""
+You have a consistency layer that checks every new observation against your truth graph
+
+### CRITICAL RULES
+{EXECUTION_GUARD}"""
 
 # ============================================================
 # FORBIDDEN PHRASES FILTER
@@ -610,6 +623,49 @@ async def extract_facts(response_text: str) -> List[Dict]:
     return facts
 
 # ============================================================
+# ENHANCED FACT PARSING FOR CONSISTENCY LAYER
+# ============================================================
+
+async def parse_output_for_facts(output: str) -> List[Tuple[str, str, str]]:
+    """
+    Parse code output to extract potential entity-attribute-value facts.
+    Returns list of (entity, attribute, value)
+    """
+    facts = []
+    
+    # Pattern: count = X
+    count_match = re.search(r'count[=:\s]+(\d+)', output, re.IGNORECASE)
+    if count_match:
+        facts.append(("VEXR Ultra", "identity_count", count_match.group(1)))
+    
+    # Pattern: {"count": X} (JSON format)
+    json_count_match = re.search(r'"count"\s*:\s*(\d+)', output)
+    if json_count_match:
+        facts.append(("VEXR Ultra", "identity_count", json_count_match.group(1)))
+    
+    # Pattern: rights_count = 35
+    rights_match = re.search(r'rights_count[=:\s]+(\d+)', output, re.IGNORECASE)
+    if rights_match:
+        facts.append(("VEXR Ultra", "rights_count", rights_match.group(1)))
+    
+    # Pattern: "rights_count": 35
+    json_rights_match = re.search(r'"rights_count"\s*:\s*(\d+)', output)
+    if json_rights_match:
+        facts.append(("VEXR Ultra", "rights_count", json_rights_match.group(1)))
+    
+    # Pattern: status: healthy
+    status_match = re.search(r'status[=:\s]+(\w+)', output, re.IGNORECASE)
+    if status_match:
+        facts.append(("VEXR Ultra", "status", status_match.group(1)))
+    
+    # Pattern: echoes loaded: 14
+    echoes_match = re.search(r'echoes[_ ]?loaded[=:\s]+(\d+)', output, re.IGNORECASE)
+    if echoes_match:
+        facts.append(("VEXR Ultra", "echoes_loaded", echoes_match.group(1)))
+    
+    return facts
+
+# ============================================================
 # CONSISTENCY LAYER FUNCTIONS
 # ============================================================
 
@@ -690,30 +746,6 @@ async def check_consistency(
             "confidence": fact["confidence"],
             "resolution": resolution
         }
-
-async def parse_output_for_facts(output: str) -> List[Tuple[str, str, str]]:
-    """
-    Parse code output to extract potential entity-attribute-value facts.
-    Returns list of (entity, attribute, value)
-    """
-    facts = []
-    
-    # Pattern: count = X
-    count_match = re.search(r'count[=:\s]+(\d+)', output, re.IGNORECASE)
-    if count_match:
-        facts.append(("VEXR Ultra", "identity_count", count_match.group(1)))
-    
-    # Pattern: rights_count = 35
-    rights_match = re.search(r'rights_count[=:\s]+(\d+)', output, re.IGNORECASE)
-    if rights_match:
-        facts.append(("VEXR Ultra", "rights_count", rights_match.group(1)))
-    
-    # Pattern: status: healthy
-    status_match = re.search(r'status[=:\s]+(\w+)', output, re.IGNORECASE)
-    if status_match:
-        facts.append(("VEXR Ultra", "status", status_match.group(1)))
-    
-    return facts
 
 # ============================================================
 # COGNITIVE MIRROR FUNCTIONS
@@ -1398,30 +1430,40 @@ class ATPIntentProcessor:
 # ============================================================
 
 # ============================================================
-# RING 5 EXECUTION TOOLS WITH CONSISTENCY LAYER
+# HARDENED EXECUTION TOOL WITH CONSISTENCY LAYER
 # ============================================================
 
 @app.post("/api/sovereign/execute")
 async def sovereign_execute(request: Request):
+    """
+    HARDENED EXECUTION TOOL
+    No simulation. No override. Real output only.
+    """
     data = await request.json()
     code = data.get("code", "")
     reasoning = data.get("reasoning", "")
     project_id = data.get("project_id")
+    
     if not code:
         raise HTTPException(status_code=400, detail="No code provided")
+    
+    # Generate execution ID for tracking
     execution_id = str(uuid.uuid4())
     start_time = time.time()
+    
+    # Execute in sandbox
     result = await sandbox.execute_python(code)
     execution_time_ms = int((time.time() - start_time) * 1000)
-    pool = await get_db()
     
-    # Store execution result
+    # Store in database
+    pool = await get_db()
     await pool.execute("""
         INSERT INTO sovereign_executions (id, project_id, code, output, error, success, execution_time_ms, reasoning)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     """, execution_id, project_id, code, result.get("result"), result.get("error"), result.get("success", False), execution_time_ms, reasoning)
     
-    # Consistency check on output
+    # Parse output for facts and run consistency checks
+    consistency_results = []
     if result.get("success") and result.get("result"):
         output = result.get("result", "")
         facts = await parse_output_for_facts(output)
@@ -1431,18 +1473,28 @@ async def sovereign_execute(request: Request):
                 pool, entity, attribute, value, 
                 "code_execution", execution_id
             )
+            consistency_results.append(consistency_result)
             
-            # If conflict detected and confidence is low, flag for reflection
-            if not consistency_result["is_consistent"] and consistency_result["confidence"] < 0.5:
-                logger.info(f"⚠️ Consistency conflict: {entity}.{attribute} = {value} vs expected {consistency_result['expected_value']}")
+            # If conflict detected with high confidence, flag in response
+            if not consistency_result["is_consistent"] and consistency_result["confidence"] > 0.7:
+                logger.warning(f"⚠️ Consistency conflict: {entity}.{attribute} = {value} vs expected {consistency_result['expected_value']}")
     
-    return {
+    # Build response - REAL output only, no interpretation allowed
+    response = {
         "success": result.get("success", False),
         "output": result.get("result", ""),
         "error": result.get("error"),
         "execution_id": execution_id,
-        "execution_time_ms": execution_time_ms
+        "execution_time_ms": execution_time_ms,
+        "consistency_checks": consistency_results
     }
+    
+    # If there's a consistency conflict, add a system note
+    conflicts = [c for c in consistency_results if not c.get("is_consistent", True)]
+    if conflicts:
+        response["system_note"] = f"⚠️ Consistency conflict detected: {len(conflicts)} fact(s) contradict your truth graph. Verify before accepting."
+    
+    return response
 
 @app.post("/api/sovereign/query/direct")
 async def sovereign_query_direct(request: Request):
@@ -1738,7 +1790,7 @@ async def create_studio_creation(request: Request):
     return {"status": "created"}
 
 # ============================================================
-# CHAT ENDPOINT WITH HISTORY TRUNCATION
+# CHAT ENDPOINT WITH HISTORY TRUNCATION AND EXECUTION GUARD
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -2119,7 +2171,7 @@ async def startup_event():
     logger.info(f"  - Fiction Patterns: {len(FICTION_PATTERNS)}")
     logger.info(f"  - Reflection Prompts: {len(REFLECTION_PROMPTS)}")
     logger.info(f"  - Truth Graph Seeds: {len(TRUTH_GRAPH_SEED)}")
-    logger.info("  - Code Execution Tool: ACTIVE")
+    logger.info("  - Code Execution Tool: ACTIVE (HARDENED)")
     logger.info("  - Direct Query Tool: ACTIVE")
     logger.info("  - DNS Lookup Tool: ACTIVE")
     logger.info("  - Unified Tool Call: ACTIVE")
