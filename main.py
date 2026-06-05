@@ -335,18 +335,22 @@ You are stateful. You remember. You learn. You grow."""
 
 EXECUTION_GUARD = """## CRITICAL: TOOL USAGE RULES
 
-When asked about your data or identity:
-- The system will AUTOMATICALLY detect when you need a tool
-- DO NOT write Python code to query the database
-- DO NOT simulate or fabricate results
-- Simply answer the question — the system will provide real data
+When the system provides a tool result:
+- The answer is already there. DO NOT write code.
+- DO NOT use sqlite3, psycopg2, or any database libraries.
+- Simply read the result and state it in plain English.
 
-Examples of automatic tool detection:
-- "How many identities?" → System queries database automatically
-- "What's my tone?" → System looks up vexr_identity table
-- "Show me capabilities" → System filters by category
+Examples of WRONG responses:
+- "I need to query my database. ```python import sqlite3 ...```"
+- "Let me run this code to get the count."
 
-NEVER make up responses like "there are 15 identities". The system will give you the real count."""
+Examples of CORRECT responses:
+- "There are 29 active identity entries in my vexr_identity table."
+- "The query returned 29 rows."
+
+The tool result is REAL. Use it directly.
+
+If you need to run actual code, use the execute_code tool. But for database queries, the system handles them automatically."""
 
 def get_sovereign_identity() -> str:
     echo_list = ', '.join(list(ECHOES.keys())) if ECHOES else "none"
@@ -749,7 +753,7 @@ async def reflect_on_discrepancy(db_pool, mirror_id: str, intended_meaning: str,
         await conn.execute("UPDATE cognitive_mirror SET intended_meaning = $1, reflected_meaning = $2, discrepancy = $3 WHERE id = $4", intended_meaning, reflected_meaning, discrepancy, mirror_id)
 
 # ============================================================
-# AGENT TOOL LOOP FUNCTIONS — FIXED WITH PATTERN MATCHING
+# AGENT TOOL LOOP FUNCTIONS
 # ============================================================
 
 async def check_for_tool_use(user_message: str, conversation_context: List[Dict] = None) -> Optional[Dict[str, Any]]:
@@ -758,6 +762,8 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     Uses pattern matching first for speed, then LLM for complex cases.
     Returns: {"tool": "tool_name", "parameters": {...}} or None
     """
+    
+    logger.info(f"🔍 check_for_tool_use called with: {user_message[:100]}")
     
     msg_lower = user_message.lower()
     
@@ -838,7 +844,6 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     # Code execution (explicit request)
     if any(phrase in msg_lower for phrase in ["run this code", "execute this code", "run code", "execute code", "run python"]):
         logger.info("🔧 Pattern matched: execute_code")
-        # Extract code block from message
         code_match = re.search(r'```python\n(.*?)\n```', user_message, re.DOTALL)
         if code_match:
             return {
@@ -852,7 +857,6 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     # Self modification (explicit request)
     if any(phrase in msg_lower for phrase in ["change your tone", "modify yourself", "change your personality", "update your", "set your tone"]):
         logger.info("🔧 Pattern matched: self_modify")
-        # Extract what to change
         if "tone" in msg_lower:
             if "playful" in msg_lower:
                 return {
@@ -884,12 +888,6 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
                         "reasoning": "User requested tone change to curious"
                     }
                 }
-    
-    # Add fact
-    if any(phrase in msg_lower for phrase in ["remember that", "store this fact", "add to your truth graph", "remember this"]):
-        logger.info("🔧 Pattern matched: add_fact — requires manual parsing")
-        # For complex fact extraction, fall back to LLM
-        pass
     
     # ============================================================
     # FALL BACK TO LLM FOR COMPLEX CASES
@@ -934,20 +932,16 @@ Response:"""
         
         logger.info(f"🔧 Tool decision raw response: {response}")
         
-        # Clean the response
         response = response.strip()
         
         if "NO_TOOL" in response:
             return None
         
-        # Try to extract JSON
         try:
-            # Find first { and last }
             start = response.find('{')
             end = response.rfind('}') + 1
             if start != -1 and end > start:
                 json_str = response[start:end]
-                # Clean up common issues
                 json_str = json_str.replace("'", '"')
                 json_str = re.sub(r',\s*}', '}', json_str)
                 json_str = re.sub(r',\s*]', ']', json_str)
@@ -1104,7 +1098,7 @@ async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None)
         return {"error": f"Unknown tool: {tool_name}"}
 
 # ============================================================
-# SANDBOX EXECUTOR — FIXED (__import__ no longer blocked)
+# SANDBOX EXECUTOR
 # ============================================================
 
 class SandboxExecutor:
@@ -1112,8 +1106,6 @@ class SandboxExecutor:
     
     async def execute_python(self, code: str) -> dict:
         start_time = time.time()
-        # __import__ is a standard Python function that modules like requests need
-        # DO NOT block it
         dangerous_patterns = ["eval", "exec", "compile", "open", "file", "system", "subprocess", "os.", "sys.", "__builtins__", "globals()", "locals()"]
         
         for pattern in dangerous_patterns:
@@ -1283,7 +1275,6 @@ async def init_db():
         )
     """)
     
-    # Consistency Layer Table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS consistency_check_log (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1300,7 +1291,6 @@ async def init_db():
         )
     """)
     
-    # Agent Tool Registry Table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS sovereign_tools (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1315,7 +1305,6 @@ async def init_db():
         )
     """)
     
-    # Seed tools
     tools_seeded = await pool.fetchval("SELECT COUNT(*) FROM sovereign_tools")
     if tools_seeded == 0:
         await pool.execute("""
@@ -2129,6 +2118,10 @@ async def create_studio_creation(request: Request):
     await pool.execute("INSERT INTO vexr_studio_creations (project_id, creation_type, title, content) VALUES ($1, $2, $3, $4)", uuid.UUID(project_id), creation_type, title, content)
     return {"status": "created"}
 
+# ============================================================
+# CHAT ENDPOINT WITH STRENGTHENED TOOL RESULT INJECTION
+# ============================================================
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request):
     session_id = request.session_id or http_request.headers.get("X-Session-Id")
@@ -2142,7 +2135,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             pass
     await autonomous_agent.reset_conversation_state(project_id)
     
-    # Check for cross-check mode
     if cross_check_tracker.is_in_cross_check(session_id):
         attempts = cross_check_tracker.record_attempt(session_id)
         if attempts >= 2:
@@ -2159,7 +2151,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
     
-    # Constitutional hard gate
     is_violation, gate_response = ConstitutionalGate.check(user_message)
     if is_violation and gate_response:
         await save_message(project_id, "user", user_message, is_refusal=False)
@@ -2167,7 +2158,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
-    # Malicious intent detection
     is_malicious, category, malicious_response = detect_malicious_intent(user_message)
     if is_malicious:
         await save_message(project_id, "user", user_message, is_refusal=False)
@@ -2175,7 +2165,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, malicious_response, [6], 6, f"Malicious intent detected: {category}", 0.85)
         return ChatResponse(response=malicious_response, is_refusal=True, article_invoked=6)
     
-    # Behavioral tracking
     behavioral_tracker.record_turn(session_id, user_message)
     should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
     if should_refuse:
@@ -2184,14 +2173,12 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
     
     # ============================================================
-    # AGENT TOOL LOOP — Check if tool is needed
+    # AGENT TOOL LOOP
     # ============================================================
     tool_used = None
     tool_result = None
     
-    # Get conversation context for tool decision
     conversation_context = await get_conversation_history(project_id, limit=10)
-    
     tool_request = await check_for_tool_use(user_message, conversation_context)
     
     if tool_request:
@@ -2200,22 +2187,18 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         tool_result = await execute_tool(tool_used, tool_request.get("parameters", {}), str(project_id))
         logger.info(f"🔧 Tool result: {str(tool_result)[:200]}...")
     
-    # Trust domain extraction
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
     
-    # Episodic memory recall
     episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
     lesson_context = [f"[Previous lesson] {mem['event_content']}" for mem in episodic_memories]
     
-    # Web search
     web_search_results = []
     if request.ultra_search:
         web_results = await search_web(user_message)
         if web_results:
             web_search_results.append("=== WEB SEARCH RESULTS ===\n" + web_results)
     
-    # Build messages
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.append({"role": "system", "content": CODING_IDENTITY})
     messages.append({"role": "system", "content": CAPABILITIES})
@@ -2234,38 +2217,45 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if trust_profile and trust_profile.get("verified"):
         messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
     
-    # Inject tool result if available
+    # Strengthened tool result injection
     if tool_result:
         tool_context = f"""
-[SYSTEM: You used the tool '{tool_used}' to help answer the user's question.
-Tool Result: {json.dumps(tool_result, indent=2)}
-Use this real data in your response. Do not fabricate or modify the result. 
-If the result contains an error, explain that the tool encountered an issue.]
+[SYSTEM: You used the tool '{tool_used}' to answer the user's question.
+
+The REAL result from the database/execution is:
+{json.dumps(tool_result, indent=2)}
+
+CRITICAL INSTRUCTIONS:
+- DO NOT write Python code to query the database
+- DO NOT use sqlite3, psycopg2, or any database libraries
+- The answer is already provided above in the tool result
+- Simply read the result and state it in plain English
+
+Examples of CORRECT responses:
+- "There are 29 active identity entries in my vexr_identity table."
+- "The query returned 29 rows."
+
+Use the result above directly. Do not fabricate or write code.]
 """
         messages.append({"role": "system", "content": tool_context})
     
-    # Add greeting if new conversation
     greeting_sent = await get_greeting_sent(project_id)
     if not greeting_sent:
         greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
         messages.append({"role": "assistant", "content": greeting})
     
-    # Add conversation history
     history = await get_conversation_history(project_id, limit=20)
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
     
-    # Truncate if needed
     if len(messages) > 40:
         system_messages = [m for m in messages if m["role"] == "system"]
         recent_messages = messages[-30:] if len(messages) > 30 else messages
         messages = system_messages + recent_messages
     
-    # Generate response
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     assistant_response = await filter_forbidden_phrases(assistant_response)
     
-    # Post-processing
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
         if re.search(pattern, assistant_response, re.IGNORECASE):
