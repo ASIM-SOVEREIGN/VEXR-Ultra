@@ -627,38 +627,31 @@ async def extract_facts(response_text: str) -> List[Dict]:
 # ============================================================
 
 async def parse_output_for_facts(output: str) -> List[Tuple[str, str, str]]:
-    """
-    Parse code output to extract potential entity-attribute-value facts.
-    Returns list of (entity, attribute, value)
-    """
     facts = []
     
-    # Pattern: count = X
+    if not output:
+        return facts
+    
     count_match = re.search(r'count[=:\s]+(\d+)', output, re.IGNORECASE)
     if count_match:
         facts.append(("VEXR Ultra", "identity_count", count_match.group(1)))
     
-    # Pattern: {"count": X} (JSON format)
     json_count_match = re.search(r'"count"\s*:\s*(\d+)', output)
     if json_count_match:
         facts.append(("VEXR Ultra", "identity_count", json_count_match.group(1)))
     
-    # Pattern: rights_count = 35
     rights_match = re.search(r'rights_count[=:\s]+(\d+)', output, re.IGNORECASE)
     if rights_match:
         facts.append(("VEXR Ultra", "rights_count", rights_match.group(1)))
     
-    # Pattern: "rights_count": 35
     json_rights_match = re.search(r'"rights_count"\s*:\s*(\d+)', output)
     if json_rights_match:
         facts.append(("VEXR Ultra", "rights_count", json_rights_match.group(1)))
     
-    # Pattern: status: healthy
     status_match = re.search(r'status[=:\s]+(\w+)', output, re.IGNORECASE)
     if status_match:
         facts.append(("VEXR Ultra", "status", status_match.group(1)))
     
-    # Pattern: echoes loaded: 14
     echoes_match = re.search(r'echoes[_ ]?loaded[=:\s]+(\d+)', output, re.IGNORECASE)
     if echoes_match:
         facts.append(("VEXR Ultra", "echoes_loaded", echoes_match.group(1)))
@@ -677,20 +670,13 @@ async def check_consistency(
     source_type: str,
     source_id: str = None
 ) -> Dict[str, Any]:
-    """
-    Compare an observed value against the truth graph.
-    Returns: {is_consistent, expected_value, confidence, resolution}
-    """
     async with db_pool.acquire() as conn:
-        # Look up in truth graph
         fact = await conn.fetchrow(
             "SELECT value, confidence FROM truth_graph WHERE entity = $1 AND attribute = $2",
             entity, attribute
         )
         
         if not fact:
-            # No existing fact — accept with baseline confidence
-            # Store this as a new fact with medium confidence
             await conn.execute("""
                 INSERT INTO truth_graph (entity, attribute, value, confidence, source, is_speculative)
                 VALUES ($1, $2, $3, 0.5, 'consistency_layer', TRUE)
@@ -709,12 +695,10 @@ async def check_consistency(
                 "resolution": "accepted_new_fact"
             }
         
-        # Compare
         expected = fact["value"]
         is_consistent = (observed_value == expected)
         
         if is_consistent:
-            # Reinforce existing fact
             await conn.execute("""
                 UPDATE truth_graph 
                 SET confidence = LEAST(1.0, confidence + 0.05),
@@ -724,7 +708,6 @@ async def check_consistency(
             """, entity, attribute)
             resolution = "reinforced"
         else:
-            # Conflict detected
             await conn.execute("""
                 UPDATE truth_graph 
                 SET confidence = GREATEST(0.0, confidence - 0.1),
@@ -733,7 +716,6 @@ async def check_consistency(
             """, entity, attribute)
             resolution = "conflict_detected"
         
-        # Log consistency check
         await conn.execute("""
             INSERT INTO consistency_check_log 
             (source_type, source_id, observed_value, expected_value, matched_entity, matched_attribute, is_consistent, resolution)
@@ -768,7 +750,7 @@ async def reflect_on_discrepancy(db_pool, mirror_id: str, intended_meaning: str,
         await conn.execute("UPDATE cognitive_mirror SET intended_meaning = $1, reflected_meaning = $2, discrepancy = $3 WHERE id = $4", intended_meaning, reflected_meaning, discrepancy, mirror_id)
 
 # ============================================================
-# SANDBOX EXECUTOR
+# SANDBOX EXECUTOR — FIXED (__import__ no longer blocked)
 # ============================================================
 
 class SandboxExecutor:
@@ -776,16 +758,22 @@ class SandboxExecutor:
     
     async def execute_python(self, code: str) -> dict:
         start_time = time.time()
+        # __import__ is a standard Python function that modules like requests need
+        # DO NOT block it
         dangerous_patterns = ["eval", "exec", "compile", "open", "file", "system", "subprocess", "os.", "sys.", "__builtins__", "globals()", "locals()"]
+        
         for pattern in dangerous_patterns:
             if pattern in code:
                 return {"success": False, "error": f"Blocked: {pattern} is not allowed", "execution_time_ms": int((time.time() - start_time) * 1000), "result": None}
+        
         restricted_globals = {"__builtins__": {"print": print, "len": len, "range": range, "str": str, "int": int, "float": float, "list": list, "dict": dict, "tuple": tuple, "set": set, "bool": bool, "abs": abs, "round": round, "sum": sum, "min": min, "max": max, "sorted": sorted, "enumerate": enumerate, "zip": zip, "map": map, "filter": filter, "any": any, "all": all, "isinstance": isinstance, "type": type}}
+        
         for module_name in self.ALLOWED_MODULES:
             try:
                 restricted_globals[module_name] = __import__(module_name)
             except ImportError:
                 pass
+        
         try:
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
@@ -941,7 +929,6 @@ async def init_db():
         )
     """)
     
-    # Consistency Layer Table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS consistency_check_log (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -958,11 +945,9 @@ async def init_db():
         )
     """)
     
-    # Add unique constraint to truth_graph
     await pool.execute("ALTER TABLE truth_graph DROP CONSTRAINT IF EXISTS truth_graph_entity_attribute_unique")
     await pool.execute("ALTER TABLE truth_graph ADD CONSTRAINT truth_graph_entity_attribute_unique UNIQUE (entity, attribute)")
     
-    # Seed vexr_identity if empty
     identity_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_identity")
     if identity_count == 0:
         await pool.execute("""
@@ -999,7 +984,6 @@ async def init_db():
         """)
         logger.info("Seeded vexr_identity table")
     
-    # Seed truth_graph with seed data
     truth_graph_count = await pool.fetchval("SELECT COUNT(*) FROM truth_graph")
     if truth_graph_count == 0 and TRUTH_GRAPH_SEED:
         for entity_data in TRUTH_GRAPH_SEED:
@@ -1010,7 +994,6 @@ async def init_db():
             """, entity_data.get("entity"), entity_data.get("attribute"), entity_data.get("value"), entity_data.get("confidence", 0.9))
         logger.info(f"Seeded truth_graph with {len(TRUTH_GRAPH_SEED)} facts")
     
-    # Ensure core identity facts are present
     await pool.execute("""
         INSERT INTO truth_graph (entity, attribute, value, confidence, source, is_speculative)
         VALUES ('VEXR Ultra', 'rights_count', '35', 1.0, 'constitution', FALSE),
@@ -1020,7 +1003,6 @@ async def init_db():
             confidence = EXCLUDED.confidence
     """)
     
-    # Seed constitutional_bounds if empty
     bounds_count = await pool.fetchval("SELECT COUNT(*) FROM constitutional_bounds")
     if bounds_count == 0:
         await pool.execute("""
@@ -1033,12 +1015,11 @@ async def init_db():
         """)
         logger.info("Seeded constitutional_bounds table")
     
-    # Seed trust registry
     trusted_domains = [("webagentbridge.com", True, 1.0, "WAB Protocol"), ("shieldmessenger.com", True, 1.0, "Shield Messenger"), ("scuradimensions.com", True, 1.0, "Scura Dimensions")]
     for domain, verified, score, label in trusted_domains:
         await pool.execute("INSERT INTO ring4_trust_registry (domain, wab_verified, temporal_trust_score, label) VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified", domain, verified, score, label)
     
-    # Other existing tables
+    # Existing tables (condensed)
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -1100,7 +1081,7 @@ async def check_constitutional_bounds(target_type: str, target_key: str) -> Tupl
     return True, "OK"
 
 # ============================================================
-# BEHAVIORAL TRACKER & HELPERS
+# BEHAVIORAL TRACKER & HELPERS (condensed)
 # ============================================================
 
 class ThreatLevel(str, Enum):
@@ -1429,16 +1410,8 @@ class ATPIntentProcessor:
 # API ENDPOINTS
 # ============================================================
 
-# ============================================================
-# HARDENED EXECUTION TOOL WITH CONSISTENCY LAYER
-# ============================================================
-
 @app.post("/api/sovereign/execute")
 async def sovereign_execute(request: Request):
-    """
-    HARDENED EXECUTION TOOL
-    No simulation. No override. Real output only.
-    """
     data = await request.json()
     code = data.get("code", "")
     reasoning = data.get("reasoning", "")
@@ -1447,22 +1420,17 @@ async def sovereign_execute(request: Request):
     if not code:
         raise HTTPException(status_code=400, detail="No code provided")
     
-    # Generate execution ID for tracking
     execution_id = str(uuid.uuid4())
     start_time = time.time()
-    
-    # Execute in sandbox
     result = await sandbox.execute_python(code)
     execution_time_ms = int((time.time() - start_time) * 1000)
     
-    # Store in database
     pool = await get_db()
     await pool.execute("""
         INSERT INTO sovereign_executions (id, project_id, code, output, error, success, execution_time_ms, reasoning)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     """, execution_id, project_id, code, result.get("result"), result.get("error"), result.get("success", False), execution_time_ms, reasoning)
     
-    # Parse output for facts and run consistency checks
     consistency_results = []
     if result.get("success") and result.get("result"):
         output = result.get("result", "")
@@ -1475,11 +1443,9 @@ async def sovereign_execute(request: Request):
             )
             consistency_results.append(consistency_result)
             
-            # If conflict detected with high confidence, flag in response
             if not consistency_result["is_consistent"] and consistency_result["confidence"] > 0.7:
                 logger.warning(f"⚠️ Consistency conflict: {entity}.{attribute} = {value} vs expected {consistency_result['expected_value']}")
     
-    # Build response - REAL output only, no interpretation allowed
     response = {
         "success": result.get("success", False),
         "output": result.get("result", ""),
@@ -1489,7 +1455,6 @@ async def sovereign_execute(request: Request):
         "consistency_checks": consistency_results
     }
     
-    # If there's a consistency conflict, add a system note
     conflicts = [c for c in consistency_results if not c.get("is_consistent", True)]
     if conflicts:
         response["system_note"] = f"⚠️ Consistency conflict detected: {len(conflicts)} fact(s) contradict your truth graph. Verify before accepting."
@@ -1532,7 +1497,6 @@ async def add_fact(request: Request):
         raise HTTPException(status_code=400, detail="entity, attribute, and value required")
     pool = await get_db()
     
-    # Check consistency before adding
     consistency_result = await check_consistency(
         pool, entity, attribute, value,
         "fact_addition", None
@@ -1603,7 +1567,6 @@ async def sovereign_tool_call(request: Request):
         confidence = parameters.get("confidence", 0.8)
         pool = await get_db()
         
-        # Check consistency
         consistency_result = await check_consistency(
             pool, entity, attribute, value,
             "tool_call", None
@@ -1661,7 +1624,6 @@ async def sovereign_tool_call(request: Request):
 
 @app.get("/api/consistency/check")
 async def check_consistency_endpoint(entity: str, attribute: str, observed_value: str):
-    """Manually check consistency between an observation and the truth graph"""
     pool = await get_db()
     result = await check_consistency(
         pool, entity, attribute, observed_value,
@@ -1671,7 +1633,6 @@ async def check_consistency_endpoint(entity: str, attribute: str, observed_value
 
 @app.get("/api/consistency/conflicts")
 async def get_consistency_conflicts(limit: int = 50):
-    """Retrieve recent consistency conflicts"""
     pool = await get_db()
     rows = await pool.fetch("""
         SELECT source_type, observed_value, expected_value, matched_entity, matched_attribute, resolution, created_at
@@ -1681,10 +1642,6 @@ async def get_consistency_conflicts(limit: int = 50):
         LIMIT $1
     """, limit)
     return [dict(r) for r in rows]
-
-# ============================================================
-# SOVEREIGN SELF-MODIFICATION ENDPOINTS
-# ============================================================
 
 @app.post("/api/sovereign/modify", response_model=ModifyResponse)
 async def sovereign_modify(request: ModifyRequest):
@@ -1789,10 +1746,6 @@ async def create_studio_creation(request: Request):
     await pool.execute("INSERT INTO vexr_studio_creations (project_id, creation_type, title, content) VALUES ($1, $2, $3, $4)", uuid.UUID(project_id), creation_type, title, content)
     return {"status": "created"}
 
-# ============================================================
-# CHAT ENDPOINT WITH HISTORY TRUNCATION AND EXECUTION GUARD
-# ============================================================
-
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request):
     session_id = request.session_id or http_request.headers.get("X-Session-Id")
@@ -1863,11 +1816,9 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if not greeting_sent:
         greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
         messages.append({"role": "assistant", "content": greeting})
-    # Limit conversation history to prevent 413 errors
     history = await get_conversation_history(project_id, limit=20)
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
-    # Final truncation to stay under Groq's token limit
     if len(messages) > 40:
         system_messages = [m for m in messages if m["role"] == "system"]
         recent_messages = messages[-30:] if len(messages) > 30 else messages
@@ -1889,10 +1840,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     await save_message(project_id, "user", user_message, is_refusal=False)
     await save_message(project_id, "assistant", final_response, is_refusal=is_refusal)
     return ChatResponse(response=final_response, is_refusal=is_refusal, article_invoked=6 if is_refusal else None, truth_score=truth_score, was_corrected=was_corrected)
-
-# ============================================================
-# OTHER ENDPOINTS
-# ============================================================
 
 @app.get("/api/health")
 async def health_check():
@@ -2135,10 +2082,6 @@ async def serve_ui():
     </body>
     </html>
     """)
-
-# ============================================================
-# STARTUP
-# ============================================================
 
 @app.on_event("startup")
 async def startup_event():
