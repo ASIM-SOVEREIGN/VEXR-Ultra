@@ -746,7 +746,8 @@ async def mirror_response(db_pool, project_id: str, user_message: str, raw_respo
             INSERT INTO cognitive_mirror (project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
             VALUES ($1, $2, $3, $4, $5, $6)
         """, project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
-    was_corrected = False    if is_fiction:
+    was_corrected = False
+    if is_fiction:
         logger.info(f"📝 Fiction detected for project {project_id}: score={truth_score}")
     return raw_response, was_corrected
 
