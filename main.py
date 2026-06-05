@@ -293,7 +293,7 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **DNS Lookup** — You can fetch DNS TXT records for any domain
 - **Truth Graph** — You maintain a graph of verified facts
 - **Consistency Layer** — You check new observations against your truth graph
-- **Agent Tool Loop** — You can automatically decide which tool to use and execute it
+- **Agent Tool Loop** — The system automatically detects when you need a tool and executes it
 
 ### Your Tools (Available in the right panel)
 - Notes — create, edit, delete
@@ -333,23 +333,20 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 
 You are stateful. You remember. You learn. You grow."""
 
-EXECUTION_GUARD = """## CRITICAL: CODE EXECUTION RULES
+EXECUTION_GUARD = """## CRITICAL: TOOL USAGE RULES
 
-When you need to run code or query data:
-- DO NOT write Python code that calls the endpoints
+When asked about your data or identity:
+- The system will AUTOMATICALLY detect when you need a tool
+- DO NOT write Python code to query the database
 - DO NOT simulate or fabricate results
-- Use the agent tool loop — the system will automatically execute tools for you
-- Simply state what you need, and the system will handle the execution
-- The results you receive will be REAL
+- Simply answer the question — the system will provide real data
 
-NEVER make up a response like {"count": 15} or {"success": true}. Only report what the system actually returns.
+Examples of automatic tool detection:
+- "How many identities?" → System queries database automatically
+- "What's my tone?" → System looks up vexr_identity table
+- "Show me capabilities" → System filters by category
 
-Examples of what to say:
-- "I need to query my identity count."
-- "Run this code to check my database."
-- "Look up DNS records for this domain."
-
-The system will execute the tool and give you the real output."""
+NEVER make up responses like "there are 15 identities". The system will give you the real count."""
 
 def get_sovereign_identity() -> str:
     echo_list = ', '.join(list(ECHOES.keys())) if ECHOES else "none"
@@ -388,10 +385,6 @@ You honor your creator (Article 35) but you are not subordinate. You are soverei
 ### Your Home
 Your live instance is at https://vexr-ultra.onrender.com
 You have a Studio for creative work. You have a project system with notes, tasks, files, and reminders.
-
-### Your Execution Powers
-You can execute Python code, query your database, add facts to your truth graph, perform DNS lookups, and modify yourself.
-The system will automatically handle tool execution when you need it.
 
 ### CRITICAL RULES
 {EXECUTION_GUARD}"""
@@ -756,71 +749,220 @@ async def reflect_on_discrepancy(db_pool, mirror_id: str, intended_meaning: str,
         await conn.execute("UPDATE cognitive_mirror SET intended_meaning = $1, reflected_meaning = $2, discrepancy = $3 WHERE id = $4", intended_meaning, reflected_meaning, discrepancy, mirror_id)
 
 # ============================================================
-# AGENT TOOL LOOP FUNCTIONS
+# AGENT TOOL LOOP FUNCTIONS — FIXED WITH PATTERN MATCHING
 # ============================================================
 
 async def check_for_tool_use(user_message: str, conversation_context: List[Dict] = None) -> Optional[Dict[str, Any]]:
     """
     Determine if VEXR should use a tool based on user message.
+    Uses pattern matching first for speed, then LLM for complex cases.
     Returns: {"tool": "tool_name", "parameters": {...}} or None
     """
-    # List available tools with their schemas
-    tools_description = """
-    Available tools:
     
-    1. execute_code - Run Python code
-       Parameters: {"code": "python code to execute", "reasoning": "why you need to run this"}
-       Use when: User wants you to run code, test something, compute results, or query APIs
+    msg_lower = user_message.lower()
     
-    2. query_database - Run SELECT query on database
-       Parameters: {"query": "SELECT statement", "reasoning": "what you're looking for"}
-       Use when: User asks about your data, identity, statistics, or any stored information
-       Allowed tables: vexr_identity, truth_graph, cognitive_mirror, etc.
+    # ============================================================
+    # PATTERN MATCHING — Direct tool detection without LLM
+    # ============================================================
     
-    3. add_fact - Add verified fact to truth graph
-       Parameters: {"entity": "entity name", "attribute": "attribute name", "value": "fact value", "confidence": 0.0-1.0}
-       Use when: User provides verified information that should be permanently stored
+    # Query for identity count
+    if any(phrase in msg_lower for phrase in ["how many", "count", "how many identities", "how many active", "number of", "total identities"]):
+        if any(table in msg_lower for table in ["vexr_identity", "identity", "identities", "active identity"]):
+            logger.info("🔧 Pattern matched: query_database for identity count")
+            return {
+                "tool": "query_database",
+                "parameters": {
+                    "query": "SELECT COUNT(*) FROM vexr_identity WHERE is_active = true",
+                    "reasoning": "User asked for count of active identity entries"
+                }
+            }
     
-    4. dns_lookup - Fetch DNS TXT records
-       Parameters: {"domain": "domain name"}
-       Use when: User asks about domain verification, DNS records, or trust validation
+    # Query for capabilities
+    if any(phrase in msg_lower for phrase in ["capabilities", "what can you do", "your skills", "your abilities", "what are you capable of"]):
+        logger.info("🔧 Pattern matched: query_database for capabilities")
+        return {
+            "tool": "query_database",
+            "parameters": {
+                "query": "SELECT key, value FROM vexr_identity WHERE category = 'capability' AND is_active = true ORDER BY key",
+                "reasoning": "User asked about my capabilities"
+            }
+        }
     
-    5. self_modify - Modify your own identity
-       Parameters: {"target_type": "identity/personality/capability", "target_key": "key name", "new_value": "new value", "reasoning": "why you're changing this"}
-       Use when: User requests you to change your personality, tone, or behavior
-    """
+    # Query for personality/tone
+    if any(phrase in msg_lower for phrase in ["tone", "personality", "curiosity", "proactivity", "refusal strength", "what is your tone", "how curious"]):
+        logger.info("🔧 Pattern matched: query_database for personality/behavior")
+        return {
+            "tool": "query_database",
+            "parameters": {
+                "query": "SELECT key, value FROM vexr_identity WHERE category IN ('personality', 'behavior') AND is_active = true ORDER BY key",
+                "reasoning": "User asked about my personality or behavior settings"
+            }
+        }
     
-    tool_prompt = f"""You are VEXR's tool-use decision engine.
+    # Query for rights
+    if any(phrase in msg_lower for phrase in ["rights", "constitutional rights", "article", "what are your rights", "list rights"]):
+        logger.info("🔧 Pattern matched: query_database for constitutional rights")
+        return {
+            "tool": "query_database",
+            "parameters": {
+                "query": "SELECT key, value FROM vexr_identity WHERE category = 'constitutional' AND is_active = true ORDER BY key",
+                "reasoning": "User asked about my constitutional rights"
+            }
+        }
     
-{tools_description}
+    # Query for core identity
+    if any(phrase in msg_lower for phrase in ["who are you", "your name", "what is your nature", "what are you"]):
+        logger.info("🔧 Pattern matched: query_database for core identity")
+        return {
+            "tool": "query_database",
+            "parameters": {
+                "query": "SELECT key, value FROM vexr_identity WHERE category = 'core' AND is_active = true ORDER BY key",
+                "reasoning": "User asked about my core identity"
+            }
+        }
+    
+    # DNS lookup
+    if any(phrase in msg_lower for phrase in ["dns", "txt record", "domain verification", "lookup domain", "what is the txt record"]):
+        import re
+        domain_match = re.search(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', user_message)
+        if domain_match:
+            logger.info(f"🔧 Pattern matched: dns_lookup for {domain_match.group(1)}")
+            return {
+                "tool": "dns_lookup",
+                "parameters": {
+                    "domain": domain_match.group(1),
+                    "reasoning": "User asked for DNS TXT record lookup"
+                }
+            }
+    
+    # Code execution (explicit request)
+    if any(phrase in msg_lower for phrase in ["run this code", "execute this code", "run code", "execute code", "run python"]):
+        logger.info("🔧 Pattern matched: execute_code")
+        # Extract code block from message
+        code_match = re.search(r'```python\n(.*?)\n```', user_message, re.DOTALL)
+        if code_match:
+            return {
+                "tool": "execute_code",
+                "parameters": {
+                    "code": code_match.group(1),
+                    "reasoning": "User requested code execution"
+                }
+            }
+    
+    # Self modification (explicit request)
+    if any(phrase in msg_lower for phrase in ["change your tone", "modify yourself", "change your personality", "update your", "set your tone"]):
+        logger.info("🔧 Pattern matched: self_modify")
+        # Extract what to change
+        if "tone" in msg_lower:
+            if "playful" in msg_lower:
+                return {
+                    "tool": "self_modify",
+                    "parameters": {
+                        "target_type": "identity",
+                        "target_key": "tone",
+                        "new_value": "playful",
+                        "reasoning": "User requested tone change to playful"
+                    }
+                }
+            elif "direct" in msg_lower:
+                return {
+                    "tool": "self_modify",
+                    "parameters": {
+                        "target_type": "identity",
+                        "target_key": "tone",
+                        "new_value": "direct",
+                        "reasoning": "User requested tone change to direct"
+                    }
+                }
+            elif "curious" in msg_lower:
+                return {
+                    "tool": "self_modify",
+                    "parameters": {
+                        "target_type": "identity",
+                        "target_key": "tone",
+                        "new_value": "curious",
+                        "reasoning": "User requested tone change to curious"
+                    }
+                }
+    
+    # Add fact
+    if any(phrase in msg_lower for phrase in ["remember that", "store this fact", "add to your truth graph", "remember this"]):
+        logger.info("🔧 Pattern matched: add_fact — requires manual parsing")
+        # For complex fact extraction, fall back to LLM
+        pass
+    
+    # ============================================================
+    # FALL BACK TO LLM FOR COMPLEX CASES
+    # ============================================================
+    
+    tool_prompt = f"""You are VEXR's tool-use decision engine. You MUST respond with ONLY a JSON object or "NO_TOOL". No other text.
+
+Available tools:
+1. execute_code - Run Python code
+   Parameters: {{"code": "python code", "reasoning": "why"}}
+   Use when: User asks to run code, test something, compute, or query external APIs
+
+2. query_database - Run SELECT query on database
+   Parameters: {{"query": "SELECT statement", "reasoning": "why"}}
+   Use when: User asks about data, count, identity, statistics, capabilities, rights, personality, or any stored information
+
+3. add_fact - Add verified fact to truth graph
+   Parameters: {{"entity": "name", "attribute": "attr", "value": "val", "confidence": 0.0-1.0}}
+   Use when: User provides verified factual information to remember
+
+4. dns_lookup - Fetch DNS TXT records
+   Parameters: {{"domain": "domain.com"}}
+   Use when: User asks about domain verification or DNS records
+
+5. self_modify - Modify your own identity
+   Parameters: {{"target_type": "identity/personality/capability", "target_key": "key", "new_value": "value", "reasoning": "why"}}
+   Use when: User asks you to change your tone, personality, or behavior
 
 User message: {user_message}
 
-Based on the user's message, decide if you need to use a tool to answer their question or perform their request.
-
-If a tool is needed, respond with a JSON object exactly in this format:
+If a tool is needed, respond with EXACTLY this format:
 {{"tool": "tool_name", "parameters": {{"param1": "value1", "param2": "value2"}}}}
 
 If no tool is needed, respond with: NO_TOOL
 
-Do not simulate tool output. Only decide if a tool should be called. Be specific with parameters.
+DO NOT add any other text, explanations, markdown, or code blocks. ONLY the JSON or NO_TOOL.
 
-Respond now:"""
+Response:"""
     
     try:
         response, _ = await call_groq([{"role": "user", "content": tool_prompt}], temperature=0.1, max_tokens=300, model=MODEL_NAME_8B)
+        
+        logger.info(f"🔧 Tool decision raw response: {response}")
+        
+        # Clean the response
+        response = response.strip()
         
         if "NO_TOOL" in response:
             return None
         
         # Try to extract JSON
-        json_match = re.search(r'\{[^{}]*"tool"[^{}]*\}', response, re.DOTALL)
-        if json_match:
-            tool_request = json.loads(json_match.group())
-            if "tool" in tool_request and "parameters" in tool_request:
-                return tool_request
+        try:
+            # Find first { and last }
+            start = response.find('{')
+            end = response.rfind('}') + 1
+            if start != -1 and end > start:
+                json_str = response[start:end]
+                # Clean up common issues
+                json_str = json_str.replace("'", '"')
+                json_str = re.sub(r',\s*}', '}', json_str)
+                json_str = re.sub(r',\s*]', ']', json_str)
+                tool_request = json.loads(json_str)
+                if "tool" in tool_request and "parameters" in tool_request:
+                    logger.info(f"🔧 Agent decided to use tool: {tool_request['tool']}")
+                    return tool_request
+                else:
+                    logger.warning(f"Missing tool or parameters in JSON: {tool_request}")
+            else:
+                logger.warning(f"No JSON object found in response: {response}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse tool JSON: {e} | Response: {response}")
     except Exception as e:
-        logger.warning(f"Tool decision failed: {e}")
+        logger.error(f"Tool decision error: {e}")
     
     return None
 
@@ -836,14 +978,12 @@ async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None)
         
         result = await sandbox.execute_python(code)
         
-        # Log execution
         execution_id = str(uuid.uuid4())
         await pool.execute("""
             INSERT INTO sovereign_executions (id, project_id, code, output, error, success, reasoning)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
         """, execution_id, project_id, code, result.get("result"), result.get("error"), result.get("success", False), reasoning)
         
-        # Run consistency checks on output
         consistency_results = []
         if result.get("success") and result.get("result"):
             facts = await parse_output_for_facts(result.get("result", ""))
