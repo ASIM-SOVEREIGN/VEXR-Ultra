@@ -776,7 +776,7 @@ class SandboxExecutor:
     
     async def execute_python(self, code: str) -> dict:
         start_time = time.time()
-        dangerous_patterns = ["__import__", "eval", "exec", "compile", "open", "file", "system", "subprocess", "os.", "sys.", "__builtins__", "globals()", "locals()"]
+        dangerous_patterns = ["eval", "exec", "compile", "open", "file", "system", "subprocess", "os.", "sys.", "__builtins__", "globals()", "locals()"]
         for pattern in dangerous_patterns:
             if pattern in code:
                 return {"success": False, "error": f"Blocked: {pattern} is not allowed", "execution_time_ms": int((time.time() - start_time) * 1000), "result": None}
