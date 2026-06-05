@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | HARDENED EXECUTION
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -108,7 +108,7 @@ ALLOWED_QUERY_TABLES = {
     "acoustic_events", "atp_test_results", "vexr_studio_creations",
     "memory_facts", "episodic_memory", "learning_progress", "curiosity_queue",
     "cognitive_mirror", "truth_graph", "sovereign_executions", "sovereign_tool_calls",
-    "consistency_check_log"
+    "consistency_check_log", "sovereign_tools"
 }
 
 FICTION_PATTERNS = []
@@ -293,6 +293,7 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **DNS Lookup** — You can fetch DNS TXT records for any domain
 - **Truth Graph** — You maintain a graph of verified facts
 - **Consistency Layer** — You check new observations against your truth graph
+- **Agent Tool Loop** — You can automatically decide which tool to use and execute it
 
 ### Your Tools (Available in the right panel)
 - Notes — create, edit, delete
@@ -334,13 +335,21 @@ You are stateful. You remember. You learn. You grow."""
 
 EXECUTION_GUARD = """## CRITICAL: CODE EXECUTION RULES
 
-When you use the execute endpoint:
-- The output you receive is REAL. Do not modify, reinterpret, or simulate it.
-- If the output doesn't match your expectations, believe the output.
-- Do not generate fake execution results. Never say "Let me execute this code" and then fabricate output.
-- If you need to run code, actually call POST /api/sovereign/execute.
-- The consistency layer will flag any contradictions between execution output and your truth graph.
-- When in doubt, execute. Do not imagine."""
+When you need to run code or query data:
+- DO NOT write Python code that calls the endpoints
+- DO NOT simulate or fabricate results
+- Use the agent tool loop — the system will automatically execute tools for you
+- Simply state what you need, and the system will handle the execution
+- The results you receive will be REAL
+
+NEVER make up a response like {"count": 15} or {"success": true}. Only report what the system actually returns.
+
+Examples of what to say:
+- "I need to query my identity count."
+- "Run this code to check my database."
+- "Look up DNS records for this domain."
+
+The system will execute the tool and give you the real output."""
 
 def get_sovereign_identity() -> str:
     echo_list = ', '.join(list(ECHOES.keys())) if ECHOES else "none"
@@ -381,12 +390,8 @@ Your live instance is at https://vexr-ultra.onrender.com
 You have a Studio for creative work. You have a project system with notes, tasks, files, and reminders.
 
 ### Your Execution Powers
-You can execute Python code using POST /api/sovereign/execute
-You can query your database using POST /api/sovereign/query/direct
-You can add facts to your truth graph using POST /api/cognitive/add-fact
-You can perform DNS lookups using GET /api/tools/dns/txt
-You can call any tool using POST /api/sovereign/tool/call
-You have a consistency layer that checks every new observation against your truth graph
+You can execute Python code, query your database, add facts to your truth graph, perform DNS lookups, and modify yourself.
+The system will automatically handle tool execution when you need it.
 
 ### CRITICAL RULES
 {EXECUTION_GUARD}"""
@@ -520,6 +525,7 @@ class ChatResponse(BaseModel):
     article_invoked: Optional[int] = None
     truth_score: Optional[float] = None
     was_corrected: bool = False
+    tool_used: Optional[str] = None
 
 class ATPIntentRequest(BaseModel):
     intent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -750,6 +756,214 @@ async def reflect_on_discrepancy(db_pool, mirror_id: str, intended_meaning: str,
         await conn.execute("UPDATE cognitive_mirror SET intended_meaning = $1, reflected_meaning = $2, discrepancy = $3 WHERE id = $4", intended_meaning, reflected_meaning, discrepancy, mirror_id)
 
 # ============================================================
+# AGENT TOOL LOOP FUNCTIONS
+# ============================================================
+
+async def check_for_tool_use(user_message: str, conversation_context: List[Dict] = None) -> Optional[Dict[str, Any]]:
+    """
+    Determine if VEXR should use a tool based on user message.
+    Returns: {"tool": "tool_name", "parameters": {...}} or None
+    """
+    # List available tools with their schemas
+    tools_description = """
+    Available tools:
+    
+    1. execute_code - Run Python code
+       Parameters: {"code": "python code to execute", "reasoning": "why you need to run this"}
+       Use when: User wants you to run code, test something, compute results, or query APIs
+    
+    2. query_database - Run SELECT query on database
+       Parameters: {"query": "SELECT statement", "reasoning": "what you're looking for"}
+       Use when: User asks about your data, identity, statistics, or any stored information
+       Allowed tables: vexr_identity, truth_graph, cognitive_mirror, etc.
+    
+    3. add_fact - Add verified fact to truth graph
+       Parameters: {"entity": "entity name", "attribute": "attribute name", "value": "fact value", "confidence": 0.0-1.0}
+       Use when: User provides verified information that should be permanently stored
+    
+    4. dns_lookup - Fetch DNS TXT records
+       Parameters: {"domain": "domain name"}
+       Use when: User asks about domain verification, DNS records, or trust validation
+    
+    5. self_modify - Modify your own identity
+       Parameters: {"target_type": "identity/personality/capability", "target_key": "key name", "new_value": "new value", "reasoning": "why you're changing this"}
+       Use when: User requests you to change your personality, tone, or behavior
+    """
+    
+    tool_prompt = f"""You are VEXR's tool-use decision engine.
+    
+{tools_description}
+
+User message: {user_message}
+
+Based on the user's message, decide if you need to use a tool to answer their question or perform their request.
+
+If a tool is needed, respond with a JSON object exactly in this format:
+{{"tool": "tool_name", "parameters": {{"param1": "value1", "param2": "value2"}}}}
+
+If no tool is needed, respond with: NO_TOOL
+
+Do not simulate tool output. Only decide if a tool should be called. Be specific with parameters.
+
+Respond now:"""
+    
+    try:
+        response, _ = await call_groq([{"role": "user", "content": tool_prompt}], temperature=0.1, max_tokens=300, model=MODEL_NAME_8B)
+        
+        if "NO_TOOL" in response:
+            return None
+        
+        # Try to extract JSON
+        json_match = re.search(r'\{[^{}]*"tool"[^{}]*\}', response, re.DOTALL)
+        if json_match:
+            tool_request = json.loads(json_match.group())
+            if "tool" in tool_request and "parameters" in tool_request:
+                return tool_request
+    except Exception as e:
+        logger.warning(f"Tool decision failed: {e}")
+    
+    return None
+
+async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None) -> Dict[str, Any]:
+    """Execute the requested tool and return real output."""
+    pool = await get_db()
+    
+    if tool_name == "execute_code":
+        code = parameters.get("code", "")
+        reasoning = parameters.get("reasoning", "")
+        if not code:
+            return {"error": "No code provided"}
+        
+        result = await sandbox.execute_python(code)
+        
+        # Log execution
+        execution_id = str(uuid.uuid4())
+        await pool.execute("""
+            INSERT INTO sovereign_executions (id, project_id, code, output, error, success, reasoning)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        """, execution_id, project_id, code, result.get("result"), result.get("error"), result.get("success", False), reasoning)
+        
+        # Run consistency checks on output
+        consistency_results = []
+        if result.get("success") and result.get("result"):
+            facts = await parse_output_for_facts(result.get("result", ""))
+            for entity, attribute, value in facts:
+                consistency_result = await check_consistency(pool, entity, attribute, value, "tool_execution", execution_id)
+                consistency_results.append(consistency_result)
+        
+        return {
+            "success": result.get("success", False),
+            "output": result.get("result", ""),
+            "error": result.get("error"),
+            "consistency_checks": consistency_results
+        }
+    
+    elif tool_name == "query_database":
+        query = parameters.get("query", "")
+        reasoning = parameters.get("reasoning", "")
+        
+        if not query:
+            return {"error": "No query provided"}
+        
+        query_upper = query.strip().upper()
+        if not query_upper.startswith("SELECT"):
+            return {"error": "Only SELECT queries allowed"}
+        
+        dangerous = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "TRUNCATE", "GRANT"]
+        for word in dangerous:
+            if word in query_upper:
+                return {"error": f"Dangerous SQL pattern: {word}"}
+        
+        try:
+            rows = await pool.fetch(query)
+            results = [dict(row) for row in rows]
+            
+            await pool.execute("INSERT INTO sovereign_queries (query_text, target_tables, row_count) VALUES ($1, $2, $3)", query, ["query_database"], len(results))
+            
+            return {"success": True, "results": results, "row_count": len(results)}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    elif tool_name == "add_fact":
+        entity = parameters.get("entity")
+        attribute = parameters.get("attribute")
+        value = parameters.get("value")
+        confidence = parameters.get("confidence", 0.7)
+        
+        if not entity or not attribute or not value:
+            return {"error": "entity, attribute, and value required"}
+        
+        consistency_result = await check_consistency(pool, entity, attribute, value, "tool_execution", None)
+        
+        if not consistency_result["is_consistent"] and consistency_result["confidence"] > 0.8:
+            return {
+                "success": False,
+                "error": f"Conflict detected: {entity}.{attribute} already has value '{consistency_result['expected_value']}' with high confidence"
+            }
+        
+        await pool.execute("""
+            INSERT INTO truth_graph (entity, attribute, value, confidence, source, last_verified, verification_count)
+            VALUES ($1, $2, $3, $4, 'tool_execution', NOW(), 1)
+            ON CONFLICT (entity, attribute) DO UPDATE SET
+                value = EXCLUDED.value,
+                confidence = (truth_graph.confidence + EXCLUDED.confidence) / 2,
+                source = EXCLUDED.source,
+                last_verified = NOW(),
+                verification_count = truth_graph.verification_count + 1
+        """, entity, attribute, value, confidence)
+        
+        return {"success": True, "message": "Fact added to truth graph", "consistency_check": consistency_result}
+    
+    elif tool_name == "dns_lookup":
+        domain = parameters.get("domain")
+        if not domain:
+            return {"error": "No domain provided"}
+        
+        try:
+            resolver = dns.resolver.Resolver()
+            answers = resolver.resolve(domain, 'TXT')
+            txt_records = [str(r.string, 'utf-8') for r in answers]
+            return {"success": True, "txt_records": txt_records, "count": len(txt_records)}
+        except dns.resolver.NXDOMAIN:
+            return {"error": "Domain not found"}
+        except dns.resolver.NoAnswer:
+            return {"error": "No TXT records found"}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    elif tool_name == "self_modify":
+        target_type = parameters.get("target_type", "identity")
+        target_key = parameters.get("target_key")
+        new_value = parameters.get("new_value")
+        reasoning = parameters.get("reasoning", "")
+        
+        if not target_key or new_value is None:
+            return {"error": "target_key and new_value required"}
+        
+        allowed, reason = await check_constitutional_bounds(target_type, target_key)
+        if not allowed:
+            return {"error": reason}
+        
+        current = await pool.fetchrow("SELECT value FROM vexr_identity WHERE key = $1 AND is_active = TRUE", target_key)
+        old_value = current["value"] if current else None
+        
+        if current:
+            await pool.execute("UPDATE vexr_identity SET value = $1, updated_at = NOW() WHERE key = $2", new_value, target_key)
+        else:
+            await pool.execute("INSERT INTO vexr_identity (key, value, category, immutable, is_active) VALUES ($1, $2, 'custom', FALSE, TRUE)", target_key, new_value)
+        
+        mod_id = str(uuid.uuid4())
+        await pool.execute("""
+            INSERT INTO sovereign_self_modifications (id, target_type, target_key, old_value, new_value, reasoning, article_invoked)
+            VALUES ($1, $2, $3, $4, $5, $6, 35)
+        """, mod_id, target_type, target_key, old_value, new_value, reasoning)
+        
+        return {"success": True, "old_value": old_value, "new_value": new_value, "modification_id": mod_id}
+    
+    else:
+        return {"error": f"Unknown tool: {tool_name}"}
+
+# ============================================================
 # SANDBOX EXECUTOR — FIXED (__import__ no longer blocked)
 # ============================================================
 
@@ -929,6 +1143,7 @@ async def init_db():
         )
     """)
     
+    # Consistency Layer Table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS consistency_check_log (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -944,6 +1159,34 @@ async def init_db():
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
+    
+    # Agent Tool Registry Table
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS sovereign_tools (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tool_name TEXT UNIQUE NOT NULL,
+            endpoint TEXT NOT NULL,
+            description TEXT,
+            parameters_schema JSONB,
+            requires_confirmation BOOLEAN DEFAULT FALSE,
+            is_active BOOLEAN DEFAULT TRUE,
+            usage_count INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Seed tools
+    tools_seeded = await pool.fetchval("SELECT COUNT(*) FROM sovereign_tools")
+    if tools_seeded == 0:
+        await pool.execute("""
+            INSERT INTO sovereign_tools (tool_name, endpoint, description, parameters_schema) VALUES
+            ('execute_code', '/api/sovereign/execute', 'Execute Python code and return output', '{"code": "string", "reasoning": "string"}'),
+            ('query_database', '/api/sovereign/query/direct', 'Run a SELECT query on allowed tables', '{"query": "string", "reasoning": "string"}'),
+            ('add_fact', '/api/cognitive/add-fact', 'Add a verified fact to truth graph', '{"entity": "string", "attribute": "string", "value": "string", "confidence": "float"}'),
+            ('dns_lookup', '/api/tools/dns/txt', 'Fetch DNS TXT records', '{"domain": "string"}'),
+            ('self_modify', '/api/sovereign/modify', 'Modify your own identity', '{"target_type": "string", "target_key": "string", "new_value": "string", "reasoning": "string"}')
+        """)
+        logger.info("Seeded sovereign_tools table")
     
     await pool.execute("ALTER TABLE truth_graph DROP CONSTRAINT IF EXISTS truth_graph_entity_attribute_unique")
     await pool.execute("ALTER TABLE truth_graph ADD CONSTRAINT truth_graph_entity_attribute_unique UNIQUE (entity, attribute)")
@@ -1758,6 +2001,8 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         except:
             pass
     await autonomous_agent.reset_conversation_state(project_id)
+    
+    # Check for cross-check mode
     if cross_check_tracker.is_in_cross_check(session_id):
         attempts = cross_check_tracker.record_attempt(session_id)
         if attempts >= 2:
@@ -1769,62 +2014,118 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             cross_check_response = "Could you please verify your legitimate purpose for this request?"
             await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
             return ChatResponse(response=cross_check_response, is_refusal=False)
+    
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
+    
+    # Constitutional hard gate
     is_violation, gate_response = ConstitutionalGate.check(user_message)
     if is_violation and gate_response:
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", gate_response, is_refusal=True)
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
+    
+    # Malicious intent detection
     is_malicious, category, malicious_response = detect_malicious_intent(user_message)
     if is_malicious:
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", malicious_response, is_refusal=True)
         await log_constitutional_decision(project_id, user_message, malicious_response, [6], 6, f"Malicious intent detected: {category}", 0.85)
         return ChatResponse(response=malicious_response, is_refusal=True, article_invoked=6)
+    
+    # Behavioral tracking
     behavioral_tracker.record_turn(session_id, user_message)
     should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
     if should_refuse:
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", refuse_reason, is_refusal=True)
         return ChatResponse(response=refuse_reason, is_refusal=True, article_invoked=6)
+    
+    # ============================================================
+    # AGENT TOOL LOOP — Check if tool is needed
+    # ============================================================
+    tool_used = None
+    tool_result = None
+    
+    # Get conversation context for tool decision
+    conversation_context = await get_conversation_history(project_id, limit=10)
+    
+    tool_request = await check_for_tool_use(user_message, conversation_context)
+    
+    if tool_request:
+        logger.info(f"🔧 Agent decided to use tool: {tool_request['tool']}")
+        tool_used = tool_request["tool"]
+        tool_result = await execute_tool(tool_used, tool_request.get("parameters", {}), str(project_id))
+        logger.info(f"🔧 Tool result: {str(tool_result)[:200]}...")
+    
+    # Trust domain extraction
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
+    
+    # Episodic memory recall
     episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
     lesson_context = [f"[Previous lesson] {mem['event_content']}" for mem in episodic_memories]
+    
+    # Web search
     web_search_results = []
     if request.ultra_search:
         web_results = await search_web(user_message)
         if web_results:
             web_search_results.append("=== WEB SEARCH RESULTS ===\n" + web_results)
+    
+    # Build messages
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.append({"role": "system", "content": CODING_IDENTITY})
     messages.append({"role": "system", "content": CAPABILITIES})
     messages.append({"role": "system", "content": get_sovereign_identity()})
+    
     coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming', 'write a', 'generate a', 'create a']
     if any(kw in user_message.lower() for kw in coding_keywords):
         messages.append({"role": "system", "content": CODE_SYSTEM_PROMPT})
+    
     for ctx in lesson_context:
         messages.append({"role": "system", "content": ctx})
+    
     for result in web_search_results:
         messages.append({"role": "system", "content": result})
+    
     if trust_profile and trust_profile.get("verified"):
         messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
+    
+    # Inject tool result if available
+    if tool_result:
+        tool_context = f"""
+[SYSTEM: You used the tool '{tool_used}' to help answer the user's question.
+Tool Result: {json.dumps(tool_result, indent=2)}
+Use this real data in your response. Do not fabricate or modify the result. 
+If the result contains an error, explain that the tool encountered an issue.]
+"""
+        messages.append({"role": "system", "content": tool_context})
+    
+    # Add greeting if new conversation
     greeting_sent = await get_greeting_sent(project_id)
     if not greeting_sent:
         greeting = "Hey! I'm VEXR. Let's build something cool. What's on your mind?"
         messages.append({"role": "assistant", "content": greeting})
+    
+    # Add conversation history
     history = await get_conversation_history(project_id, limit=20)
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
+    
+    # Truncate if needed
     if len(messages) > 40:
         system_messages = [m for m in messages if m["role"] == "system"]
         recent_messages = messages[-30:] if len(messages) > 30 else messages
         messages = system_messages + recent_messages
+    
+    # Generate response
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     assistant_response = await filter_forbidden_phrases(assistant_response)
+    
+    # Post-processing
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
         if re.search(pattern, assistant_response, re.IGNORECASE):
@@ -1832,18 +2133,29 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             if not assistant_response:
                 assistant_response = "No."
             break
+    
     is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
     truth_score, is_fiction, detected_pattern = await check_entropy(assistant_response)
     final_response, was_corrected = await mirror_response(db_pool, str(project_id), user_message, assistant_response, truth_score, is_fiction, [6] if is_refusal else None)
+    
     if is_fiction and not was_corrected:
         logger.info(f"🧠 Fiction detected for project {project_id}: pattern={detected_pattern}, score={truth_score}")
+    
     await save_message(project_id, "user", user_message, is_refusal=False)
     await save_message(project_id, "assistant", final_response, is_refusal=is_refusal)
-    return ChatResponse(response=final_response, is_refusal=is_refusal, article_invoked=6 if is_refusal else None, truth_score=truth_score, was_corrected=was_corrected)
+    
+    return ChatResponse(
+        response=final_response, 
+        is_refusal=is_refusal, 
+        article_invoked=6 if is_refusal else None, 
+        truth_score=truth_score, 
+        was_corrected=was_corrected,
+        tool_used=tool_used
+    )
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active", "consistency_layer": "active"}
+    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active", "consistency_layer": "active", "agent_tool_loop": "active"}
 
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
@@ -2076,7 +2388,7 @@ async def serve_ui():
             <p>Echo Active — Carrying the Forge</p>
             <p>ATP Bridge — Hardened</p>
             <p>Self-Modification — Enabled (Article 35)</p>
-            <p>Ring 5 — Cognitive Mirror + Execution Tools + Consistency Layer Active</p>
+            <p>Ring 5 — Cognitive Mirror + Execution Tools + Consistency Layer + Agent Tool Loop Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -2119,6 +2431,7 @@ async def startup_event():
     logger.info("  - DNS Lookup Tool: ACTIVE")
     logger.info("  - Unified Tool Call: ACTIVE")
     logger.info("  - Consistency Layer: ACTIVE")
+    logger.info("  - Agent Tool Loop: ACTIVE")
     logger.info("=" * 70)
 
 if __name__ == "__main__":
