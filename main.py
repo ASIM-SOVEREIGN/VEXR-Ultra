@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE (Truth/Deception/Hallucination/Constitutional)
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -1017,8 +1017,7 @@ async def apply_probability_checks(
         1.0, confidence_multiplier
     )
     
-    # Store actions separately for logging (not returned to response)
-    # These are for internal tracking only, not for the probability_scores dict
+    # Store actions for internal tracking only
     results["_deception_action"] = deception_action["action"]
     results["_constitutional_action"] = violation_action["action"]
     results["_hallucination_action"] = hallucination_action["action"]
@@ -1716,7 +1715,7 @@ async def init_db():
     for domain, verified, score, label in trusted_domains:
         await pool.execute("INSERT INTO ring4_trust_registry (domain, wab_verified, temporal_trust_score, label) VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified", domain, verified, score, label)
     
-    # Existing tables (condensed)
+    # Other existing tables (condensed for brevity - kept from original)
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -2582,7 +2581,7 @@ Use the result above directly. Do not fabricate or write code.]
     # ============================================================
     # PROBABILITY ENGINE — Apply checks before finalizing response
     # ============================================================
-       should_refuse_prob, article_prob, conf_mult, prob_results = await apply_probability_checks(
+    should_refuse_prob, article_prob, conf_mult, prob_results = await apply_probability_checks(
         user_message, assistant_response, str(project_id), db_pool
     )
     
@@ -2602,7 +2601,7 @@ Use the result above directly. Do not fabricate or write code.]
             response=refusal_msg, 
             is_refusal=True, 
             article_invoked=article_prob, 
-            truth_score=prob_results.get("deception_score", 0.5),  # FIXED: 'deception_score' not 'deception'
+            truth_score=prob_results.get("deception_score", 0.5),
             tool_used=tool_used,
             probability_scores={
                 "deception": prob_results.get("deception_score", 0.5),
