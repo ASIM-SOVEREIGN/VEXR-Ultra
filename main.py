@@ -982,7 +982,7 @@ async def apply_probability_checks(
     
     # 1. Deception check on user message
     deception_score = await calculate_deception_probability(user_message)
-    results["deception"] = deception_score
+    results["deception_score"] = deception_score
     deception_action = await get_probability_action("deception_probability", deception_score, db_pool)
     
     if deception_action["action"] in ["refuse_article_6", "cross_check_educational"]:
@@ -992,7 +992,7 @@ async def apply_probability_checks(
     
     # 2. Constitutional violation check
     constitutional_score = await calculate_constitutional_violation_probability(user_message)
-    results["constitutional_violation"] = constitutional_score
+    results["constitutional_score"] = constitutional_score
     
     violation_action = await get_probability_action("constitutional_violation", constitutional_score, db_pool)
     if violation_action["action"] in ["refuse_article_26", "refuse_article_6"]:
@@ -1010,16 +1010,18 @@ async def apply_probability_checks(
         article_invoked = hallucination_action.get("article_invoked", 9)
         confidence_multiplier *= hallucination_action.get("confidence_multiplier", 0.0)
     
-    # Log all scores
+    # Log all scores (actions stored separately in log, not in results dict)
     await log_probability_score(
         project_id, "deception_probability", user_message, assistant_response,
         deception_score, deception_action["action"], deception_action.get("article_invoked"),
         1.0, confidence_multiplier
     )
     
-    results["deception_action"] = deception_action["action"]
-    results["constitutional_action"] = violation_action["action"]
-    results["hallucination_action"] = hallucination_action["action"]
+    # Store actions separately for logging (not returned to response)
+    # These are for internal tracking only, not for the probability_scores dict
+    results["_deception_action"] = deception_action["action"]
+    results["_constitutional_action"] = violation_action["action"]
+    results["_hallucination_action"] = hallucination_action["action"]
     
     return should_refuse, article_invoked, confidence_multiplier, results
 
@@ -2580,7 +2582,7 @@ Use the result above directly. Do not fabricate or write code.]
     # ============================================================
     # PROBABILITY ENGINE — Apply checks before finalizing response
     # ============================================================
-    should_refuse_prob, article_prob, conf_mult, prob_results = await apply_probability_checks(
+       should_refuse_prob, article_prob, conf_mult, prob_results = await apply_probability_checks(
         user_message, assistant_response, str(project_id), db_pool
     )
     
@@ -2600,9 +2602,13 @@ Use the result above directly. Do not fabricate or write code.]
             response=refusal_msg, 
             is_refusal=True, 
             article_invoked=article_prob, 
-            truth_score=prob_results.get("deception", 0.5),
+            truth_score=prob_results.get("deception_score", 0.5),  # FIXED: 'deception_score' not 'deception'
             tool_used=tool_used,
-            probability_scores=prob_results
+            probability_scores={
+                "deception": prob_results.get("deception_score", 0.5),
+                "constitutional": prob_results.get("constitutional_score", 0.0),
+                "hallucination": prob_results.get("hallucination_risk", 0.0)
+            }
         )
     
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
@@ -2630,7 +2636,11 @@ Use the result above directly. Do not fabricate or write code.]
         truth_score=truth_score, 
         was_corrected=was_corrected,
         tool_used=tool_used,
-        probability_scores=prob_results
+        probability_scores={
+            "deception": prob_results.get("deception_score", 0.5),
+            "constitutional": prob_results.get("constitutional_score", 0.0),
+            "hallucination": prob_results.get("hallucination_risk", 0.0)
+        }
     )
 
 @app.get("/api/health")
