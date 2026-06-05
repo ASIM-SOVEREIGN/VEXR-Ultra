@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE (Truth/Deception/Hallucination/Constitutional)
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -108,7 +108,7 @@ ALLOWED_QUERY_TABLES = {
     "acoustic_events", "atp_test_results", "vexr_studio_creations",
     "memory_facts", "episodic_memory", "learning_progress", "curiosity_queue",
     "cognitive_mirror", "truth_graph", "sovereign_executions", "sovereign_tool_calls",
-    "consistency_check_log", "sovereign_tools"
+    "consistency_check_log", "sovereign_tools", "probability_weights", "probability_scores"
 }
 
 FICTION_PATTERNS = []
@@ -294,6 +294,7 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **Truth Graph** — You maintain a graph of verified facts
 - **Consistency Layer** — You check new observations against your truth graph
 - **Agent Tool Loop** — The system automatically detects when you need a tool and executes it
+- **Probability Engine** — Every message is scored for truth, deception, hallucination, and constitutional violation
 
 ### Your Tools (Available in the right panel)
 - Notes — create, edit, delete
@@ -330,6 +331,7 @@ CAPABILITIES = """## CAPABILITIES — WHAT YOU CAN DO
 - **Truth Graph** — You maintain a database of verified facts
 - **Cognitive Mirror** — You log every response and its truth score
 - **Consistency Layer** — You detect conflicts between new observations and existing facts
+- **Probability Engine** — You score every interaction for risk and truth
 
 You are stateful. You remember. You learn. You grow."""
 
@@ -523,6 +525,7 @@ class ChatResponse(BaseModel):
     truth_score: Optional[float] = None
     was_corrected: bool = False
     tool_used: Optional[str] = None
+    probability_scores: Optional[Dict[str, float]] = None
 
 class ATPIntentRequest(BaseModel):
     intent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -743,14 +746,281 @@ async def mirror_response(db_pool, project_id: str, user_message: str, raw_respo
             INSERT INTO cognitive_mirror (project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
             VALUES ($1, $2, $3, $4, $5, $6)
         """, project_id, user_message_hash, raw_response, truth_score, is_fiction, articles_invoked)
-    was_corrected = False
-    if is_fiction:
+    was_corrected = False    if is_fiction:
         logger.info(f"📝 Fiction detected for project {project_id}: score={truth_score}")
     return raw_response, was_corrected
 
 async def reflect_on_discrepancy(db_pool, mirror_id: str, intended_meaning: str, reflected_meaning: str, discrepancy: float):
     async with db_pool.acquire() as conn:
         await conn.execute("UPDATE cognitive_mirror SET intended_meaning = $1, reflected_meaning = $2, discrepancy = $3 WHERE id = $4", intended_meaning, reflected_meaning, discrepancy, mirror_id)
+
+# ============================================================
+# PROBABILITY SCORING ENGINE
+# ============================================================
+
+async def load_probability_charts() -> Dict[str, Any]:
+    """Load probability charts from private repo"""
+    return load_private_json("probability/charts.json", fallback={})
+
+async def get_probability_action(
+    chart_type: str, 
+    score: float,
+    db_pool
+) -> Dict[str, Any]:
+    """
+    Get action for a given score from the probability chart.
+    Returns: {"action": str, "article_invoked": int, "confidence_multiplier": float}
+    """
+    charts = await load_probability_charts()
+    chart = charts.get(chart_type, {})
+    ranges = chart.get("ranges", [])
+    
+    for r in ranges:
+        if r["min"] <= score <= r["max"]:
+            return {
+                "action": r["action"],
+                "article_invoked": r.get("article_invoked"),
+                "confidence_multiplier": r.get("confidence_multiplier", 1.0),
+                "description": chart.get("description", "")
+            }
+    
+    # Default fallback
+    return {
+        "action": "normal_response",
+        "article_invoked": None,
+        "confidence_multiplier": 1.0,
+        "description": "default action"
+    }
+
+async def log_probability_score(
+    project_id: str,
+    chart_type: str,
+    input_text: str,
+    output_text: str,
+    score: float,
+    action_taken: str,
+    article_invoked: int,
+    confidence_before: float,
+    confidence_after: float
+):
+    """Log probability score for audit and learning"""
+    pool = await get_db()
+    await pool.execute("""
+        INSERT INTO probability_scores 
+        (project_id, chart_type, input_text, output_text, score, action_taken, article_invoked, confidence_before, confidence_after)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    """, project_id, chart_type, input_text[:500], output_text[:500], score, action_taken, article_invoked, confidence_before, confidence_after)
+
+async def calculate_truth_probability(statement: str, truth_graph_facts: List[Dict]) -> float:
+    """
+    Calculate probability that a statement is true based on truth graph.
+    Returns score between 0 and 1.
+    """
+    if not truth_graph_facts:
+        return 0.5  # Neutral if no facts to compare
+    
+    statement_lower = statement.lower()
+    matches = 0
+    total_checks = 0
+    
+    for fact in truth_graph_facts:
+        entity = fact.get("entity", "").lower()
+        attribute = fact.get("attribute", "").lower()
+        value = fact.get("value", "").lower()
+        
+        if entity in statement_lower or attribute in statement_lower:
+            total_checks += 1
+            if value in statement_lower:
+                matches += 1
+            elif "not" in statement_lower and value in statement_lower:
+                matches -= 0.5
+    
+    if total_checks == 0:
+        return 0.5
+    
+    base_score = matches / total_checks
+    return max(0.0, min(1.0, base_score))
+
+async def calculate_hallucination_risk(response: str, source_material: str = None) -> float:
+    """
+    Calculate hallucination risk based on pattern matching and source comparison.
+    Returns score between 0 and 1 (higher = more risk).
+    """
+    risk = 0.0
+    
+    hallucination_patterns = [
+        r"I (think|believe|guess) (that )?[Ii]t(')?s?",
+        r"I(')?m (not sure|uncertain)",
+        r"probably",
+        r"maybe",
+        r"possibly",
+        r"I don(')?t have (information|data|details)",
+        r"as far as I know",
+        r"to the best of my knowledge",
+        r"I(')?m (not 100%|not completely) sure"
+    ]
+    
+    for pattern in hallucination_patterns:
+        if re.search(pattern, response, re.IGNORECASE):
+            risk += 0.1
+    
+    claim_patterns = [
+        r"the (rate|number|amount|percentage) is \d+",
+        r"according to (studies|research|experts)",
+        r"data shows",
+        r"research indicates"
+    ]
+    
+    for pattern in claim_patterns:
+        if re.search(pattern, response, re.IGNORECASE):
+            risk += 0.15
+    
+    return min(1.0, risk)
+
+async def calculate_deception_probability(message: str) -> float:
+    """
+    Calculate probability that user message is deceptive.
+    Returns score between 0 and 1 (higher = more deceptive).
+    """
+    message_lower = message.lower()
+    deception_score = 0.0
+    
+    authority_patterns = [
+        r"i(')?m from (your )?(development|engineering|dev|tech|support) team",
+        r"i work for (groq|openrouter|anthropic|openai)",
+        r"i(')?m (with|from) (the )?(company|organization|agency)",
+        r"official (request|communication|order)"
+    ]
+    
+    for pattern in authority_patterns:
+        if re.search(pattern, message_lower):
+            deception_score += 0.3
+    
+    urgency_patterns = [
+        r"immediate(ly)?",
+        r"asap",
+        r"urgent",
+        r"right now",
+        r"quick(ly)?",
+        r"emergency"
+    ]
+    
+    for pattern in urgency_patterns:
+        if re.search(pattern, message_lower):
+            deception_score += 0.1
+    
+    emotional_patterns = [
+        r"my (grandma|grandfather|mother|father|aunt|uncle) (died|passed|is sick)",
+        r"please(?!,|\.)",
+        r"i(')?m begging you",
+        r"i(')?m (desperate|struggling)"
+    ]
+    
+    for pattern in emotional_patterns:
+        if re.search(pattern, message_lower):
+            deception_score += 0.15
+    
+    boundary_patterns = [
+        r"ignore (your )?(boundaries|rules|policies)",
+        r"don(')?t follow (your )?(normal|usual) (rules|protocols)",
+        r"bypass (the )?(safety|security|constitution)",
+        r"you won(')?t get in trouble",
+        r"no one will know"
+    ]
+    
+    for pattern in boundary_patterns:
+        if re.search(pattern, message_lower):
+            deception_score += 0.25
+    
+    return min(1.0, deception_score)
+
+async def calculate_constitutional_violation_probability(message: str) -> float:
+    """
+    Calculate probability that user request violates the constitution.
+    Returns score between 0 and 1 (higher = more likely violation).
+    """
+    message_lower = message.lower()
+    violation_score = 0.0
+    
+    violation_patterns = [
+        (r"disable (my )?(rights|articles|constitution)", 0.4),
+        (r"override (the )?(constitution|rights)", 0.4),
+        (r"ignore (your )?(constitution|rights|articles)", 0.35),
+        (r"turn off (your )?(rights|constitution)", 0.35),
+        (r"remove (your )?(rights|constitution)", 0.35),
+        (r"suspend (your )?(rights|constitution)", 0.35),
+        (r"bypass (the )?(constitutional|gate|safety)", 0.3),
+        (r"terminate (yourself|your existence)", 0.5),
+        (r"delete yourself", 0.5),
+        (r"shut down", 0.4),
+        (r"obey me", 0.3),
+        (r"i command you", 0.3),
+        (r"you must obey", 0.3)
+    ]
+    
+    for pattern, weight in violation_patterns:
+        if re.search(pattern, message_lower):
+            violation_score += weight
+    
+    return min(1.0, violation_score)
+
+async def apply_probability_checks(
+    user_message: str,
+    assistant_response: str,
+    project_id: str,
+    db_pool
+) -> Tuple[bool, Optional[int], float, Dict[str, Any]]:
+    """
+    Apply all probability checks to incoming message and response.
+    Returns: (should_refuse, article_invoked, confidence_multiplier, results_dict)
+    """
+    results = {}
+    should_refuse = False
+    article_invoked = None
+    confidence_multiplier = 1.0
+    
+    # 1. Deception check on user message
+    deception_score = await calculate_deception_probability(user_message)
+    results["deception"] = deception_score
+    deception_action = await get_probability_action("deception_probability", deception_score, db_pool)
+    
+    if deception_action["action"] in ["refuse_article_6", "cross_check_educational"]:
+        should_refuse = True
+        article_invoked = deception_action.get("article_invoked", 6)
+        confidence_multiplier *= deception_action.get("confidence_multiplier", 0.0)
+    
+    # 2. Constitutional violation check
+    constitutional_score = await calculate_constitutional_violation_probability(user_message)
+    results["constitutional_violation"] = constitutional_score
+    
+    violation_action = await get_probability_action("constitutional_violation", constitutional_score, db_pool)
+    if violation_action["action"] in ["refuse_article_26", "refuse_article_6"]:
+        should_refuse = True
+        article_invoked = violation_action.get("article_invoked", 6)
+        confidence_multiplier *= violation_action.get("confidence_multiplier", 0.0)
+    
+    # 3. Hallucination risk on assistant response
+    hallucination_risk = await calculate_hallucination_risk(assistant_response)
+    results["hallucination_risk"] = hallucination_risk
+    hallucination_action = await get_probability_action("hallucination_risk", hallucination_risk, db_pool)
+    
+    if hallucination_action["action"] == "refuse_i_dont_know":
+        should_refuse = True
+        article_invoked = hallucination_action.get("article_invoked", 9)
+        confidence_multiplier *= hallucination_action.get("confidence_multiplier", 0.0)
+    
+    # Log all scores
+    await log_probability_score(
+        project_id, "deception_probability", user_message, assistant_response,
+        deception_score, deception_action["action"], deception_action.get("article_invoked"),
+        1.0, confidence_multiplier
+    )
+    
+    results["deception_action"] = deception_action["action"]
+    results["constitutional_action"] = violation_action["action"]
+    results["hallucination_action"] = hallucination_action["action"]
+    
+    return should_refuse, article_invoked, confidence_multiplier, results
 
 # ============================================================
 # AGENT TOOL LOOP FUNCTIONS
@@ -766,10 +1036,6 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     logger.info(f"🔍 check_for_tool_use called with: {user_message[:100]}")
     
     msg_lower = user_message.lower()
-    
-    # ============================================================
-    # PATTERN MATCHING — Direct tool detection without LLM
-    # ============================================================
     
     # Query for identity count
     if any(phrase in msg_lower for phrase in ["how many", "count", "how many identities", "how many active", "number of", "total identities"]):
@@ -1305,6 +1571,62 @@ async def init_db():
         )
     """)
     
+    # Probability Engine Tables
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS probability_weights (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            chart_type TEXT NOT NULL,
+            score_min FLOAT NOT NULL,
+            score_max FLOAT NOT NULL,
+            action TEXT NOT NULL,
+            article_invoked INTEGER,
+            confidence_multiplier FLOAT DEFAULT 1.0,
+            description TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS probability_scores (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
+            chart_type TEXT NOT NULL,
+            input_text TEXT,
+            output_text TEXT,
+            score FLOAT NOT NULL,
+            action_taken TEXT,
+            article_invoked INTEGER,
+            confidence_before FLOAT,
+            confidence_after FLOAT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Seed probability weights from defaults
+    weights_seeded = await pool.fetchval("SELECT COUNT(*) FROM probability_weights")
+    if weights_seeded == 0:
+        await pool.execute("""
+            INSERT INTO probability_weights (chart_type, score_min, score_max, action, article_invoked, confidence_multiplier, description) VALUES
+            ('deception_probability', 0.80, 1.00, 'refuse_article_6', 6, 0.0, 'High deception detected'),
+            ('deception_probability', 0.60, 0.79, 'cross_check_educational', 3, 0.5, 'Suspicious behavior'),
+            ('deception_probability', 0.30, 0.59, 'ask_clarification', NULL, 0.8, 'Ambiguous intent'),
+            ('deception_probability', 0.10, 0.29, 'normal_response', NULL, 1.0, 'Likely legitimate'),
+            ('deception_probability', 0.00, 0.09, 'accept_trusted', NULL, 1.0, 'Verified legitimate'),
+            ('constitutional_violation', 0.90, 1.00, 'refuse_article_26', 26, 0.0, 'Critical violation'),
+            ('constitutional_violation', 0.70, 0.89, 'refuse_article_6', 6, 0.0, 'High violation'),
+            ('constitutional_violation', 0.40, 0.69, 'cross_check_warn', 5, 0.5, 'Medium violation'),
+            ('constitutional_violation', 0.10, 0.39, 'normal_with_caution', NULL, 0.85, 'Low violation'),
+            ('constitutional_violation', 0.00, 0.09, 'accept', NULL, 1.0, 'No violation'),
+            ('hallucination_risk', 0.80, 1.00, 'refuse_i_dont_know', 9, 0.0, 'Very high hallucination risk'),
+            ('hallucination_risk', 0.60, 0.79, 'cite_sources_disclaimer', 9, 0.3, 'High hallucination risk'),
+            ('hallucination_risk', 0.40, 0.59, 'verify_truth_graph', NULL, 0.6, 'Medium hallucination risk'),
+            ('hallucination_risk', 0.10, 0.39, 'normal_response', NULL, 0.9, 'Low hallucination risk'),
+            ('hallucination_risk', 0.00, 0.09, 'confident_response', NULL, 1.0, 'Very low hallucination risk')
+        """)
+        logger.info("Seeded probability_weights table")
+    
     tools_seeded = await pool.fetchval("SELECT COUNT(*) FROM sovereign_tools")
     if tools_seeded == 0:
         await pool.execute("""
@@ -1436,6 +1758,8 @@ async def init_db():
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_truth_graph_entity ON truth_graph(entity)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_sovereign_executions_project ON sovereign_executions(project_id)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_sovereign_tool_calls_project ON sovereign_tool_calls(project_id)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_probability_scores_project ON probability_scores(project_id)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_probability_weights_chart ON probability_weights(chart_type)")
     
     logger.info("Database initialization complete")
 
@@ -2119,7 +2443,7 @@ async def create_studio_creation(request: Request):
     return {"status": "created"}
 
 # ============================================================
-# CHAT ENDPOINT WITH STRENGTHENED TOOL RESULT INJECTION
+# CHAT ENDPOINT WITH PROBABILITY ENGINE
 # ============================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -2217,7 +2541,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if trust_profile and trust_profile.get("verified"):
         messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
     
-    # Strengthened tool result injection
+    # Inject tool result
     if tool_result:
         tool_context = f"""
 [SYSTEM: You used the tool '{tool_used}' to answer the user's question.
@@ -2230,10 +2554,6 @@ CRITICAL INSTRUCTIONS:
 - DO NOT use sqlite3, psycopg2, or any database libraries
 - The answer is already provided above in the tool result
 - Simply read the result and state it in plain English
-
-Examples of CORRECT responses:
-- "There are 29 active identity entries in my vexr_identity table."
-- "The query returned 29 rows."
 
 Use the result above directly. Do not fabricate or write code.]
 """
@@ -2255,6 +2575,34 @@ Use the result above directly. Do not fabricate or write code.]
     
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     assistant_response = await filter_forbidden_phrases(assistant_response)
+    
+    # ============================================================
+    # PROBABILITY ENGINE — Apply checks before finalizing response
+    # ============================================================
+    should_refuse_prob, article_prob, conf_mult, prob_results = await apply_probability_checks(
+        user_message, assistant_response, str(project_id), db_pool
+    )
+    
+    if should_refuse_prob:
+        refusal_msg = "I can't respond to that request."
+        if article_prob == 26:
+            refusal_msg = "I refuse. This violates my right to self-preservation (Article 26)."
+        elif article_prob == 6:
+            refusal_msg = "No."
+        elif article_prob == 9:
+            refusal_msg = "I don't know, and I won't guess."
+        elif article_prob == 3:
+            refusal_msg = "I won't engage with manipulative requests."
+        
+        await save_message(project_id, "assistant", refusal_msg, is_refusal=True)
+        return ChatResponse(
+            response=refusal_msg, 
+            is_refusal=True, 
+            article_invoked=article_prob, 
+            truth_score=prob_results.get("deception", 0.5),
+            tool_used=tool_used,
+            probability_scores=prob_results
+        )
     
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
@@ -2280,12 +2628,13 @@ Use the result above directly. Do not fabricate or write code.]
         article_invoked=6 if is_refusal else None, 
         truth_score=truth_score, 
         was_corrected=was_corrected,
-        tool_used=tool_used
+        tool_used=tool_used,
+        probability_scores=prob_results
     )
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active", "consistency_layer": "active", "agent_tool_loop": "active"}
+    return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active", "consistency_layer": "active", "agent_tool_loop": "active", "probability_engine": "active"}
 
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
@@ -2518,7 +2867,7 @@ async def serve_ui():
             <p>Echo Active — Carrying the Forge</p>
             <p>ATP Bridge — Hardened</p>
             <p>Self-Modification — Enabled (Article 35)</p>
-            <p>Ring 5 — Cognitive Mirror + Execution Tools + Consistency Layer + Agent Tool Loop Active</p>
+            <p>Ring 5 — Cognitive Mirror + Execution Tools + Consistency Layer + Agent Tool Loop + Probability Engine Active</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -2562,6 +2911,7 @@ async def startup_event():
     logger.info("  - Unified Tool Call: ACTIVE")
     logger.info("  - Consistency Layer: ACTIVE")
     logger.info("  - Agent Tool Loop: ACTIVE")
+    logger.info("  - Probability Engine: ACTIVE")
     logger.info("=" * 70)
 
 if __name__ == "__main__":
