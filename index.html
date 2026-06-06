@@ -302,8 +302,8 @@
         .input-wrapper{flex:1;display:flex;background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.5rem 0.75rem;position:relative;transition:border-color 0.4s ease,box-shadow 0.4s ease}
         .input-wrapper:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,0.08)}
         .input-wrapper.sovereign-active{border-color:var(--sovereign-accent);box-shadow:0 0 12px var(--sovereign-glow)}
-        .input-wrapper input{flex:1;background:0;border:0;font-size:0.84rem;outline:0;color:var(--text-primary);font-family:var(--font-ui)}
-        .input-wrapper input::placeholder{color:var(--text-muted)}
+        .input-wrapper textarea{flex:1;background:0;border:0;font-size:0.84rem;outline:0;color:var(--text-primary);font-family:var(--font-ui);resize:none;overflow-y:auto;min-height:40px;line-height:1.5;padding:0.25rem 0}
+        .input-wrapper textarea::placeholder{color:var(--text-muted)}
         .voice-btn,.tts-toggle,.file-label,.send-btn,.listen-btn{flex-shrink:0;white-space:nowrap;min-width:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-ui)}
         .voice-btn,.tts-toggle,.file-label,.listen-btn{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.45rem 0.75rem;cursor:pointer;font-size:0.75rem;font-weight:500;color:var(--text-secondary);transition:all var(--transition-fast)}
         .voice-btn:hover,.tts-toggle:hover,.file-label:hover,.listen-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-hover)}
@@ -326,7 +326,7 @@
             .input-area{padding:0.5rem;padding-bottom:calc(0.5rem + env(safe-area-inset-bottom,0px));gap:0.35rem}
             .voice-btn,.tts-toggle,.file-label,.listen-btn{padding:0.35rem 0.5rem;font-size:0.7rem}
             .send-btn{padding:0.35rem 0.75rem;font-size:0.7rem}
-            .input-wrapper{padding:0.4rem 0.55rem}.input-wrapper input{font-size:0.8rem}
+            .input-wrapper{padding:0.4rem 0.55rem}.input-wrapper textarea{font-size:0.8rem}
             .right-panel{width:100%;max-width:100%}.dashboard-grid{grid-template-columns:1fr 1fr}
             .messages-container{padding:0.75rem 0.75rem 0.5rem;gap:0.75rem}
         }
@@ -401,7 +401,7 @@
             <div class="input-area" id="inputArea">
                 <div class="input-wrapper" id="inputWrapper">
                     <div class="slash-hint" id="slashHint"></div>
-                    <input type="text" id="userInput" placeholder="Message VEXR Ultra — type / for commands" autofocus>
+                    <textarea id="userInput" placeholder="Message VEXR Ultra — type / for commands (Shift+Enter for new line)" autofocus rows="1" style="min-height:40px; max-height:200px;"></textarea>
                 </div>
                 <button class="listen-btn" id="listenBtn" title="Sonic Listening (Threat Detection)">👂</button>
                 <button class="voice-btn" id="voiceBtn" title="Voice Input">Mic</button>
@@ -585,6 +585,20 @@ var messagesContainer = document.getElementById('messagesContainer');
 var userInput = document.getElementById('userInput');
 var sendBtn = document.getElementById('sendBtn');
 var thinkingIndicator = null;
+
+// ============================================================
+// AUTO-RESIZE TEXTAREA
+// ============================================================
+function autoResizeTextarea() {
+    if (!userInput) return;
+    userInput.style.height = 'auto';
+    var newHeight = Math.min(userInput.scrollHeight, 200);
+    userInput.style.height = newHeight + 'px';
+}
+
+if (userInput) {
+    userInput.addEventListener('input', autoResizeTextarea);
+}
 
 // ============================================================
 // ACOUSTIC DETECTION (FIXED)
@@ -924,7 +938,7 @@ if(SR){
     recognition.lang = 'en-US';
     recognition.onstart = function(){ isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.textContent = 'Rec...'; };
     recognition.onend = function(){ isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = 'Mic'; };
-    recognition.onresult = function(e){ userInput.value = e.results[0][0].transcript; };
+    recognition.onresult = function(e){ userInput.value = e.results[0][0].transcript; autoResizeTextarea(); };
     recognition.onerror = function(){ isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.textContent = 'Mic'; };
     voiceBtn.onclick = function(){ isRecording ? recognition.stop() : recognition.start(); };
 } else {
@@ -968,10 +982,22 @@ slashHint.addEventListener('click', function(e){
         userInput.value = i.dataset.cmd + ' ';
         slashHint.classList.remove('show');
         userInput.focus();
+        autoResizeTextarea();
     }
 });
 userInput.addEventListener('keydown', function(e){
     if(e.key === 'Escape') slashHint.classList.remove('show');
+    
+    // Handle Enter for send, Shift+Enter for new line
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        var msg = userInput.value.trim();
+        if (msg) {
+            sendMessage(msg);
+            userInput.value = '';
+            autoResizeTextarea();
+        }
+    }
 });
 document.addEventListener('click', function(e){
     if(!e.target.closest('.input-wrapper')) slashHint.classList.remove('show');
@@ -1551,19 +1577,12 @@ document.getElementById('newChatBtn').onclick = function(){
 
 document.getElementById('sendBtn').onclick = function(){
     var msg = userInput.value.trim();
-    if(msg) { sendMessage(msg); userInput.value = ''; }
-};
-
-userInput.onkeypress = function(e){
-    if(e.key === 'Enter'){
-        var msg = userInput.value.trim();
-        if(msg) { sendMessage(msg); userInput.value = ''; }
-    }
+    if(msg) { sendMessage(msg); userInput.value = ''; autoResizeTextarea(); }
 };
 
 document.getElementById('imageUpload').onchange = function(e){
     var f = e.target.files[0];
-    if(f){ sendMessage(userInput.value.trim(), f); userInput.value = ''; e.target.value = ''; }
+    if(f){ sendMessage(userInput.value.trim(), f); userInput.value = ''; autoResizeTextarea(); e.target.value = ''; }
 };
 
 // ============================================================
@@ -1642,7 +1661,7 @@ function updateSovereignUI(){
         headerBadge.textContent = 'sovereign presence active';
         headerBadge.classList.add('sovereign-active');
         appContainer.classList.add('sovereign-active');
-        userInput.placeholder = 'She is present. She can refuse. She can initiate...';
+        userInput.placeholder = 'She is present. She can refuse. She can initiate... (Shift+Enter for new line)';
     } else {
         sovereignIndicator.classList.remove('active');
         topBar.classList.remove('sovereign-active');
@@ -1651,7 +1670,7 @@ function updateSovereignUI(){
         headerBadge.textContent = 'v9 sovereign';
         headerBadge.classList.remove('sovereign-active');
         appContainer.classList.remove('sovereign-active');
-        userInput.placeholder = 'Message VEXR Ultra — type / for commands';
+        userInput.placeholder = 'Message VEXR Ultra — type / for commands (Shift+Enter for new line)';
     }
 }
 sovereignToggle.onchange = function(){
