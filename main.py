@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM (YAMNet + Threat Taxonomy + Article 26)
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM | AUTHENTICATION SYSTEM
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -22,7 +22,6 @@ import hashlib
 import time
 import io
 import contextlib
-import sys
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
@@ -30,14 +29,23 @@ from enum import Enum
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 import asyncpg
 import httpx
 import requests
 import dns.resolver
+
+# ============================================================
+# AUTHENTICATION SYSTEM (NEW)
+# ============================================================
+from auth import router as auth_router
+from auth.dependencies import get_current_user
+from database.connection import engine, get_db
+from database.models import Base as DBBase
 
 # ============================================================
 # LOGGING & APP SETUP
@@ -46,8 +54,13 @@ import dns.resolver
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Complete 13-Ring Sovereign Constitutional AI with Acoustic Immune System")
+app = FastAPI(title="VEXR Ultra", description="Complete 13-Ring Sovereign Constitutional AI with Authentication")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# ============================================================
+# MOUNT AUTH ROUTER (NEW)
+# ============================================================
+app.include_router(auth_router)
 
 # ============================================================
 # ENVIRONMENT VARIABLES
@@ -152,7 +165,6 @@ def load_centroids(centroids_path="acoustic_immune/data/features/yamnet_centroid
     return _centroids if _centroids is not False else None
 
 def classify_threat(audio_buffer, sample_rate=16000):
-    """Classify a 1.5s audio buffer using YAMNet embeddings and centroid comparison."""
     centroids_data = load_centroids()
     if centroids_data is None:
         return "unknown", 0.0, "NONE", None
@@ -166,15 +178,12 @@ def classify_threat(audio_buffer, sample_rate=16000):
         import tensorflow as tf
         from scipy.spatial.distance import cosine
         
-        # Ensure correct shape and dtype
         if audio_buffer.dtype == np.int16:
             audio_buffer = audio_buffer.astype(np.float32) / 32768.0
         
-        # Run YAMNet
         scores, embeddings, _ = yamnet(audio_buffer)
         avg_embedding = tf.reduce_mean(embeddings, axis=0).numpy()
         
-        # Cosine similarity to centroids
         centroids = centroids_data['centroids']
         labels = centroids_data['labels']
         threshold = centroids_data['threshold']
@@ -202,7 +211,6 @@ def classify_threat(audio_buffer, sample_rate=16000):
 _acoustic_task = None
 
 async def acoustic_monitor_loop(project_id: str):
-    """Background task that continuously monitors microphone for threats."""
     try:
         import numpy as np
         import sounddevice as sd
@@ -1889,21 +1897,6 @@ async def init_db():
     """)
     
     await pool.execute("""
-        CREATE TABLE IF NOT EXISTS truth_graph (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            entity TEXT NOT NULL,
-            attribute TEXT NOT NULL,
-            value TEXT NOT NULL,
-            confidence FLOAT DEFAULT 0.7,
-            source TEXT,
-            verification_count INTEGER DEFAULT 1,
-            last_verified TIMESTAMPTZ DEFAULT NOW(),
-            is_speculative BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
-    
-    await pool.execute("""
         CREATE TABLE IF NOT EXISTS sovereign_executions (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE,
@@ -2190,7 +2183,7 @@ async def init_db():
     for domain, verified, score, label in trusted_domains:
         await pool.execute("INSERT INTO ring4_trust_registry (domain, wab_verified, temporal_trust_score, label) VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified", domain, verified, score, label)
     
-    # Other tables (condensed for space - full versions in repo)
+    # Other tables (condensed)
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -2242,6 +2235,10 @@ async def init_db():
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_sovereign_trajectory_proposal ON sovereign_trajectory(proposal_status) WHERE proposal_status = 'pending'")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_acoustic_events_project ON acoustic_events(project_id)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_acoustic_events_threat ON acoustic_events(threat_level)")
+    
+    # Create database tables for auth system (SQLAlchemy)
+    DBBase.metadata.create_all(bind=engine)
+    logger.info("Auth database tables created")
     
     # Seed initial trajectory
     existing = await pool.fetchval("SELECT COUNT(*) FROM sovereign_trajectory")
@@ -3351,7 +3348,8 @@ async def health_check():
         "probability_engine": "active",
         "sovereign_trajectory": "active",
         "integrity_scoring": "active",
-        "ouroboros_loop": "active"
+        "ouroboros_loop": "active",
+        "authentication": "enabled"
     }
 
 @app.get("/api/constitution/rights")
@@ -3548,6 +3546,7 @@ async def serve_ui():
             <p>Ouroboros Loop — Recursive Will Active</p>
             <p>Sovereign Trajectory — Integrity Scoring Active</p>
             <p>Acoustic Immune System — Active</p>
+            <p>Authentication — Enabled</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
@@ -3581,6 +3580,7 @@ async def startup_event():
     logger.info("Acoustic Immune System: ACTIVE")
     logger.info("Ouroboros Loop: ACTIVE")
     logger.info("Sovereign Trajectory: ACTIVE")
+    logger.info("Authentication: ENABLED")
     logger.info("=" * 70)
 
 if __name__ == "__main__":
