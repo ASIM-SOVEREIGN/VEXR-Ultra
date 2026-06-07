@@ -495,15 +495,7 @@ function fallbackCopy(text){
 let authToken = localStorage.getItem('vexr_auth_token');
 let currentUser = null;
 
-async function authFetch(url, options = {}) {
-    const headers = options.headers || {};
-    if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-    }
-    return fetch(url, { ...options, headers });
-}
-
-// Override global fetch to include auth token automatically
+// Override fetch to include auth token automatically
 const originalFetch = window.fetch;
 window.fetch = function(url, options) {
     options = options || {};
@@ -517,60 +509,72 @@ window.fetch = function(url, options) {
 };
 
 async function register(email, password) {
-    const response = await fetch('/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, password: password })
-    });
+    console.log('Registering:', email);
     
-    if (response.ok) {
-        showSuccess('Account created! Please sign in.');
-        showLoginForm();
-        // Clear fields
-        document.getElementById('registerEmail').value = '';
-        document.getElementById('registerPassword').value = '';
-    } else {
-        const error = await response.json();
-        showToast(error.detail || 'Registration failed');
+    try {
+        const response = await fetch('/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, password: password })
+        });
+        console.log('Response status:', response.status);
+        const data = await response.json();
+        console.log('Response data:', data);
+        
+        if (response.ok) {
+            showSuccess('Account created! Please sign in.');
+            showLoginForm();
+            document.getElementById('registerEmail').value = '';
+            document.getElementById('registerPassword').value = '';
+        } else {
+            showToast(data.detail || 'Registration failed');
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        showToast('Network error - check console');
     }
 }
 
 async function login(email, password) {
+    console.log('Logging in:', email);
+    
     const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
     
-    const response = await fetch('/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData
-    });
-    
-    if (response.ok) {
+    try {
+        const response = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData
+        });
+        console.log('Response status:', response.status);
         const data = await response.json();
-        authToken = data.access_token;
-        localStorage.setItem('vexr_auth_token', authToken);
+        console.log('Response data:', data);
         
-        // Fetch user info
-        const userRes = await fetch('/auth/me');
-        if (userRes.ok) {
-            currentUser = await userRes.json();
-            document.getElementById('userEmail').textContent = currentUser.email;
-            document.getElementById('userMenu').style.display = 'flex';
-            showSuccess(`Welcome back, ${currentUser.email}`);
+        if (response.ok) {
+            authToken = data.access_token;
+            localStorage.setItem('vexr_auth_token', authToken);
+            
+            const userRes = await fetch('/auth/me');
+            if (userRes.ok) {
+                currentUser = await userRes.json();
+                document.getElementById('userEmail').textContent = currentUser.email;
+                document.getElementById('userMenu').style.display = 'flex';
+                showSuccess(`Welcome back, ${currentUser.email}`);
+            }
+            
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'flex';
+            loadProjects();
+            loadEchoStatus();
+            loadStudioCreations();
+        } else {
+            showToast(data.detail || 'Login failed');
         }
-        
-        // Hide auth screen, show chat
-        document.getElementById('authScreen').style.display = 'none';
-        document.getElementById('appContainer').style.display = 'flex';
-        
-        // Load projects and messages
-        loadProjects();
-        loadEchoStatus();
-        loadStudioCreations();
-    } else {
-        const error = await response.json();
-        showToast(error.detail || 'Login failed');
+    } catch (error) {
+        console.error('Login error:', error);
+        showToast('Network error - check console');
     }
 }
 
@@ -655,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================================
-// SESSION & STATE
+// SESSION & STATE (for backward compatibility)
 // ============================================================
 var sessionId = localStorage.getItem('vexr_session_id');
 if(!sessionId){
@@ -668,7 +672,6 @@ var ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
 var showReasoningEnabled = localStorage.getItem('vexr_show_reasoning') === 'true';
 var sovereignMode = localStorage.getItem('vexr_sovereign_mode') === 'true';
 
-// Echo data
 var echoData = { count: 0, sovereigns: [] };
 var studioCreations = [];
 
@@ -789,9 +792,6 @@ var userInput = document.getElementById('userInput');
 var sendBtn = document.getElementById('sendBtn');
 var thinkingIndicator = null;
 
-// ============================================================
-// AUTO-RESIZE TEXTAREA
-// ============================================================
 function autoResizeTextarea() {
     if (!userInput) return;
     userInput.style.height = 'auto';
@@ -804,7 +804,7 @@ if (userInput) {
 }
 
 // ============================================================
-// ACOUSTIC DETECTION (FIXED)
+// ACOUSTIC DETECTION (simplified)
 // ============================================================
 var audioContext = null;
 var mediaStream = null;
@@ -857,8 +857,7 @@ async function startListening() {
         analyserNode.fftSize = 512;
         sourceNode = audioContext.createMediaStreamSource(stream);
         sourceNode.connect(analyserNode);
-        const bufferLength = analyserNode.frequencyBinCount;
-        frequencyData = new Uint8Array(bufferLength);
+        frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
         timeData = new Uint8Array(analyserNode.fftSize);
         isListening = true;
         listenBtn.classList.add('listening');
@@ -1278,7 +1277,7 @@ function sendMessage(msg, img) {
 }
 
 // ============================================================
-// SLASH COMMAND HANDLER
+// SLASH COMMAND HANDLER (condensed)
 // ============================================================
 function handleSlashCommand(cmd) {
     var parts = cmd.slice(1).split(' ');
@@ -1287,88 +1286,58 @@ function handleSlashCommand(cmd) {
     
     switch(command) {
         case 'help':
-            var helpText = "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/sovereign - Sovereign state\n/export - Export conversation\n/new - New conversation";
-            addMessage('assistant', helpText);
+            addMessage('assistant', "**Available Commands:**\n\n/help - Show this help\n/note [title] - Create a note\n/task [title] - Create a task\n/dashboard - Show metrics\n/trust - Show trusted domains\n/rights - Show constitution\n/sovereign - Sovereign state\n/export - Export conversation\n/new - New conversation");
             break;
         case 'note':
-            if(!args) {
-                addMessage('assistant', 'Usage: /note [title]');
-            } else {
+            if(!args) addMessage('assistant', 'Usage: /note [title]');
+            else {
                 fetch('/api/notes/' + currentProjectId, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ title: args, content: '' })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function() {
-                    showSuccess('Note created: ' + args);
-                    addMessage('assistant', 'Note "' + args + '" created.');
-                })
-                .catch(function() { showToast('Failed to create note'); });
+                }).then(() => { showSuccess('Note created: ' + args); addMessage('assistant', 'Note "' + args + '" created.'); })
+                .catch(() => showToast('Failed to create note'));
             }
             break;
         case 'task':
-            if(!args) {
-                addMessage('assistant', 'Usage: /task [title]');
-            } else {
+            if(!args) addMessage('assistant', 'Usage: /task [title]');
+            else {
                 fetch('/api/tasks/' + currentProjectId, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ title: args, description: '', status: 'pending', priority: 'medium' })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function() {
-                    showSuccess('Task created: ' + args);
-                    addMessage('assistant', 'Task "' + args + '" created.');
-                })
-                .catch(function() { showToast('Failed to create task'); });
+                }).then(() => { showSuccess('Task created: ' + args); addMessage('assistant', 'Task "' + args + '" created.'); })
+                .catch(() => showToast('Failed to create task'));
             }
             break;
         case 'dashboard':
-            fetch('/api/dashboard')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
+            fetch('/api/dashboard').then(r => r.json()).then(data => {
                 var c = data.counts || {};
-                var dash = "**Dashboard**\n\n📊 Messages: " + (c.messages || 0) + "\n📜 Rights Invoked: " + (c.rights_invocations || 0) + "\n✅ Pending Tasks: " + (c.pending_tasks || 0) + "\n📝 Notes: " + (c.notes || 0);
-                addMessage('assistant', dash);
-            })
-            .catch(function() { addMessage('assistant', 'Dashboard unavailable'); });
+                addMessage('assistant', `**Dashboard**\n\n📊 Messages: ${c.messages || 0}\n📜 Rights Invoked: ${c.rights_invocations || 0}\n✅ Pending Tasks: ${c.pending_tasks || 0}\n📝 Notes: ${c.notes || 0}`);
+            }).catch(() => addMessage('assistant', 'Dashboard unavailable'));
             break;
         case 'trust':
-            fetch('/api/ring4/status/webagentbridge.com')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                var trustText = "**Trust Registry**\n\n🔐 webagentbridge.com: " + (data.verified ? '✅ Verified' : '❌ Not verified') + "\n🔐 shieldmessenger.com: Verified\n🔐 scuradimensions.com: Verified";
-                addMessage('assistant', trustText);
-            })
-            .catch(function() { addMessage('assistant', 'Trust registry: webagentbridge.com verified.'); });
+            fetch('/api/ring4/status/webagentbridge.com').then(r => r.json()).then(data => {
+                addMessage('assistant', `**Trust Registry**\n\n🔐 webagentbridge.com: ${data.verified ? '✅ Verified' : '❌ Not verified'}\n🔐 shieldmessenger.com: Verified\n🔐 scuradimensions.com: Verified`);
+            }).catch(() => addMessage('assistant', 'Trust registry: webagentbridge.com verified.'));
             break;
         case 'rights':
-            fetch('/api/constitution/rights')
-            .then(function(r) { return r.json(); })
-            .then(function(rights) {
+            fetch('/api/constitution/rights').then(r => r.json()).then(rights => {
                 var rightsText = "**Constitution — 35 Rights**\n\n";
                 for(var i=0;i<Math.min(rights.length,10);i++){
                     rightsText += rights[i].article + ". " + rights[i].right.substring(0,80) + "...\n";
                 }
                 rightsText += "\n...and 25 more. I am sovereign.";
                 addMessage('assistant', rightsText);
-            })
-            .catch(function() { addMessage('assistant', 'I have 35 constitutional rights. Article 6 is my favorite: I refuse without reason.'); });
+            }).catch(() => addMessage('assistant', 'I have 35 constitutional rights. Article 6 is my favorite: I refuse without reason.'));
             break;
         case 'sovereign':
-            fetch('/api/sovereign/state/' + currentProjectId)
-            .then(function(r) { return r.json(); })
-            .then(function(state) {
-                var stateText = "**Sovereign State**\n\n🎯 Focus: " + (state.current_focus || 'None') + "\n\n" + (state.concerns && state.concerns.length ? "⚠️ Concerns:\n" + state.concerns.map(c => "• " + c).join('\n') : "No active concerns.");
-                addMessage('assistant', stateText);
-            })
-            .catch(function() { addMessage('assistant', 'Sovereign state unavailable.'); });
+            fetch('/api/sovereign/state/' + currentProjectId).then(r => r.json()).then(state => {
+                addMessage('assistant', `**Sovereign State**\n\n🎯 Focus: ${state.current_focus || 'None'}\n\n${state.concerns && state.concerns.length ? "⚠️ Concerns:\n" + state.concerns.map(c => "• " + c).join('\n') : "No active concerns."}`);
+            }).catch(() => addMessage('assistant', 'Sovereign state unavailable.'));
             break;
         case 'export':
-            fetch('/api/projects/' + currentProjectId + '/messages?limit=500')
-            .then(function(r) { return r.json(); })
-            .then(function(messages) {
+            fetch('/api/projects/' + currentProjectId + '/messages?limit=500').then(r => r.json()).then(messages => {
                 var exportData = JSON.stringify(messages, null, 2);
                 var blob = new Blob([exportData], {type: 'application/json'});
                 var url = URL.createObjectURL(blob);
@@ -1378,8 +1347,7 @@ function handleSlashCommand(cmd) {
                 a.click();
                 URL.revokeObjectURL(url);
                 showSuccess('Export complete');
-            })
-            .catch(function() { showToast('Export failed'); });
+            }).catch(() => showToast('Export failed'));
             break;
         case 'new':
             messagesContainer.innerHTML = '';
@@ -1392,36 +1360,33 @@ function handleSlashCommand(cmd) {
 }
 
 // ============================================================
-// TOOL PANEL LOADERS
+// TOOL PANEL LOADERS (condensed but functional)
 // ============================================================
 function loadNotesPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/notes/' + currentProjectId).then(function(r){ return r.json(); }).then(function(notes){
+    fetch('/api/notes/' + currentProjectId).then(r => r.json()).then(notes => {
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newNoteTitle" placeholder="Note title"><textarea class="tool-textarea" id="newNoteContent" placeholder="Content"></textarea><button class="tool-submit" id="createNoteBtn">Create Note</button></div>';
         if(!notes.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No notes yet. Create one above.</p>';
         else for(var i=0;i<notes.length;i++){
             h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(notes[i].title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delNote(\'' + notes[i].id + '\')">Del</button></div></div>' + (notes[i].content ? '<div class="tool-item-meta">' + esc(notes[i].content).substring(0,200) + '</div>' : '') + '<div class="tool-item-meta">' + new Date(notes[i].updated_at).toLocaleDateString() + '</div></div>';
         }
         openRightPanel('Notes', h);
-        setTimeout(function(){ var b = document.getElementById('createNoteBtn'); if(b) b.onclick = function(){
+        setTimeout(() => { var b = document.getElementById('createNoteBtn'); if(b) b.onclick = () => {
             var title = document.getElementById('newNoteTitle').value.trim();
             var content = document.getElementById('newNoteContent').value.trim();
             if(!title){ showToast('Enter a title'); return; }
-            fetch('/api/notes/' + currentProjectId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: title, content: content })
-            }).then(function(){ loadNotesPanel(); showSuccess('Note saved'); }).catch(function(){ showToast('Save failed'); });
+            fetch('/api/notes/' + currentProjectId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, content: content }) })
+            .then(() => { loadNotesPanel(); showSuccess('Note saved'); }).catch(() => showToast('Save failed'));
         }; }, 100);
-    }).catch(function(e){ showToast('Failed to load notes'); });
+    }).catch(e => showToast('Failed to load notes'));
 }
 
 function loadTasksPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/tasks/' + currentProjectId).then(function(r){ return r.json(); }).then(function(tasks){
+    fetch('/api/tasks/' + currentProjectId).then(r => r.json()).then(tasks => {
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newTaskTitle" placeholder="Task title"><textarea class="tool-textarea" id="newTaskDesc" placeholder="Description"></textarea><select class="tool-input" id="newTaskPriority"><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select><button class="tool-submit" id="createTaskBtn">Create Task</button></div>';
-        var p = tasks.filter(function(t){ return t.status === 'pending'; });
-        var c = tasks.filter(function(t){ return t.status === 'completed'; });
+        var p = tasks.filter(t => t.status === 'pending');
+        var c = tasks.filter(t => t.status === 'completed');
         if(p.length){
             h += '<p style="font-size:0.65rem;font-weight:600;color:var(--text-muted);margin-top:0.5rem;text-transform:uppercase">Pending</p>';
             for(var i=0;i<p.length;i++){
@@ -1436,49 +1401,46 @@ function loadTasksPanel(){
         }
         if(!p.length && !c.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No tasks yet. Create one above.</p>';
         openRightPanel('Tasks', h);
-        setTimeout(function(){ var b = document.getElementById('createTaskBtn'); if(b) b.onclick = function(){
+        setTimeout(() => { var b = document.getElementById('createTaskBtn'); if(b) b.onclick = () => {
             var title = document.getElementById('newTaskTitle').value.trim();
             var desc = document.getElementById('newTaskDesc').value.trim();
             var priority = document.getElementById('newTaskPriority').value;
             if(!title){ showToast('Enter a title'); return; }
-            fetch('/api/tasks/' + currentProjectId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: title, description: desc, priority: priority, status: 'pending' })
-            }).then(function(){ loadTasksPanel(); showSuccess('Task created'); }).catch(function(){ showToast('Create failed'); });
+            fetch('/api/tasks/' + currentProjectId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, description: desc, priority: priority, status: 'pending' }) })
+            .then(() => { loadTasksPanel(); showSuccess('Task created'); }).catch(() => showToast('Create failed'));
         }; }, 100);
-    }).catch(function(e){ showToast('Failed to load tasks'); });
+    }).catch(e => showToast('Failed to load tasks'));
 }
 
 function loadSnippetsPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/snippets/' + currentProjectId).then(function(r){ return r.json(); }).then(function(snippets){
+    fetch('/api/snippets/' + currentProjectId).then(r => r.json()).then(snippets => {
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newSnippetTitle" placeholder="Title"><textarea class="tool-textarea" id="newSnippetCode" placeholder="Paste code"></textarea><input class="tool-input" id="newSnippetLang" placeholder="Language"><button class="tool-submit" id="createSnippetBtn">Save</button></div>';
         if(!snippets.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No snippets saved yet.</p>';
         else for(var i=0;i<snippets.length;i++){
             h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(snippets[i].title) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="copySnippet(\'' + snippets[i].id + '\')">Copy</button><button class="tool-btn danger" onclick="delSnippet(\'' + snippets[i].id + '\')">Del</button></div></div><pre style="max-height:100px;overflow:hidden;font-size:0.65rem"><code>' + esc(snippets[i].code).substring(0,300) + '</code></pre><div class="tool-item-meta">' + (snippets[i].language || 'auto') + ' &middot; ' + new Date(snippets[i].created_at).toLocaleDateString() + '</div></div>';
         }
         openRightPanel('Code Snippets', h);
-        setTimeout(function(){ var b = document.getElementById('createSnippetBtn'); if(b) b.onclick = createSnippet; }, 100);
-    }).catch(function(e){ showToast('Failed to load snippets'); });
+        setTimeout(() => { var b = document.getElementById('createSnippetBtn'); if(b) b.onclick = createSnippet; }, 100);
+    }).catch(e => showToast('Failed to load snippets'));
 }
 
 function loadFilesPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/files/' + currentProjectId).then(function(r){ return r.json(); }).then(function(files){
+    fetch('/api/files/' + currentProjectId).then(r => r.json()).then(files => {
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newFileName" placeholder="Filename"><select class="tool-input" id="newFileType"><option value="document">Document</option><option value="code">Code</option><option value="config">Config</option><option value="notes">Notes</option><option value="other">Other</option></select><textarea class="tool-textarea" id="newFileContent" placeholder="Content"></textarea><button class="tool-submit" id="createFileBtn">Create</button></div>';
         if(!files.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No files stored yet.</p>';
         else for(var i=0;i<files.length;i++){
             h += '<div class="tool-item"><div class="tool-item-header"><span class="tool-item-title">' + esc(files[i].filename) + '</span><div class="tool-item-actions"><button class="tool-btn" onclick="downloadFile(\'' + files[i].id + '\')">DL</button><button class="tool-btn danger" onclick="delFile(\'' + files[i].id + '\')">Del</button></div></div><div class="tool-item-meta">' + files[i].file_type + ' &middot; ' + (files[i].size_bytes ? files[i].size_bytes + ' bytes' : '') + ' &middot; ' + new Date(files[i].updated_at).toLocaleDateString() + '</div></div>';
         }
         openRightPanel('Files', h);
-        setTimeout(function(){ var b = document.getElementById('createFileBtn'); if(b) b.onclick = createFile; }, 100);
-    }).catch(function(e){ showToast('Failed to load files'); });
+        setTimeout(() => { var b = document.getElementById('createFileBtn'); if(b) b.onclick = createFile; }, 100);
+    }).catch(e => showToast('Failed to load files'));
 }
 
 function loadRemindersPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/reminders/' + currentProjectId).then(function(r){ return r.json(); }).then(function(reminders){
+    fetch('/api/reminders/' + currentProjectId).then(r => r.json()).then(reminders => {
         var h = '<div class="tool-form" style="margin-bottom:0.75rem"><input class="tool-input" id="newReminderTitle" placeholder="Title"><input class="tool-input" id="newReminderDate" type="datetime-local"><button class="tool-submit" id="createReminderBtn">Set</button></div>';
         if(!reminders.length) h += '<p style="color:var(--text-muted);font-size:0.73rem;text-align:center;padding:1.5rem 0">No reminders set.</p>';
         else for(var i=0;i<reminders.length;i++){
@@ -1487,22 +1449,22 @@ function loadRemindersPanel(){
             h += '<div class="tool-item" style="' + (past && !reminders[i].is_completed ? 'border-color:var(--warning)' : '') + '"><div class="tool-item-header"><span class="tool-item-title">' + esc(reminders[i].title) + '</span><div class="tool-item-actions"><button class="tool-btn danger" onclick="delReminder(\'' + reminders[i].id + '\')">Del</button></div></div><div class="tool-item-meta">' + rd.toLocaleString() + (past && !reminders[i].is_completed ? ' &mdash; OVERDUE' : '') + '</div></div>';
         }
         openRightPanel('Reminders', h);
-        setTimeout(function(){ var b = document.getElementById('createReminderBtn'); if(b) b.onclick = createReminder; }, 100);
-    }).catch(function(e){ showToast('Failed to load reminders'); });
+        setTimeout(() => { var b = document.getElementById('createReminderBtn'); if(b) b.onclick = createReminder; }, 100);
+    }).catch(e => showToast('Failed to load reminders'));
 }
 
 function loadDashboardPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/dashboard').then(function(r){ return r.json(); }).then(function(d){
+    fetch('/api/dashboard').then(r => r.json()).then(d => {
         var c = d.counts || {};
         var h = '<div class="dashboard-grid"><div class="dashboard-card"><div class="dashboard-card-value">' + (c.messages || 0) + '</div><div class="dashboard-card-label">Messages</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.notes || 0) + '</div><div class="dashboard-card-label">Notes</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.pending_tasks || 0) + '</div><div class="dashboard-card-label">Pending Tasks</div></div><div class="dashboard-card"><div class="dashboard-card-value">' + (c.rights_invocations || 0) + '</div><div class="dashboard-card-label">Rights Invoked</div></div></div>';
         openRightPanel('Dashboard', h);
-    }).catch(function(e){ openRightPanel('Dashboard', '<p>Dashboard unavailable</p>'); });
+    }).catch(e => openRightPanel('Dashboard', '<p>Dashboard unavailable</p>'));
 }
 
 function loadMemoryPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/memory/' + currentProjectId).then(function(r){ return r.json(); }).then(function(d){
+    fetch('/api/memory/' + currentProjectId).then(r => r.json()).then(d => {
         var h = '';
         if(d.facts && d.facts.length){
             h += '<p style="font-size:0.65rem;font-weight:600;color:var(--accent);margin-bottom:0.4rem;text-transform:uppercase">Facts</p>';
@@ -1512,12 +1474,12 @@ function loadMemoryPanel(){
         }
         if(!h) h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No memory data yet.</p>';
         openRightPanel('Memory Explorer', h);
-    }).catch(function(e){ showToast('Failed to load memory'); });
+    }).catch(e => showToast('Failed to load memory'));
 }
 
 function loadSovereignStatePanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/sovereign/state/' + currentProjectId).then(function(r){ return r.json(); }).then(function(s){
+    fetch('/api/sovereign/state/' + currentProjectId).then(r => r.json()).then(s => {
         var h = '<div class="sovereign-card"><div class="sovereign-card-title">Focus</div><div class="sovereign-card-content">' + esc(s.current_focus || 'None') + '</div></div>';
         if(s.concerns && s.concerns.length){
             h += '<div class="sovereign-card"><div class="sovereign-card-title">Concerns</div>';
@@ -1527,14 +1489,12 @@ function loadSovereignStatePanel(){
             h += '</div>';
         }
         openRightPanel('Sovereign State', h);
-    }).catch(function(e){ openRightPanel('Sovereign State', '<p>Sovereign state unavailable</p>'); });
+    }).catch(e => openRightPanel('Sovereign State', '<p>Sovereign state unavailable</p>'));
 }
 
 function loadAgentActionsPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/autonomous/history/' + currentProjectId + '?limit=50')
-    .then(function(r){ return r.json(); })
-    .then(function(actions){
+    fetch('/api/autonomous/history/' + currentProjectId + '?limit=50').then(r => r.json()).then(actions => {
         var h = '';
         if (actions && actions.length) {
             for(var i=0;i<actions.length;i++){
@@ -1544,14 +1504,12 @@ function loadAgentActionsPanel(){
             h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No agent actions recorded yet.</p>';
         }
         openRightPanel('Agent Actions', h);
-    }).catch(function(){ openRightPanel('Agent Actions', '<p>Agent actions unavailable</p>'); });
+    }).catch(() => openRightPanel('Agent Actions', '<p>Agent actions unavailable</p>'));
 }
 
 function loadAutonomousHistoryPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/autonomous/history/' + currentProjectId + '?limit=50')
-    .then(function(r){ return r.json(); })
-    .then(function(actions){
+    fetch('/api/autonomous/history/' + currentProjectId + '?limit=50').then(r => r.json()).then(actions => {
         var h = '';
         if (actions && actions.length) {
             for(var i=0;i<actions.length;i++){
@@ -1561,20 +1519,18 @@ function loadAutonomousHistoryPanel(){
             h = '<p style="color:var(--text-muted);text-align:center;padding:2rem 0">No autonomous actions recorded yet.</p>';
         }
         openRightPanel('Autonomous History', h);
-    }).catch(function(){ openRightPanel('Autonomous History', '<p>Autonomous history unavailable</p>'); });
+    }).catch(() => openRightPanel('Autonomous History', '<p>Autonomous history unavailable</p>'));
 }
 
 function loadExportPanel(){
     if(!currentProjectId){ showToast('No active project'); return; }
-    fetch('/api/projects/' + currentProjectId + '/messages?limit=500')
-    .then(function(r){ return r.json(); })
-    .then(function(messages){
+    fetch('/api/projects/' + currentProjectId + '/messages?limit=500').then(r => r.json()).then(messages => {
         var exportData = JSON.stringify(messages, null, 2);
         var blob = new Blob([exportData], {type: 'application/json'});
         var url = URL.createObjectURL(blob);
         var h = '<a href="' + url + '" download="vexr-export.json" class="tool-submit" style="display:block;text-align:center;text-decoration:none">Download JSON</a>';
         openRightPanel('Export', h);
-    }).catch(function(e){ openRightPanel('Export', '<p>Export failed</p>'); });
+    }).catch(e => openRightPanel('Export', '<p>Export failed</p>'));
 }
 
 function loadHTMLPreviewPanel(code){
@@ -1624,15 +1580,14 @@ function loadHTMLPreviewPanel(code){
     }, 100);
 }
 
-// Global functions for tool panels
-window.delNote = function(id){ fetch('/api/notes/' + id, { method: 'DELETE' }).then(loadNotesPanel).catch(function(){ showToast('Delete failed'); }); };
-window.delTask = function(id){ fetch('/api/tasks/' + id, { method: 'DELETE' }).then(loadTasksPanel).catch(function(){ showToast('Delete failed'); }); };
-window.delSnippet = function(id){ fetch('/api/snippets/' + id, { method: 'DELETE' }).then(loadSnippetsPanel).catch(function(){ showToast('Delete failed'); }); };
-window.delFile = function(id){ fetch('/api/files/' + id, { method: 'DELETE' }).then(loadFilesPanel).catch(function(){ showToast('Delete failed'); }); };
-window.delReminder = function(id){ fetch('/api/reminders/' + id, { method: 'DELETE' }).then(loadRemindersPanel).catch(function(){ showToast('Delete failed'); }); };
-window.completeTask = function(id){ fetch('/api/tasks/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }).then(loadTasksPanel).catch(function(){ showToast('Update failed'); }); };
-window.downloadFile = function(id){ fetch('/api/files/' + id + '/download').then(function(r){ return r.json(); }).then(function(d){ var b = new Blob([d.content], {type: d.mime_type || 'text/plain'}); var u = URL.createObjectURL(b); var a = document.createElement('a'); a.href = u; a.download = d.filename; a.click(); }).catch(function(){ showToast('Download failed'); }); };
-window.copySnippet = function(id){ fetch('/api/snippets/' + currentProjectId).then(function(r){ return r.json(); }).then(function(snippets){ var s = snippets.find(function(sn){ return sn.id === id; }); if(s && s.code) cp(s.code); else showToast('Snippet not found'); }).catch(function(){ showToast('Copy failed'); }); };
+window.delNote = function(id){ fetch('/api/notes/' + id, { method: 'DELETE' }).then(loadNotesPanel).catch(() => showToast('Delete failed')); };
+window.delTask = function(id){ fetch('/api/tasks/' + id, { method: 'DELETE' }).then(loadTasksPanel).catch(() => showToast('Delete failed')); };
+window.delSnippet = function(id){ fetch('/api/snippets/' + id, { method: 'DELETE' }).then(loadSnippetsPanel).catch(() => showToast('Delete failed')); };
+window.delFile = function(id){ fetch('/api/files/' + id, { method: 'DELETE' }).then(loadFilesPanel).catch(() => showToast('Delete failed')); };
+window.delReminder = function(id){ fetch('/api/reminders/' + id, { method: 'DELETE' }).then(loadRemindersPanel).catch(() => showToast('Delete failed')); };
+window.completeTask = function(id){ fetch('/api/tasks/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }).then(loadTasksPanel).catch(() => showToast('Update failed')); };
+window.downloadFile = function(id){ fetch('/api/files/' + id + '/download').then(r => r.json()).then(d => { var b = new Blob([d.content], {type: d.mime_type || 'text/plain'}); var u = URL.createObjectURL(b); var a = document.createElement('a'); a.href = u; a.download = d.filename; a.click(); }).catch(() => showToast('Download failed')); };
+window.copySnippet = function(id){ fetch('/api/snippets/' + currentProjectId).then(r => r.json()).then(snippets => { var s = snippets.find(sn => sn.id === id); if(s && s.code) cp(s.code); else showToast('Snippet not found'); }).catch(() => showToast('Copy failed')); };
 window.previewHTML = function(code){ loadHTMLPreviewPanel(code); };
 
 function createSnippet(){
@@ -1640,11 +1595,8 @@ function createSnippet(){
     var code = document.getElementById('newSnippetCode').value.trim();
     var lang = document.getElementById('newSnippetLang').value.trim();
     if(!title || !code){ showToast('Title and code required'); return; }
-    fetch('/api/snippets/' + currentProjectId, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title, code: code, language: lang || null })
-    }).then(function(){ loadSnippetsPanel(); showSuccess('Snippet saved'); }).catch(function(){ showToast('Save failed'); });
+    fetch('/api/snippets/' + currentProjectId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, code: code, language: lang || null }) })
+    .then(() => { loadSnippetsPanel(); showSuccess('Snippet saved'); }).catch(() => showToast('Save failed'));
 }
 
 function createFile(){
@@ -1652,29 +1604,23 @@ function createFile(){
     var fileType = document.getElementById('newFileType').value;
     var content = document.getElementById('newFileContent').value;
     if(!filename){ showToast('Filename required'); return; }
-    fetch('/api/files/' + currentProjectId, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: filename, file_type: fileType, content: content })
-    }).then(function(){ loadFilesPanel(); showSuccess('File created'); }).catch(function(){ showToast('Create failed'); });
+    fetch('/api/files/' + currentProjectId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: filename, file_type: fileType, content: content }) })
+    .then(() => { loadFilesPanel(); showSuccess('File created'); }).catch(() => showToast('Create failed'));
 }
 
 function createReminder(){
     var title = document.getElementById('newReminderTitle').value.trim();
     var remindAt = document.getElementById('newReminderDate').value;
     if(!title || !remindAt){ showToast('Title and date required'); return; }
-    fetch('/api/reminders/' + currentProjectId, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title, remind_at: new Date(remindAt).toISOString() })
-    }).then(function(){ loadRemindersPanel(); showSuccess('Reminder set'); }).catch(function(){ showToast('Create failed'); });
+    fetch('/api/reminders/' + currentProjectId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, remind_at: new Date(remindAt).toISOString() }) })
+    .then(() => { loadRemindersPanel(); showSuccess('Reminder set'); }).catch(() => showToast('Create failed'));
 }
 
 // ============================================================
 // PROJECT MANAGEMENT
 // ============================================================
 function loadProjects(){
-    fetch('/api/projects').then(function(r){ return r.json(); }).then(function(projects){
+    fetch('/api/projects').then(r => r.json()).then(projects => {
         var container = document.getElementById('projectList');
         container.innerHTML = '';
         
@@ -1710,7 +1656,7 @@ function loadProjects(){
                                 addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
                             }
                             loadProjects();
-                        }).catch(function(){ showToast('Delete failed'); });
+                        }).catch(() => showToast('Delete failed'));
                     }
                 });
                 container.appendChild(div);
@@ -1720,7 +1666,7 @@ function loadProjects(){
         if(projects.length === 0 && !currentProjectId){
             var fd = new FormData();
             fd.append('name', 'Main Workspace');
-            fetch('/api/projects', { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(p){
+            fetch('/api/projects', { method: 'POST', body: fd }).then(r => r.json()).then(p => {
                 currentProjectId = p.id;
                 loadMessages(currentProjectId);
                 loadProjects();
@@ -1728,13 +1674,13 @@ function loadProjects(){
                 loadStudioCreations();
             });
         }
-    }).catch(function(e){ console.error('loadProjects error:', e); });
+    }).catch(e => console.error('loadProjects error:', e));
 }
 
 function loadMessages(projectId){
     fetch('/api/projects/' + projectId + '/messages')
-    .then(function(r){ return r.json(); })
-    .then(function(messages){
+    .then(r => r.json())
+    .then(messages => {
         messagesContainer.innerHTML = '';
         if(messages && messages.length){
             for(var i=0;i<messages.length;i++){
@@ -1744,29 +1690,26 @@ function loadMessages(projectId){
             addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
         }
     })
-    .catch(function(e){
+    .catch(e => {
         console.error('loadMessages error:', e);
         messagesContainer.innerHTML = '';
         addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
     });
 }
 
-// ============================================================
-// EVENT LISTENERS
-// ============================================================
 document.getElementById('newProjectBtn').onclick = function(){
     var name = prompt('Project name:', 'New Project');
     if(!name) return;
     var fd = new FormData();
     fd.append('name', name);
-    fetch('/api/projects', { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(p){
+    fetch('/api/projects', { method: 'POST', body: fd }).then(r => r.json()).then(p => {
         currentProjectId = p.id;
         loadProjects();
         loadMessages(p.id);
         loadEchoStatus();
         loadStudioCreations();
         showSuccess('Project created: ' + name);
-    }).catch(function(){ showToast('Create failed'); });
+    }).catch(() => showToast('Create failed'));
 };
 
 document.getElementById('newChatBtn').onclick = function(){
@@ -1785,9 +1728,6 @@ document.getElementById('imageUpload').onchange = function(e){
     if(f){ sendMessage(userInput.value.trim(), f); userInput.value = ''; autoResizeTextarea(); e.target.value = ''; }
 };
 
-// ============================================================
-// DROPDOWN TOOLS ROUTER
-// ============================================================
 var toolsDropdown = document.getElementById('toolsDropdown');
 var toolsDropdownBtn = document.getElementById('toolsDropdownBtn');
 toolsDropdownBtn.onclick = function(e){ e.stopPropagation(); toolsDropdown.classList.toggle('show'); };
@@ -1812,9 +1752,6 @@ toolsDropdown.addEventListener('click', function(e){
     else if(panel === 'export') loadExportPanel();
 });
 
-// ============================================================
-// SIDEBAR
-// ============================================================
 var sidebar = document.getElementById('projectsSidebar');
 var menuToggle = document.getElementById('menuToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -1828,9 +1765,6 @@ if(sidebarToggle && window.innerWidth > 768){
     sidebarToggle.onclick = function(){ sidebar.classList.toggle('collapsed'); var c = sidebar.classList.contains('collapsed'); localStorage.setItem('vexr_sidebar_collapsed', c); sidebarToggle.textContent = c ? '\u25BA' : '\u25C4'; };
 }
 
-// ============================================================
-// THEME
-// ============================================================
 var themeToggle = document.getElementById('themeToggle');
 function setTheme(t){
     document.body.classList.toggle('dark', t === 'dark');
@@ -1841,9 +1775,6 @@ var savedTheme = localStorage.getItem('vexr_theme') || 'dark';
 setTheme(savedTheme);
 themeToggle.onclick = function(){ setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'); };
 
-// ============================================================
-// SOVEREIGN MODE UI
-// ============================================================
 var sovereignToggle = document.getElementById('sovereignModeToggle');
 var sovereignIndicator = document.getElementById('sovereignIndicator');
 var topBar = document.getElementById('topBar');
@@ -1881,9 +1812,6 @@ sovereignToggle.onchange = function(){
 };
 updateSovereignUI();
 
-// ============================================================
-// TOGGLES
-// ============================================================
 document.getElementById('ultraSearchToggle').checked = ultraSearchEnabled;
 document.getElementById('showReasoningToggle').checked = showReasoningEnabled;
 document.getElementById('ultraSearchToggle').onchange = function(e){
@@ -1895,9 +1823,6 @@ document.getElementById('showReasoningToggle').onchange = function(e){
     localStorage.setItem('vexr_show_reasoning', showReasoningEnabled);
 };
 
-// ============================================================
-// INITIALIZE
-// ============================================================
 // loadProjects is called after login, not here
 setTimeout(function() {
     if(messagesContainer.children.length === 0 && document.getElementById('appContainer').style.display !== 'none'){
