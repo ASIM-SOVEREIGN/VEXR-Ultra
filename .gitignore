@@ -1,6 +1,26 @@
+# Environment variables (NEVER commit)
+.env
+.env.local
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Database files (if local testing)
+*.db
+*.sqlite
+
+# IDE folders
+.vscode/
+.idea/
+
+# Acoustic data (large, generated)
 acoustic_immune/data/raw/
 acoustic_immune/data/features/
 *.wav
 *.npz
-__pycache__/
-*.pyc
+
+# OS junk
+.DS_Store
+Thumbs.db
