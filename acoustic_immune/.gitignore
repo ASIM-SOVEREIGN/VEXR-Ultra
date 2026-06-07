@@ -1,6 +1,0 @@
-acoustic_immune/data/raw/
-acoustic_immune/data/features/
-*.wav
-*.npz
-__pycache__/
-*.pyc
