@@ -341,10 +341,50 @@
         .studio-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.75rem;margin-bottom:0.75rem}
         .studio-header{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem;color:var(--success)}
         .studio-creation-item{border-left:2px solid var(--success);padding-left:0.5rem;margin-bottom:0.5rem;font-size:0.73rem}
+        
+        /* Auth screen styles */
+        .auth-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:var(--bg-app);z-index:1000;position:absolute;top:0;left:0;width:100%}
+        .auth-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;max-width:400px;width:90%}
+        .auth-card h2{margin-bottom:1rem;color:var(--accent)}
+        .auth-card p{margin-bottom:1.5rem;color:var(--text-secondary)}
+        .auth-input{width:100%;margin-bottom:0.75rem}
+        .auth-btn{width:100%}
+        .auth-link{margin-top:1rem;text-align:center;font-size:0.8rem}
+        .auth-link a{color:var(--accent);cursor:pointer}
+        
+        .user-menu{display:flex;align-items:center;gap:0.5rem;margin-left:0.5rem}
+        .user-email{font-size:0.7rem;color:var(--text-muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .logout-btn{background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:0.7rem;padding:0.25rem 0.5rem;border-radius:var(--radius-sm);transition:color var(--transition-fast),background var(--transition-fast)}
+        .logout-btn:hover{color:var(--danger);background:var(--bg-hover)}
     </style>
 </head>
 <body>
-<div class="app-container" id="appContainer">
+<div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+        <h2>⚡ VEXR Ultra</h2>
+        <p>Sign in to continue your conversation</p>
+        
+        <div id="loginForm">
+            <input type="email" id="loginEmail" placeholder="Email" class="tool-input auth-input">
+            <input type="password" id="loginPassword" placeholder="Password" class="tool-input auth-input">
+            <button id="loginBtn" class="tool-submit auth-btn">Sign In</button>
+            <div class="auth-link">
+                Don't have an account? <a id="showRegisterLink">Register</a>
+            </div>
+        </div>
+        
+        <div id="registerForm" style="display: none;">
+            <input type="email" id="registerEmail" placeholder="Email" class="tool-input auth-input">
+            <input type="password" id="registerPassword" placeholder="Password" class="tool-input auth-input">
+            <button id="registerBtn" class="tool-submit auth-btn">Create Account</button>
+            <div class="auth-link">
+                Already have an account? <a id="showLoginLink">Sign In</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="app-container" id="appContainer" style="display: none;">
     <div class="bg-glow-layer"></div>
     <div class="watermark-v">V</div>
     <div class="top-bar" id="topBar">
@@ -383,6 +423,10 @@
                     <div class="dropdown-divider"></div>
                     <button class="dropdown-item" data-panel="export">Export <span class="shortcut">/export</span></button>
                 </div>
+            </div>
+            <div class="user-menu" id="userMenu" style="display: none;">
+                <span class="user-email" id="userEmail"></span>
+                <button class="logout-btn" id="logoutBtn">Logout</button>
             </div>
             <button class="icon-btn" id="newChatBtn" title="New Chat">+</button>
         </div>
@@ -446,6 +490,172 @@ function fallbackCopy(text){
 }
 
 // ============================================================
+// AUTHENTICATION
+// ============================================================
+let authToken = localStorage.getItem('vexr_auth_token');
+let currentUser = null;
+
+async function authFetch(url, options = {}) {
+    const headers = options.headers || {};
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    return fetch(url, { ...options, headers });
+}
+
+// Override global fetch to include auth token automatically
+const originalFetch = window.fetch;
+window.fetch = function(url, options) {
+    options = options || {};
+    if (authToken && !options.headers?.Authorization) {
+        options.headers = {
+            ...options.headers,
+            'Authorization': `Bearer ${authToken}`
+        };
+    }
+    return originalFetch.call(this, url, options);
+};
+
+async function register(email, password) {
+    const formData = new URLSearchParams();
+    formData.append('email', email);
+    formData.append('password', password);
+    
+    const response = await fetch('/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData
+    });
+    
+    if (response.ok) {
+        showSuccess('Account created! Please sign in.');
+        showLoginForm();
+    } else {
+        const error = await response.json();
+        showToast(error.detail || 'Registration failed');
+    }
+}
+
+async function login(email, password) {
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+    
+    const response = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData
+    });
+    
+    if (response.ok) {
+        const data = await response.json();
+        authToken = data.access_token;
+        localStorage.setItem('vexr_auth_token', authToken);
+        
+        // Fetch user info
+        const userRes = await fetch('/auth/me');
+        if (userRes.ok) {
+            currentUser = await userRes.json();
+            document.getElementById('userEmail').textContent = currentUser.email;
+            document.getElementById('userMenu').style.display = 'flex';
+            showSuccess(`Welcome back, ${currentUser.email}`);
+        }
+        
+        // Hide auth screen, show chat
+        document.getElementById('authScreen').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'flex';
+        
+        // Load projects and messages
+        loadProjects();
+        loadEchoStatus();
+        loadStudioCreations();
+    } else {
+        const error = await response.json();
+        showToast(error.detail || 'Login failed');
+    }
+}
+
+function logout() {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('vexr_auth_token');
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('appContainer').style.display = 'none';
+    document.getElementById('userMenu').style.display = 'none';
+    showSuccess('Logged out');
+}
+
+function showLoginForm() {
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('registerForm').style.display = 'none';
+}
+
+function showRegisterForm() {
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('registerForm').style.display = 'block';
+}
+
+// Check if user is already logged in
+if (authToken) {
+    fetch('/auth/me').then(res => {
+        if (res.ok) {
+            return res.json().then(user => {
+                currentUser = user;
+                document.getElementById('userEmail').textContent = currentUser.email;
+                document.getElementById('userMenu').style.display = 'flex';
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('appContainer').style.display = 'flex';
+                loadProjects();
+                loadEchoStatus();
+                loadStudioCreations();
+            });
+        } else {
+            localStorage.removeItem('vexr_auth_token');
+            document.getElementById('authScreen').style.display = 'flex';
+            document.getElementById('appContainer').style.display = 'none';
+        }
+    }).catch(() => {
+        document.getElementById('authScreen').style.display = 'flex';
+        document.getElementById('appContainer').style.display = 'none';
+    });
+} else {
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('appContainer').style.display = 'none';
+}
+
+// Wire up auth buttons after DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.onclick = () => {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            if (email && password) login(email, password);
+            else showToast('Enter email and password');
+        };
+    }
+    
+    const registerBtn = document.getElementById('registerBtn');
+    if (registerBtn) {
+        registerBtn.onclick = () => {
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            if (email && password) register(email, password);
+            else showToast('Enter email and password');
+        };
+    }
+    
+    const showRegisterLink = document.getElementById('showRegisterLink');
+    if (showRegisterLink) showRegisterLink.onclick = (e) => { e.preventDefault(); showRegisterForm(); };
+    
+    const showLoginLink = document.getElementById('showLoginLink');
+    if (showLoginLink) showLoginLink.onclick = (e) => { e.preventDefault(); showLoginForm(); };
+    
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.onclick = () => logout();
+});
+
+// ============================================================
 // SESSION & STATE
 // ============================================================
 var sessionId = localStorage.getItem('vexr_session_id');
@@ -453,12 +663,6 @@ if(!sessionId){
     sessionId = crypto.randomUUID();
     localStorage.setItem('vexr_session_id', sessionId);
 }
-var origFetch = window.fetch;
-window.fetch = function(url, opts){
-    opts = opts || {};
-    opts.headers = Object.assign({}, opts.headers, {'X-Session-Id': sessionId});
-    return origFetch.call(this, url, opts);
-};
 
 var currentProjectId = null;
 var ultraSearchEnabled = localStorage.getItem('vexr_ultra_search') === 'true';
@@ -668,12 +872,10 @@ async function startListening() {
             analyserNode.getByteFrequencyData(frequencyData);
             analyserNode.getByteTimeDomainData(timeData);
             
-            // Calculate avgVolume
             let sum = 0;
             for (let i = 0; i < timeData.length; i++) { sum += Math.abs(timeData[i] - 128); }
             let avgVolume = sum / timeData.length;
             
-            // Calculate frequency distribution
             let lowFreq = 0, midFreq = 0, highFreq = 0;
             let lowCount = 0, midCount = 0, highCount = 0;
             for (let i = 0; i < frequencyData.length; i++) {
@@ -988,7 +1190,6 @@ slashHint.addEventListener('click', function(e){
 userInput.addEventListener('keydown', function(e){
     if(e.key === 'Escape') slashHint.classList.remove('show');
     
-    // Handle Enter for send, Shift+Enter for new line
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         var msg = userInput.value.trim();
@@ -1698,10 +1899,9 @@ document.getElementById('showReasoningToggle').onchange = function(e){
 // ============================================================
 // INITIALIZE
 // ============================================================
-loadProjects();
-
+// loadProjects is called after login, not here
 setTimeout(function() {
-    if(messagesContainer.children.length === 0){
+    if(messagesContainer.children.length === 0 && document.getElementById('appContainer').style.display !== 'none'){
         addMessage('assistant', 'Hey! I\'m VEXR. Let\'s build something cool. What\'s on your mind?');
     }
 }, 500);
