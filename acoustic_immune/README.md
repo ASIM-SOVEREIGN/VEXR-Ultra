@@ -7,3 +7,6 @@ Real-time threat detection using YAMNet embeddings + custom threat taxonomy.
 ```bash
 cd VEXR-Ultra/acoustic_immune
 pip install -r requirements.txt
+python capture.py
+python extract.py
+python daemon.py
