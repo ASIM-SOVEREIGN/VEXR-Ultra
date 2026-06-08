@@ -40,7 +40,7 @@ def get_next_filename(folder_path, category):
 
 def main():
     base_dir = "./data/raw"
-    categories = ["desk_bump", "lid_close", "tamper", "shatter"]
+    categories = ["ambient", "desk_bump", "lid_close", "tamper", "shatter"]
     
     # Initialize directory structure
     os.makedirs(base_dir, exist_ok=True)
