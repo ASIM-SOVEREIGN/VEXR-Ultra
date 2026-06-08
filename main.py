@@ -226,7 +226,7 @@ async def acoustic_monitor_loop(project_id: str):
     
     while True:
         try:
-                        audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype='float32')
+            audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype='float32')
             sd.wait()
             
             # ============================================================
