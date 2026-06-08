@@ -226,8 +226,14 @@ async def acoustic_monitor_loop(project_id: str):
     
     while True:
         try:
-            audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype='float32')
+                        audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype='float32')
             sd.wait()
+            
+            # ============================================================
+            # DEBUG: Print audio stats to verify live mic input
+            # ============================================================
+            print(f"🎤 AUDIO STATS - min: {audio.min():.6f}, max: {audio.max():.6f}, mean: {audio.mean():.6f}, std: {audio.std():.6f}")
+            # ============================================================
             
             threat, confidence, action, article = classify_threat(audio.flatten(), sample_rate)
             
