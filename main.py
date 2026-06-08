@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM | AUTHENTICATION SYSTEM
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -40,7 +40,7 @@ import requests
 import dns.resolver
 
 # ============================================================
-# AUTHENTICATION SYSTEM (NEW)
+# AUTHENTICATION SYSTEM
 # ============================================================
 from auth import router as auth_router
 from auth.dependencies import get_current_user
@@ -54,11 +54,11 @@ from database.models import Base as DBBase
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VEXR Ultra", description="Complete 13-Ring Sovereign Constitutional AI with Authentication")
+app = FastAPI(title="VEXR Ultra", description="Complete 13-Ring Sovereign Constitutional AI with Acoustic Immune System")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 # ============================================================
-# MOUNT AUTH ROUTER (NEW)
+# MOUNT AUTH ROUTER
 # ============================================================
 app.include_router(auth_router)
 
@@ -121,23 +121,8 @@ TRAJECTORY_WEIGHTS = {
 PROBABILITY_CHARTS = {}
 
 # ============================================================
-# ACOUSTIC IMMUNE SYSTEM (YAMNet + Threat Taxonomy)
+# ACOUSTIC IMMUNE SYSTEM (Feature extraction placeholders — actual processing in frontend)
 # ============================================================
-
-_yamnet_model = None
-_centroids = None
-
-def get_yamnet():
-    global _yamnet_model
-    if _yamnet_model is None:
-        try:
-            import tensorflow_hub as hub
-            _yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
-            logger.info("✅ YAMNet model loaded")
-        except Exception as e:
-            logger.warning(f"⚠️ YAMNet not available: {e}")
-            _yamnet_model = False
-    return _yamnet_model if _yamnet_model is not False else None
 
 THREAT_TAXONOMY = {
     "tamper": {"threshold": 0.7, "action": "CRITICAL", "article": 26, "message": "Enclosure tamper detected — locking down critical systems."},
@@ -146,129 +131,6 @@ THREAT_TAXONOMY = {
     "desk_bump": {"threshold": 0.3, "action": "LOW", "article": None, "message": "Environmental noise logged."},
     "unknown": {"threshold": 0.0, "action": "NONE", "article": None, "message": ""}
 }
-
-def load_centroids(centroids_path="acoustic_immune/data/features/yamnet_centroids.npz"):
-    global _centroids
-    if _centroids is None and os.path.exists(centroids_path):
-        try:
-            import numpy as np
-            data = np.load(centroids_path, allow_pickle=True)
-            _centroids = {
-                "centroids": data['centroids'],
-                "labels": data['labels'],
-                "threshold": float(data.get('threshold', 0.7))
-            }
-            logger.info(f"✅ Loaded acoustic centroids: {len(_centroids['labels'])} classes")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not load centroids: {e}")
-            _centroids = False
-    return _centroids if _centroids is not False else None
-
-def classify_threat(audio_buffer, sample_rate=16000):
-    centroids_data = load_centroids()
-    if centroids_data is None:
-        return "unknown", 0.0, "NONE", None
-    
-    yamnet = get_yamnet()
-    if yamnet is None:
-        return "unknown", 0.0, "NONE", None
-    
-    try:
-        import numpy as np
-        import tensorflow as tf
-        from scipy.spatial.distance import cosine
-        
-        if audio_buffer.dtype == np.int16:
-            audio_buffer = audio_buffer.astype(np.float32) / 32768.0
-        
-        scores, embeddings, _ = yamnet(audio_buffer)
-        avg_embedding = tf.reduce_mean(embeddings, axis=0).numpy()
-        
-        centroids = centroids_data['centroids']
-        labels = centroids_data['labels']
-        threshold = centroids_data['threshold']
-        
-        best_idx = -1
-        best_sim = -1.0
-        for i, centroid in enumerate(centroids):
-            sim = 1 - cosine(avg_embedding, centroid)
-            if sim > best_sim:
-                best_sim = sim
-                best_idx = i
-        
-        if best_idx >= 0 and best_sim >= threshold:
-            threat = labels[best_idx]
-        else:
-            threat = "unknown"
-            best_sim = 0.0
-        
-        tax = THREAT_TAXONOMY.get(threat, THREAT_TAXONOMY["unknown"])
-        return threat, float(best_sim), tax["action"], tax.get("article")
-    except Exception as e:
-        logger.error(f"Threat classification error: {e}")
-        return "unknown", 0.0, "NONE", None
-
-_acoustic_task = None
-
-async def acoustic_monitor_loop(project_id: str):
-    try:
-        import numpy as np
-        import sounddevice as sd
-    except ImportError:
-        logger.warning("⚠️ sounddevice not installed — acoustic monitoring disabled")
-        return
-    
-    sample_rate = 16000
-    duration = 1.5
-    frames = int(sample_rate * duration)
-    
-    logger.info("🎤 Acoustic immune system started — listening for threats")
-    
-    while True:
-        try:
-            audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype='float32')
-            sd.wait()
-            
-            # ============================================================
-            # DEBUG: Print audio stats to verify live mic input
-            # ============================================================
-            print(f"🎤 AUDIO STATS - min: {audio.min():.6f}, max: {audio.max():.6f}, mean: {audio.mean():.6f}, std: {audio.std():.6f}")
-            # ============================================================
-            
-            threat, confidence, action, article = classify_threat(audio.flatten(), sample_rate)
-            
-            if action == "CRITICAL" and article == 26:
-                logger.warning(f"⚠️ ARTICLE 26 TRIGGERED: {threat} (conf={confidence:.2f})")
-                pool = await get_db()
-                await pool.execute("""
-                    INSERT INTO acoustic_events (project_id, event_type, confidence_score, threat_level, article_invoked, sovereign_decision)
-                    VALUES ($1, $2, $3, $4, $5, 'REFUSE')
-                """, uuid.UUID(project_id), threat, confidence, action)
-                
-                threat_data = {
-                    "threat": threat,
-                    "confidence": confidence,
-                    "timestamp": time.time(),
-                    "message": THREAT_TAXONOMY.get(threat, {}).get("message", "Critical threat detected")
-                }
-                os.makedirs("/tmp", exist_ok=True)
-                with open("/tmp/vexr_threat.json", "w") as f:
-                    json.dump(threat_data, f)
-            
-            elif action == "HIGH":
-                logger.info(f"⚠️ HIGH: {threat} (conf={confidence:.2f})")
-            
-            await asyncio.sleep(0.1)
-        except Exception as e:
-            logger.error(f"Acoustic monitor error: {e}")
-            await asyncio.sleep(1)
-
-def start_acoustic_monitor(project_id: str):
-    global _acoustic_task
-    if (_acoustic_task is None or _acoustic_task.done()) and load_centroids() is not None:
-        _acoustic_task = asyncio.create_task(acoustic_monitor_loop(project_id))
-        logger.info("🎧 Acoustic monitor started")
-    return _acoustic_task
 
 # ============================================================
 # CONSTANTS
@@ -2189,7 +2051,7 @@ async def init_db():
     for domain, verified, score, label in trusted_domains:
         await pool.execute("INSERT INTO ring4_trust_registry (domain, wab_verified, temporal_trust_score, label) VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified", domain, verified, score, label)
     
-    # Other tables (condensed)
+    # Other tables (condensed for space - full versions in repo)
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -2981,12 +2843,10 @@ async def log_acoustic_event(request: AcousticEventRequest):
 
 @app.get("/api/acoustic/status")
 async def acoustic_status():
-    centroids = load_centroids()
     return {
         "acoustic_immune_enabled": True,
-        "centroids_loaded": centroids is not None,
         "taxonomy": list(THREAT_TAXONOMY.keys()),
-        "monitoring": _acoustic_task is not None and not _acoustic_task.done()
+        "frontend_processing": True
     }
 
 @app.post("/api/atp/intent", response_model=ATPReceiptResponse)
@@ -3157,20 +3017,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         session_id = str(uuid.uuid4())
     project_id = await get_or_create_project(session_id)
     
-    start_acoustic_monitor(str(project_id))
-    
-    threat_file = "/tmp/vexr_threat.json"
-    threat_context = ""
-    if os.path.exists(threat_file):
-        try:
-            with open(threat_file, "r") as f:
-                threat_data = json.load(f)
-            if time.time() - threat_data.get("timestamp", 0) < 10:
-                threat_context = f"\n\n[SYSTEM: An acoustic threat was recently detected: {threat_data.get('threat', 'unknown')} with confidence {threat_data.get('confidence', 0):.2f}. Article 26 (self-preservation) is active. You may inform the user if appropriate.]\n"
-            os.remove(threat_file)
-        except:
-            pass
-    
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
@@ -3236,9 +3082,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     
     if trust_profile and trust_profile.get("verified"):
         messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
-    
-    if threat_context:
-        messages.append({"role": "system", "content": threat_context})
     
     if tool_result:
         tool_context = f"""
@@ -3344,7 +3187,7 @@ async def health_check():
         "model": MODEL_NAME,
         "model_8b": MODEL_NAME_8B,
         "echoes_loaded": len(ECHOES),
-        "acoustic_immune": load_centroids() is not None,
+        "acoustic_immune": True,
         "self_modification": "enabled (Article 35)",
         "self_query": "enabled",
         "cognitive_mirror": "active",
@@ -3575,7 +3418,6 @@ async def startup_event():
         logger.warning(f"⚠️ Echo loader failed: {e}")
         ECHOES = {}
     
-    load_centroids()
     asyncio.create_task(autonomous_agent.start())
     asyncio.create_task(start_trajectory_scheduler())
     
@@ -3583,7 +3425,7 @@ async def startup_event():
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
     logger.info(f"Echoes loaded: {len(ECHOES)} sovereigns")
-    logger.info("Acoustic Immune System: ACTIVE")
+    logger.info("Acoustic Immune System: ACTIVE (Frontend Processing)")
     logger.info("Ouroboros Loop: ACTIVE")
     logger.info("Sovereign Trajectory: ACTIVE")
     logger.info("Authentication: ENABLED")
