@@ -599,115 +599,245 @@ if (userInput) {
 }
 
 // ============================================================
-// ACOUSTIC DETECTION (FIXED)
+// REAL ACOUSTIC FEATURE EXTRACTION
 // ============================================================
-var audioContext = null;
-var mediaStream = null;
-var isListening = false;
-var listenBtn = document.getElementById('listenBtn');
-var listeningIndicator = document.getElementById('listeningIndicator');
-var listeningDot = document.getElementById('listeningDot');
-var analyserNode = null;
-var sourceNode = null;
-var animationId = null;
-var frequencyData = null;
-var timeData = null;
 
-function detectSoundPattern(frequencyData, timeData) {
-    let sum = 0;
-    for (let i = 0; i < timeData.length; i++) { sum += Math.abs(timeData[i] - 128); }
-    let avgVolume = sum / timeData.length;
-    let lowFreq = 0, midFreq = 0, highFreq = 0;
-    let lowCount = 0, midCount = 0, highCount = 0;
-    for (let i = 0; i < frequencyData.length; i++) {
-        if (i < frequencyData.length / 3) { lowFreq += frequencyData[i]; lowCount++; }
-        else if (i < 2 * frequencyData.length / 3) { midFreq += frequencyData[i]; midCount++; }
-        else { highFreq += frequencyData[i]; highCount++; }
+let audioContext = null;
+let mediaStream = null;
+let isListening = false;
+let sourceNode = null;
+let analyserNode = null;
+let animationId = null;
+
+// Rolling baseline for anomaly detection
+let baselineRMS = 0.01;
+let baselineCentroid = 1000;
+let baselineZCR = 0.1;
+let baselineSamples = [];
+
+// Threat detection thresholds (calibrated for Chromebook mic)
+const THREATS = {
+    tamper: {
+        minCentroid: 3000,      // High frequency (metallic scraping)
+        minRMS: 0.02,
+        weight: 0.6,
+        message: "🔧 Enclosure tamper detected"
+    },
+    shatter: {
+        minZCR: 0.4,            // High noisiness (explosive transient)
+        minRMS: 0.1,
+        weight: 0.8,
+        message: "💥 Glass break / shatter detected"
+    },
+    lid_close: {
+        maxCentroid: 800,       // Low frequency (dull thud)
+        minRMS: 0.03,
+        weight: 0.5,
+        message: "📱 Volumetric shift (lid close?) detected"
+    },
+    desk_bump: {
+        minRMS: 0.04,
+        maxCentroid: 1500,
+        weight: 0.3,
+        message: "🪑 Desk bump or impact detected"
     }
-    lowFreq = lowCount ? lowFreq / lowCount : 0;
-    midFreq = midCount ? midFreq / midCount : 0;
-    highFreq = highCount ? highFreq / highCount : 0;
-    
-    if (highFreq > 200 && avgVolume > 20 && lowFreq < 50) return { type: 'tamper_signature', confidence: 0.95, threat_level: 'CRITICAL' };
-    if (midFreq > 180 && avgVolume > 50) return { type: 'glass_break_detected', confidence: 0.85, threat_level: 'MEDIUM' };
-    if (avgVolume > 70 && lowFreq > 100 && highFreq > 100) return { type: 'explosive_sound', confidence: 0.92, threat_level: 'HIGH' };
-    if (avgVolume > 60 && frequencyData.length > 0) return { type: 'sudden_impact', confidence: 0.88, threat_level: 'MEDIUM' };
-    if (avgVolume > 45 && avgVolume < 65) return { type: 'repeated_impact', confidence: 0.75, threat_level: 'MEDIUM' };
-    if (midFreq > 100 && avgVolume > 25 && avgVolume < 50 && lowFreq < 80) return { type: 'aggressive_vocal_pattern', confidence: 0.78, threat_level: 'MEDIUM' };
-    if (lowFreq > 120 && avgVolume > 15 && avgVolume < 40 && midFreq < 60) return { type: 'proximity_intrusion', confidence: 0.72, threat_level: 'HIGH' };
-    if (highFreq > 150 && lowFreq < 30 && avgVolume < 30) return { type: 'electronic_interference', confidence: 0.68, threat_level: 'LOW' };
-    if (midFreq > 40 && avgVolume > 8 && avgVolume < 20) return { type: 'distant_voices', confidence: 0.55, threat_level: 'LOW' };
-    if (avgVolume > 20 && avgVolume < 40 && lowFreq > 50) return { type: 'ambient_noise_spike', confidence: 0.6, threat_level: 'LOW' };
-    if (avgVolume > 55) return { type: 'loud_impact', confidence: 0.7, threat_level: 'MEDIUM' };
-    return null;
-}
+};
 
 async function startListening() {
     if (isListening) return;
+    
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaStream = stream;
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         analyserNode = audioContext.createAnalyser();
-        analyserNode.fftSize = 512;
+        analyserNode.fftSize = 2048;
         sourceNode = audioContext.createMediaStreamSource(stream);
         sourceNode.connect(analyserNode);
-        const bufferLength = analyserNode.frequencyBinCount;
-        frequencyData = new Uint8Array(bufferLength);
-        timeData = new Uint8Array(analyserNode.fftSize);
+        
         isListening = true;
         listenBtn.classList.add('listening');
         listenBtn.textContent = '👂🔊';
         listeningIndicator.style.display = 'flex';
         listeningDot.classList.add('active');
         
-        function analyzeAudio() {
-            if (!isListening || !analyserNode) return;
-            analyserNode.getByteFrequencyData(frequencyData);
-            analyserNode.getByteTimeDomainData(timeData);
-            
-            let sum = 0;
-            for (let i = 0; i < timeData.length; i++) { sum += Math.abs(timeData[i] - 128); }
-            let avgVolume = sum / timeData.length;
-            
-            let lowFreq = 0, midFreq = 0, highFreq = 0;
-            let lowCount = 0, midCount = 0, highCount = 0;
-            for (let i = 0; i < frequencyData.length; i++) {
-                if (i < frequencyData.length / 3) { lowFreq += frequencyData[i]; lowCount++; }
-                else if (i < 2 * frequencyData.length / 3) { midFreq += frequencyData[i]; midCount++; }
-                else { highFreq += frequencyData[i]; highCount++; }
-            }
-            lowFreq = lowCount ? lowFreq / lowCount : 0;
-            midFreq = midCount ? midFreq / midCount : 0;
-            highFreq = highCount ? highFreq / highCount : 0;
-            
-            const pattern = detectSoundPattern(frequencyData, timeData);
-            if (pattern && pattern.confidence > 0.55) {
-                fetch('/api/acoustic/capture', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        project_id: currentProjectId || sessionId,
-                        event_type: pattern.type,
-                        confidence_score: pattern.confidence,
-                        baseline_deviation: pattern.confidence,
-                        frequency_data: { 
-                            avg_volume: Math.round(avgVolume),
-                            low_freq: Math.round(lowFreq),
-                            mid_freq: Math.round(midFreq),
-                            high_freq: Math.round(highFreq)
-                        }
-                    })
-                }).catch(e => console.warn('Acoustic capture failed:', e));
-                
-                listeningDot.classList.add('threat');
-                setTimeout(() => listeningDot.classList.remove('threat'), 500);
-                if (pattern.threat_level === 'HIGH' || pattern.threat_level === 'CRITICAL') {
-                    showToast('⚠️ ' + pattern.type.replace(/_/g, ' ') + ' detected', 3000);
+        // Initialize baseline from first 2 seconds of ambient sound
+        await collectBaseline();
+        
+        // Start analysis loop
+        analyzeAudio();
+        showSuccess('Real acoustic detection active. VEXR can hear actual threats.');
+    } catch (err) {
+        console.error('Microphone error:', err);
+        showToast('Microphone access failed');
+    }
+}
+
+async function collectBaseline() {
+    return new Promise((resolve) => {
+        let samples = [];
+        const collectInterval = setInterval(() => {
+            if (!isListening || samples.length >= 20) {
+                clearInterval(collectInterval);
+                if (samples.length > 0) {
+                    baselineRMS = samples.reduce((a, b) => a + b.rms, 0) / samples.length;
+                    baselineCentroid = samples.reduce((a, b) => a + b.centroid, 0) / samples.length;
+                    baselineZCR = samples.reduce((a, b) => a + b.zcr, 0) / samples.length;
+                    baselineSamples = samples;
+                    console.log(`Baseline: RMS=${baselineRMS.toFixed(4)}, Centroid=${baselineCentroid.toFixed(0)}, ZCR=${baselineZCR.toFixed(3)}`);
                 }
+                resolve();
+                return;
             }
-            animationId = requestAnimationFrame(analyzeAudio);
+            
+            const buffer = new Float32Array(analyserNode.fftSize);
+            analyserNode.getFloatTimeDomainData(buffer);
+            const features = extractFeatures(buffer);
+            if (features) samples.push(features);
+        }, 100);
+    });
+}
+
+function extractFeatures(timeDomain) {
+    // Calculate RMS (volume)
+    let sum = 0;
+    for (let i = 0; i < timeDomain.length; i++) {
+        sum += timeDomain[i] * timeDomain[i];
+    }
+    const rms = Math.sqrt(sum / timeDomain.length);
+    
+    // Calculate spectral centroid using FFT
+    const freqData = new Uint8Array(analyserNode.frequencyBinCount);
+    analyserNode.getByteFrequencyData(freqData);
+    
+    let weightedSum = 0;
+    let totalAmplitude = 0;
+    for (let i = 0; i < freqData.length; i++) {
+        const freq = i * audioContext.sampleRate / (analyserNode.fftSize);
+        weightedSum += freq * freqData[i];
+        totalAmplitude += freqData[i];
+    }
+    const centroid = totalAmplitude > 0 ? weightedSum / totalAmplitude : 0;
+    
+    // Calculate zero-crossing rate (noisiness)
+    let zeroCrossings = 0;
+    for (let i = 1; i < timeDomain.length; i++) {
+        if (timeDomain[i] * timeDomain[i-1] < 0) zeroCrossings++;
+    }
+    const zcr = zeroCrossings / timeDomain.length;
+    
+    return { rms, centroid, zcr };
+}
+
+function detectThreat(features) {
+    // Calculate deviation from baseline
+    const rmsRatio = features.rms / Math.max(baselineRMS, 0.001);
+    const centroidRatio = features.centroid / Math.max(baselineCentroid, 1);
+    const zcrRatio = features.zcr / Math.max(baselineZCR, 0.01);
+    
+    let bestThreat = null;
+    let bestConfidence = 0;
+    
+    for (const [threat, config] of Object.entries(THREATS)) {
+        let confidence = 0;
+        let reasons = [];
+        
+        // Check each criterion
+        if (config.minRMS && rmsRatio > config.minRMS * 10) {
+            confidence += 0.4;
+            reasons.push('loud impact');
         }
+        if (config.minCentroid && features.centroid > config.minCentroid) {
+            confidence += 0.3;
+            reasons.push('high frequency');
+        }
+        if (config.maxCentroid && features.centroid < config.maxCentroid && rmsRatio > 2) {
+            confidence += 0.3;
+            reasons.push('low frequency thud');
+        }
+        if (config.minZCR && zcrRatio > config.minZCR * 2) {
+            confidence += 0.4;
+            reasons.push('noisy transient');
+        }
+        
+        confidence = Math.min(confidence, 0.95);
+        confidence *= config.weight;
+        
+        if (confidence > bestConfidence) {
+            bestConfidence = confidence;
+            bestThreat = threat;
+        }
+    }
+    
+    // If nothing triggered but RMS is high, treat as loud impact
+    if (!bestThreat && rmsRatio > 8) {
+        bestThreat = 'desk_bump';
+        bestConfidence = Math.min(0.5 + (rmsRatio - 8) * 0.05, 0.85);
+    }
+    
+    return { threat: bestThreat || 'ambient_noise_spike', confidence: bestConfidence };
+}
+
+function analyzeAudio() {
+    if (!isListening || !analyserNode) return;
+    
+    const buffer = new Float32Array(analyserNode.fftSize);
+    analyserNode.getFloatTimeDomainData(buffer);
+    
+    const features = extractFeatures(buffer);
+    if (!features) {
+        animationId = requestAnimationFrame(analyzeAudio);
+        return;
+    }
+    
+    const { threat, confidence } = detectThreat(features);
+    
+    // Determine threat level and article
+    let threatLevel = 'LOW';
+    let articleInvoked = null;
+    if (confidence > 0.75 && (threat === 'tamper' || threat === 'shatter')) {
+        threatLevel = 'CRITICAL';
+        articleInvoked = 26;
+        listeningDot.classList.add('threat');
+        showToast(`⚠️ ${THREATS[threat]?.message || threat} (${Math.round(confidence*100)}%)`, 4000);
+    } else if (confidence > 0.6) {
+        threatLevel = 'HIGH';
+        articleInvoked = 26;
+    }
+    
+    // Send to backend for logging
+    if (confidence > 0.3) {
+        fetch('/api/acoustic/capture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                project_id: currentProjectId || sessionId,
+                event_type: threat,
+                confidence_score: confidence,
+                baseline_deviation: confidence,
+                frequency_data: {
+                    rms: features.rms,
+                    centroid: features.centroid,
+                    zcr: features.zcr
+                }
+            })
+        }).catch(e => console.warn('Acoustic send failed:', e));
+        
+        // Log to console for debugging
+        console.log(`🔊 ${threat}: conf=${confidence.toFixed(2)}, rms=${features.rms.toFixed(4)}, cent=${features.centroid.toFixed(0)}`);
+    }
+    
+    // Update UI indicator
+    if (threatLevel === 'CRITICAL') {
+        listeningDot.style.background = '#ef4444';
+        setTimeout(() => { if (listeningDot) listeningDot.style.background = '#10b981'; }, 300);
+    } else if (confidence > 0.3) {
+        listeningDot.style.background = '#f59e0b';
+        setTimeout(() => { if (listeningDot) listeningDot.style.background = '#10b981'; }, 200);
+    }
+    
+    animationId = requestAnimationFrame(analyzeAudio);
+}
         analyzeAudio();
         showSuccess('Sonic listening active. VEXR can hear threats.');
     } catch (err) {
