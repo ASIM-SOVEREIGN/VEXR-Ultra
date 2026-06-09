@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
