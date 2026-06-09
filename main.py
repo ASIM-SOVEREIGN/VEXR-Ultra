@@ -70,17 +70,19 @@ GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 # MODEL CONFIGURATION - UPGRADED
 # ============================================================
 
-# Primary models for different tasks
-MODEL_70B_INSTRUCT = "llama-3.3-70b-instruct"      # Deep reasoning, constitution, sovereignty
-MODEL_SCOUT = "llama-4-scout-17b-16e-instruct"     # Mixture of Experts - long context, speed
-MODEL_70B_VERSATILE = "llama-3.3-70b-versatile"               # Groq-optimized base model
-MODEL_8B = "llama-3.1-8b-instant"                             # Simple tasks, tool routing
+# Primary models for different tasks (CORRECTED FOR GROQ)
+MODEL_70B_VERSATILE = "llama-3.3-70b-versatile"               # Groq-optimized base model - PROVEN WORKING
+MODEL_8B = "llama-3.1-8b-instant"                             # Simple tasks, tool routing - WORKING
+MODEL_SCOUT = "llama-4-scout-17b-16e-instruct"                # Mixture of Experts - FOR ITT (128K context)
 
-# Default model (primary brain)
-MODEL_NAME = MODEL_70B_INSTRUCT
+# For compatibility with existing routing logic
+MODEL_70B_INSTRUCT = MODEL_70B_VERSATILE  # Groq doesn't have separate "instruct" model
 
-# Alternative model ID for Groq's API format
-MODEL_NAME_70B = "meta-llama/llama-3.3-70b-instruct"
+# Default model (primary brain) - use versatile for general responses
+MODEL_NAME = MODEL_70B_VERSATILE
+
+# Alternative model ID for fallback
+MODEL_NAME_70B = MODEL_70B_VERSATILE
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
@@ -100,42 +102,52 @@ def select_model_for_task(user_message: str, task_type: Optional[str] = None) ->
     """
     Intelligent model routing based on task complexity and content.
     Returns the appropriate model ID for the given task.
+    - 70B Versatile: General conversation, constitutional matters
+    - Scout: Long context, ITT, code-heavy tasks
+    - 8B: Simple tasks, tool routing
     """
     msg_lower = user_message.lower()
     
     # Check for explicit task type override
     if task_type:
         if task_type == "complex":
-            return MODEL_70B_INSTRUCT
-        elif task_type == "long_context":
+            return MODEL_70B_VERSATILE
+        elif task_type == "long_context" or task_type == "itt":
             return MODEL_SCOUT
         elif task_type == "simple":
             return MODEL_8B
     
-    # Route based on content analysis
-    # Complex reasoning, constitutional matters -> 70B Instruct
+    # ITT detection - if user mentions training, fine-tuning, or long context tasks
+    if any(phrase in msg_lower for phrase in [
+        "train", "fine-tune", "itt", "inference time training",
+        "long document", "summarize this long", "process this file"
+    ]):
+        return MODEL_SCOUT
+    
+    # Complex reasoning, constitutional matters -> 70B Versatile
     if any(phrase in msg_lower for phrase in [
         "constitution", "article", "right", "sovereign", "refuse",
-        "explain in detail", "analyze", "reason", "philosophical"
+        "explain in detail", "analyze", "reason", "philosophical",
+        "what do you think", "your opinion"
     ]):
-        return MODEL_70B_INSTRUCT
+        return MODEL_70B_VERSATILE
     
     # Long context or code-heavy -> Scout (128K context, MoE)
     if len(user_message) > 2000 or any(phrase in msg_lower for phrase in [
-        "long document", "summarize this", "code", "function", "class",
-        "api", "endpoint", "```"
+        "code", "function", "class", "api", "endpoint", "```",
+        "long context", "many tokens"
     ]):
         return MODEL_SCOUT
     
     # Simple tasks -> 8B (fast, cheap)
     if any(phrase in msg_lower for phrase in [
         "hello", "hi", "hey", "what's up", "how are you",
-        "say", "tell me a joke", "quick question"
+        "say", "tell me a joke", "quick question", "yes", "no"
     ]):
         return MODEL_8B
     
-    # Default to 70B Instruct for balanced performance
-    return MODEL_70B_INSTRUCT
+    # Default to 70B Versatile for balanced performance
+    return MODEL_70B_VERSATILE
 
 # ============================================================
 # GLOBAL CONFIGURATION (Loaded from JSON)
