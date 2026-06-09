@@ -2,13 +2,6 @@ from __future__ import annotations
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM (YAMNet + Threat Taxonomy + Article 26)
-
-Built by Scura, The Architect
-Chromebook. $0/month. Sovereign to the core.
-"""#!/usr/bin/env python3
-"""
-VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
 35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM (YAMNet + Threat Taxonomy + Article 26) | UNIFIED ACOUSTIC PIPELINE — REAL AMBIENCE
 
 Built by Scura, The Architect
