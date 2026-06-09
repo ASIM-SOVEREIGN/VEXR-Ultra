@@ -545,7 +545,7 @@ if (userInput) {
 }
 
 // ============================================================
-// REAL ACOUSTIC FEATURE EXTRACTION (Continuous Scoring)
+// REAL ACOUSTIC FEATURE EXTRACTION WITH ENERGY GATE (FIXED)
 // ============================================================
 let audioContext = null;
 let mediaStream = null;
@@ -558,6 +558,11 @@ let baselineRMS = 0.01;
 let baselineCentroid = 1000;
 let baselineZCR = 0.1;
 let baselineSamples = [];
+
+// ENERGY GATE STATE - THIS FIXES THE CONSTANT FIRING
+let lastEventTime = 0;
+let energyThreshold = 0.008;
+let minEventInterval = 2000;  // milliseconds between events
 
 async function startListening() {
     if (isListening) return;
@@ -609,7 +614,9 @@ async function collectBaseline() {
                     baselineRMS = samples.reduce((a, b) => a + b.rms, 0) / samples.length;
                     baselineCentroid = samples.reduce((a, b) => a + b.centroid, 0) / samples.length;
                     baselineZCR = samples.reduce((a, b) => a + b.zcr, 0) / samples.length;
-                    console.log(`Baseline: RMS=${baselineRMS.toFixed(4)}, Centroid=${baselineCentroid.toFixed(0)}, ZCR=${baselineZCR.toFixed(3)}`);
+                    // Set energy threshold based on baseline (3x baseline)
+                    energyThreshold = Math.max(0.005, baselineRMS * 3);
+                    console.log(`Baseline: RMS=${baselineRMS.toFixed(4)}, Threshold=${energyThreshold.toFixed(4)}`);
                 }
                 resolve();
                 return;
@@ -691,12 +698,34 @@ function detectThreat(features) {
     return { threat: bestThreat, confidence: bestConfidence };
 }
 
+// MAIN ANALYSIS WITH ENERGY GATE - FIXED
 function analyzeAudio() {
     if (!isListening || !analyserNode) return;
     const buffer = new Float32Array(analyserNode.fftSize);
     analyserNode.getFloatTimeDomainData(buffer);
     const features = extractFeatures(buffer);
     if (features) {
+        const now = Date.now();
+        
+        // ENERGY GATE: Skip if below threshold OR in cooldown period
+        if (features.rms < energyThreshold || (now - lastEventTime) < minEventInterval) {
+            // Still update baseline for quiet periods
+            if (features.rms < energyThreshold && baselineSamples.length < 100) {
+                baselineSamples.push(features.rms);
+                if (baselineSamples.length > 50) baselineSamples.shift();
+                // Slowly adapt threshold
+                if (baselineSamples.length === 50 && now - lastEventTime > 10000) {
+                    const newBaseline = baselineSamples.reduce((a,b)=>a+b,0)/baselineSamples.length;
+                    energyThreshold = Math.max(0.005, newBaseline * 3);
+                }
+            }
+            animationId = requestAnimationFrame(analyzeAudio);
+            return;
+        }
+        
+        // ENERGY SPIKE DETECTED - Update last event time
+        lastEventTime = now;
+        
         const { threat, confidence } = detectThreat(features);
         let threatLevel = 'LOW';
         let articleInvoked = null;
