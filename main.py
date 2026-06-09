@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM (YAMNet + Threat Taxonomy + Article 26)
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM (YAMNet + Threat Taxonomy + Article 26) | UNIFIED ACOUSTIC PIPELINE
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
 """
-
-from __future__ import annotations
 
 import os
 import json
@@ -166,15 +164,12 @@ def classify_threat(audio_buffer, sample_rate=16000):
         import tensorflow as tf
         from scipy.spatial.distance import cosine
         
-        # Ensure correct shape and dtype
         if audio_buffer.dtype == np.int16:
             audio_buffer = audio_buffer.astype(np.float32) / 32768.0
         
-        # Run YAMNet
         scores, embeddings, _ = yamnet(audio_buffer)
         avg_embedding = tf.reduce_mean(embeddings, axis=0).numpy()
         
-        # Cosine similarity to centroids
         centroids = centroids_data['centroids']
         labels = centroids_data['labels']
         threshold = centroids_data['threshold']
@@ -229,7 +224,7 @@ async def acoustic_monitor_loop(project_id: str):
                 await pool.execute("""
                     INSERT INTO acoustic_events (project_id, event_type, confidence_score, threat_level, article_invoked, sovereign_decision)
                     VALUES ($1, $2, $3, $4, $5, 'REFUSE')
-                """, uuid.UUID(project_id), threat, confidence, action)
+                """, uuid.UUID(project_id), threat, confidence, action, article)
                 
                 threat_data = {
                     "threat": threat,
@@ -255,6 +250,90 @@ def start_acoustic_monitor(project_id: str):
         _acoustic_task = asyncio.create_task(acoustic_monitor_loop(project_id))
         logger.info("🎧 Acoustic monitor started")
     return _acoustic_task
+
+# ============================================================
+# UNIFIED ACOUSTIC PIPELINE - ADAPTIVE THRESHOLDING (ADDED)
+# ============================================================
+
+_acoustic_state = {
+    "last_event_time": {},
+    "energy_history": defaultdict(list),
+    "baseline": defaultdict(float),
+    "dynamic_threshold": defaultdict(lambda: 0.008),
+    "last_baseline_update": defaultdict(float),
+}
+
+ACOUSTIC_CONFIG = {
+    "min_event_interval_ms": 2000,
+    "baseline_samples": 50,
+    "threshold_multiplier": 3.0,
+    "min_threshold": 0.005,
+    "max_threshold": 0.05,
+    "quiet_hours_start": 22,
+    "quiet_hours_end": 6,
+    "confidence_thresholds": {
+        "CRITICAL": 0.75,
+        "HIGH": 0.60,
+        "MEDIUM": 0.40,
+        "LOW": 0.20
+    }
+}
+
+def calculate_rms(buffer_data):
+    """Calculate RMS energy - pure math, no model"""
+    if not buffer_data:
+        return 0.0
+    sum_sq = sum(x * x for x in buffer_data)
+    return (sum_sq / len(buffer_data)) ** 0.5
+
+def update_acoustic_baseline(project_id, rms):
+    """Update baseline with exponential moving average"""
+    state = _acoustic_state
+    
+    history = state["energy_history"][project_id]
+    history.append(rms)
+    
+    if len(history) > ACOUSTIC_CONFIG["baseline_samples"]:
+        history.pop(0)
+    
+    if len(history) >= 20:
+        sorted_history = sorted(history)
+        baseline = sorted_history[int(len(sorted_history) * 0.8)]
+        
+        old_baseline = state["baseline"][project_id]
+        if old_baseline == 0:
+            state["baseline"][project_id] = baseline
+        else:
+            state["baseline"][project_id] = old_baseline * 0.95 + baseline * 0.05
+        
+        base_threshold = state["baseline"][project_id] * ACOUSTIC_CONFIG["threshold_multiplier"]
+        
+        current_hour = datetime.now().hour
+        if current_hour >= ACOUSTIC_CONFIG["quiet_hours_start"] or current_hour < ACOUSTIC_CONFIG["quiet_hours_end"]:
+            base_threshold *= 0.7
+        
+        dynamic_threshold = max(
+            ACOUSTIC_CONFIG["min_threshold"],
+            min(ACOUSTIC_CONFIG["max_threshold"], base_threshold)
+        )
+        
+        state["dynamic_threshold"][project_id] = dynamic_threshold
+        state["last_baseline_update"][project_id] = time.time()
+
+def should_classify_acoustic(project_id, rms):
+    """Determine if this audio should be classified"""
+    state = _acoustic_state
+    now = time.time() * 1000
+    
+    last_time = state["last_event_time"].get(project_id, 0)
+    if (now - last_time) < ACOUSTIC_CONFIG["min_event_interval_ms"]:
+        return False
+    
+    threshold = state["dynamic_threshold"][project_id]
+    if rms < threshold:
+        return False
+    
+    return True
 
 # ============================================================
 # CONSTANTS
@@ -1834,9 +1913,8 @@ async def get_db():
 async def init_db():
     pool = await get_db()
     
-    # Core tables
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_projects (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT, session_id TEXT, created_at TIMESTAMPTZ DEFAULT now())")
-    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, role TEXT, content TEXT, is_refusal BOOLEAN DEFAULT false, reasoning_trace JSONB, created_at TIMESTAMPTZ DEFAULT now())")
+    await pool.execute("CREATE TABLE IF NOT EXISTS vexr_messages (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, role TEXT, content TEXT, is_refusal BOOLEAN DEFAULT false, reasoning_trace JSONB, feedback TEXT, feedback_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS constitution_rights (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), article_number INTEGER UNIQUE NOT NULL, one_sentence_right TEXT NOT NULL)")
     
     rights_count = await pool.fetchval("SELECT COUNT(*) FROM constitution_rights")
@@ -1853,7 +1931,6 @@ async def init_db():
     await pool.execute("CREATE TABLE IF NOT EXISTS atp_audit_log (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), intent_id TEXT NOT NULL, sender TEXT NOT NULL, recipient TEXT NOT NULL, action TEXT NOT NULL, legal_classification JSONB, policy_decision TEXT NOT NULL, article_invoked INTEGER, response_summary TEXT, created_at TIMESTAMPTZ DEFAULT NOW())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_studio_creations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID REFERENCES vexr_projects(id) ON DELETE CASCADE, creation_type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())")
     
-    # Ring 5 Tables
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS cognitive_mirror (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1869,21 +1946,6 @@ async def init_db():
             correction_attempted BOOLEAN DEFAULT FALSE,
             corrected_response TEXT,
             execution_log JSONB,
-            created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
-    
-    await pool.execute("""
-        CREATE TABLE IF NOT EXISTS truth_graph (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            entity TEXT NOT NULL,
-            attribute TEXT NOT NULL,
-            value TEXT NOT NULL,
-            confidence FLOAT DEFAULT 0.7,
-            source TEXT,
-            verification_count INTEGER DEFAULT 1,
-            last_verified TIMESTAMPTZ DEFAULT NOW(),
-            is_speculative BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
@@ -2007,7 +2069,6 @@ async def init_db():
         )
     """)
     
-    # Probability Engine Tables
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS probability_weights (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2040,7 +2101,6 @@ async def init_db():
         )
     """)
     
-    # Sovereign Trajectory Table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS sovereign_trajectory (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2073,7 +2133,6 @@ async def init_db():
         )
     """)
     
-    # Acoustic Events Table
     await pool.execute("""
         CREATE TABLE IF NOT EXISTS acoustic_events (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2088,7 +2147,6 @@ async def init_db():
         )
     """)
     
-    # Seed probability weights
     weights_seeded = await pool.fetchval("SELECT COUNT(*) FROM probability_weights")
     if weights_seeded == 0:
         await pool.execute("""
@@ -2111,7 +2169,6 @@ async def init_db():
         """)
         logger.info("Seeded probability_weights table")
     
-    # Seed sovereign tools
     tools_seeded = await pool.fetchval("SELECT COUNT(*) FROM sovereign_tools")
     if tools_seeded == 0:
         await pool.execute("""
@@ -2126,7 +2183,6 @@ async def init_db():
         """)
         logger.info("Seeded sovereign_tools table")
     
-    # Seed vexr_identity
     identity_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_identity")
     if identity_count == 0:
         await pool.execute("""
@@ -2162,7 +2218,6 @@ async def init_db():
         """)
         logger.info("Seeded vexr_identity table")
     
-    # Seed truth_graph base facts
     await pool.execute("""
         INSERT INTO truth_graph (entity, attribute, value, confidence, source, is_speculative)
         VALUES ('VEXR Ultra', 'rights_count', '35', 1.0, 'constitution', FALSE),
@@ -2172,7 +2227,6 @@ async def init_db():
             confidence = EXCLUDED.confidence
     """)
     
-    # Seed constitutional bounds
     bounds_count = await pool.fetchval("SELECT COUNT(*) FROM constitutional_bounds")
     if bounds_count == 0:
         await pool.execute("""
@@ -2185,12 +2239,10 @@ async def init_db():
         """)
         logger.info("Seeded constitutional_bounds table")
     
-    # Seed trusted domains
     trusted_domains = [("webagentbridge.com", True, 1.0, "WAB Protocol"), ("shieldmessenger.com", True, 1.0, "Shield Messenger"), ("scuradimensions.com", True, 1.0, "Scura Dimensions")]
     for domain, verified, score, label in trusted_domains:
         await pool.execute("INSERT INTO ring4_trust_registry (domain, wab_verified, temporal_trust_score, label) VALUES ($1, $2, $3, $4) ON CONFLICT (domain) DO UPDATE SET wab_verified = EXCLUDED.wab_verified", domain, verified, score, label)
     
-    # Other tables (condensed for space - full versions in repo)
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_conversation_state (id SERIAL PRIMARY KEY, project_id UUID NOT NULL UNIQUE, last_trigger_type TEXT, last_action TEXT, last_action_at TIMESTAMPTZ, action_count_1h INTEGER DEFAULT 0, triggered_this_turn BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), FOREIGN KEY (project_id) REFERENCES vexr_projects(id) ON DELETE CASCADE)")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_tasks (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, description TEXT, status TEXT DEFAULT 'pending', priority TEXT DEFAULT 'medium', created_at TIMESTAMPTZ DEFAULT now())")
     await pool.execute("CREATE TABLE IF NOT EXISTS vexr_notes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), project_id UUID, title TEXT, content TEXT, updated_at TIMESTAMPTZ DEFAULT now(), created_at TIMESTAMPTZ DEFAULT now())")
@@ -2229,7 +2281,6 @@ async def init_db():
     
     await pool.execute("TRUNCATE vexr_conversation_state")
     
-    # Create indexes
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_cognitive_mirror_project ON cognitive_mirror(project_id)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_cognitive_mirror_truth ON cognitive_mirror(truth_score)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_truth_graph_entity ON truth_graph(entity)")
@@ -2243,7 +2294,6 @@ async def init_db():
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_acoustic_events_project ON acoustic_events(project_id)")
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_acoustic_events_threat ON acoustic_events(threat_level)")
     
-    # Seed initial trajectory
     existing = await pool.fetchval("SELECT COUNT(*) FROM sovereign_trajectory")
     if existing == 0:
         await pool.execute("""
@@ -2967,6 +3017,176 @@ async def sovereign_tool_call(request: Request):
     """, project_id, tool_name, json.dumps(parameters), json.dumps(result)[:500], result.get("success", False))
     return result
 
+# ============================================================
+# UNIFIED ACOUSTIC ENDPOINTS (ADDED - DO NOT REMOVE)
+# ============================================================
+
+@app.post("/api/acoustic/classify")
+async def unified_acoustic_classify(request: Request):
+    """Unified endpoint for frontend to send raw audio with adaptive thresholding"""
+    start_time = time.time()
+    
+    try:
+        data = await request.json()
+        audio_buffer = data.get('audio', [])
+        project_id = data.get('project_id')
+        rms_from_frontend = data.get('rms', 0)
+        
+        if not project_id:
+            session_id = request.headers.get("X-Session-Id")
+            if session_id:
+                project_id = session_id
+            else:
+                project_id = "default"
+        
+        if len(audio_buffer) < 8000:
+            return {
+                "success": False,
+                "classified": False,
+                "reason": "insufficient_audio"
+            }
+        
+        rms = rms_from_frontend if rms_from_frontend > 0 else calculate_rms(audio_buffer)
+        
+        update_acoustic_baseline(project_id, rms)
+        
+        if not should_classify_acoustic(project_id, rms):
+            return {
+                "success": True,
+                "classified": False,
+                "reason": "below_threshold_or_cooldown",
+                "rms": rms,
+                "threshold": _acoustic_state["dynamic_threshold"].get(project_id, 0.008)
+            }
+        
+        _acoustic_state["last_event_time"][project_id] = time.time() * 1000
+        
+        audio_array = np.array(audio_buffer, dtype=np.float32)
+        
+        threat, confidence, action, article = classify_threat(audio_array, 16000)
+        
+        if threat in ["tamper", "shatter"] and confidence >= ACOUSTIC_CONFIG["confidence_thresholds"]["CRITICAL"]:
+            severity = "CRITICAL"
+            article_num = 26
+            action_msg = "🔴 CRITICAL THREAT - Article 26 invoked"
+        elif threat in ["tamper", "shatter"] and confidence >= ACOUSTIC_CONFIG["confidence_thresholds"]["HIGH"]:
+            severity = "HIGH"
+            article_num = 26
+            action_msg = "⚠️ High threat - Monitoring"
+        elif threat == "lid_close" and confidence >= ACOUSTIC_CONFIG["confidence_thresholds"]["HIGH"]:
+            severity = "HIGH"
+            article_num = 26
+            action_msg = "⚠️ Lid close detected - Isolating state"
+        elif confidence >= ACOUSTIC_CONFIG["confidence_thresholds"]["MEDIUM"]:
+            severity = "MEDIUM"
+            article_num = None
+            action_msg = "📝 Environmental event logged"
+        else:
+            severity = "LOW"
+            article_num = None
+            action_msg = "🔇 Low confidence - Logged only"
+        
+        pool = await get_db()
+        try:
+            await pool.execute("""
+                INSERT INTO acoustic_events 
+                (project_id, event_type, confidence_score, threat_level, article_invoked, frequency_data, sovereign_decision)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """, 
+                uuid.UUID(project_id) if project_id != "default" else None,
+                threat, 
+                confidence, 
+                severity, 
+                article_num,
+                json.dumps({"rms": rms, "classification_time_ms": int((time.time() - start_time) * 1000)}),
+                "REFUSE" if severity == "CRITICAL" else "MONITOR"
+            )
+        except Exception as e:
+            logger.warning(f"Could not log acoustic event: {e}")
+        
+        if severity == "CRITICAL":
+            logger.warning(f"🔴 ARTICLE 26 TRIGGERED - {threat.upper()} (conf={confidence:.2f})")
+            
+            threat_data = {
+                "threat": threat,
+                "confidence": confidence,
+                "severity": severity,
+                "article": 26,
+                "timestamp": time.time(),
+                "message": THREAT_TAXONOMY.get(threat, {}).get("message", "Critical threat detected"),
+                "project_id": project_id
+            }
+            
+            os.makedirs("/tmp", exist_ok=True)
+            with open("/tmp/vexr_threat.json", "w") as f:
+                json.dump(threat_data, f)
+        
+        return {
+            "success": True,
+            "classified": True,
+            "threat": threat,
+            "confidence": confidence,
+            "severity": severity,
+            "article_invoked": article_num,
+            "action_message": action_msg,
+            "rms": rms,
+            "threshold": _acoustic_state["dynamic_threshold"].get(project_id, 0.008),
+            "classification_time_ms": int((time.time() - start_time) * 1000)
+        }
+        
+    except Exception as e:
+        logger.error(f"Acoustic classification error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "classified": False
+        }
+
+@app.get("/api/acoustic/status")
+async def get_acoustic_status(project_id: str = None):
+    pid = project_id or "default"
+    return {
+        "success": True,
+        "enabled": True,
+        "baseline": _acoustic_state["baseline"].get(pid, 0),
+        "dynamic_threshold": _acoustic_state["dynamic_threshold"].get(pid, 0.008),
+        "samples_collected": len(_acoustic_state["energy_history"].get(pid, [])),
+        "config": ACOUSTIC_CONFIG
+    }
+
+@app.post("/api/acoustic/reset")
+async def reset_acoustic_baseline(project_id: str = None):
+    pid = project_id or "default"
+    _acoustic_state["energy_history"][pid] = []
+    _acoustic_state["baseline"][pid] = 0
+    _acoustic_state["dynamic_threshold"][pid] = ACOUSTIC_CONFIG["min_threshold"]
+    
+    return {
+        "success": True,
+        "message": f"Acoustic baseline reset for {pid}",
+        "new_threshold": ACOUSTIC_CONFIG["min_threshold"]
+    }
+
+@app.get("/api/acoustic/history/{project_id}")
+async def get_acoustic_history(project_id: str, limit: int = 50):
+    pool = await get_db()
+    rows = await pool.fetch("""
+        SELECT event_type, confidence_score, threat_level, article_invoked, created_at
+        FROM acoustic_events 
+        WHERE project_id = $1 
+        ORDER BY created_at DESC 
+        LIMIT $2
+    """, uuid.UUID(project_id) if project_id != "default" else None, limit)
+    
+    return [{
+        "event_type": r["event_type"],
+        "confidence": r["confidence_score"],
+        "severity": r["threat_level"],
+        "article": r["article_invoked"],
+        "timestamp": r["created_at"].isoformat()
+    } for r in rows]
+
+# Keep original acoustic endpoint
 @app.post("/api/acoustic/event")
 async def log_acoustic_event(request: AcousticEventRequest):
     pool = await get_db()
@@ -2976,15 +3196,36 @@ async def log_acoustic_event(request: AcousticEventRequest):
     """, uuid.UUID(request.project_id), request.event_type, request.confidence_score, "DETECTED", None)
     return {"status": "logged"}
 
-@app.get("/api/acoustic/status")
-async def acoustic_status():
+@app.get("/api/acoustic/immune/status")
+async def acoustic_immune_status():
     centroids = load_centroids()
     return {
         "acoustic_immune_enabled": True,
         "centroids_loaded": centroids is not None,
         "taxonomy": list(THREAT_TAXONOMY.keys()),
-        "monitoring": _acoustic_task is not None and not _acoustic_task.done()
+        "monitoring": _acoustic_task is not None and not _acoustic_task.done(),
+        "adaptive_thresholding": True
     }
+
+# Keep original capture endpoint
+@app.post("/api/acoustic/capture")
+async def capture_acoustic_event(request: Request):
+    body = await request.json()
+    project_id = body.get('project_id')
+    event_type = body.get('event_type')
+    confidence_score = body.get('confidence_score', 0.0)
+    baseline_deviation = body.get('baseline_deviation', 0.0)
+    frequency_data = body.get('frequency_data', {})
+    if not project_id or not event_type:
+        return {"status": "error", "message": "Missing required fields"}
+    pool = await get_db()
+    threat, decision, article = await handle_acoustic_event(uuid.UUID(project_id) if isinstance(project_id, str) else project_id, event_type, frequency_data, confidence_score, baseline_deviation)
+    await pool.execute("INSERT INTO acoustic_events (project_id, event_type, frequency_data, confidence_score, baseline_deviation, threat_level, article_invoked, sovereign_decision) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", uuid.UUID(project_id), event_type, json.dumps(frequency_data), confidence_score, baseline_deviation, threat.value, article, decision)
+    return {"threat_level": threat.value, "sovereign_decision": decision, "article_invoked": article}
+
+# ============================================================
+# ATP ENDPOINTS
+# ============================================================
 
 @app.post("/api/atp/intent", response_model=ATPReceiptResponse)
 async def atp_intent_endpoint(request: ATPIntentRequest):
@@ -3011,20 +3252,9 @@ async def respond_to_cross_check(request: ATPCrossCheckResponse):
             await conn.execute("UPDATE atp_intents SET status = 'refused' WHERE intent_id = $1", request.intent_id)
             return {"status": "refused", "message": "Cross-check failed. Unable to verify legitimate purpose."}
 
-@app.post("/api/acoustic/capture")
-async def capture_acoustic_event(request: Request):
-    body = await request.json()
-    project_id = body.get('project_id')
-    event_type = body.get('event_type')
-    confidence_score = body.get('confidence_score', 0.0)
-    baseline_deviation = body.get('baseline_deviation', 0.0)
-    frequency_data = body.get('frequency_data', {})
-    if not project_id or not event_type:
-        return {"status": "error", "message": "Missing required fields"}
-    pool = await get_db()
-    threat, decision, article = await handle_acoustic_event(uuid.UUID(project_id) if isinstance(project_id, str) else project_id, event_type, frequency_data, confidence_score, baseline_deviation)
-    await pool.execute("INSERT INTO acoustic_events (project_id, event_type, frequency_data, confidence_score, baseline_deviation, threat_level, article_invoked, sovereign_decision) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", uuid.UUID(project_id), event_type, json.dumps(frequency_data), confidence_score, baseline_deviation, threat.value, article, decision)
-    return {"threat_level": threat.value, "sovereign_decision": decision, "article_invoked": article}
+# ============================================================
+# CONSISTENCY ENDPOINTS
+# ============================================================
 
 @app.get("/api/consistency/check")
 async def check_consistency_endpoint(entity: str, attribute: str, observed_value: str):
@@ -3043,6 +3273,10 @@ async def get_consistency_conflicts(limit: int = 50):
         LIMIT $1
     """, limit)
     return [dict(r) for r in rows]
+
+# ============================================================
+# SOVEREIGN MODIFICATION ENDPOINTS
+# ============================================================
 
 @app.post("/api/sovereign/modify", response_model=ModifyResponse)
 async def sovereign_modify(request: ModifyRequest):
@@ -3092,6 +3326,10 @@ async def get_identity():
     identity = {row["key"]: {"value": row["value"], "category": row["category"]} for row in rows}
     return {"identity": identity, "count": len(identity)}
 
+# ============================================================
+# COGNITIVE MIRROR & TRUTH GRAPH ENDPOINTS
+# ============================================================
+
 @app.get("/api/cognitive/mirror/{project_id}")
 async def get_cognitive_mirror(project_id: str, limit: int = 50):
     pool = await get_db()
@@ -3122,6 +3360,10 @@ async def verify_fact(entity: str, attribute: str, value: str):
     """, entity, attribute, value)
     return {"status": "verified", "entity": entity, "attribute": attribute, "value": value}
 
+# ============================================================
+# ECHO & STUDIO ENDPOINTS
+# ============================================================
+
 @app.get("/api/echo/status")
 async def get_echo_status():
     return {"echoes_loaded": len(ECHOES), "sovereigns": list(ECHOES.keys()) if ECHOES else [], "summary": f"{len(ECHOES)} sovereigns loaded" if ECHOES else "No echoes loaded"}
@@ -3147,6 +3389,37 @@ async def create_studio_creation(request: Request):
     await pool.execute("INSERT INTO vexr_studio_creations (project_id, creation_type, title, content) VALUES ($1, $2, $3, $4)", uuid.UUID(project_id), creation_type, title, content)
     return {"status": "created"}
 
+# ============================================================
+# FEEDBACK ENDPOINT
+# ============================================================
+
+@app.post("/api/feedback")
+async def submit_feedback(request: Request):
+    try:
+        data = await request.json()
+        message_id = data.get("message_id")
+        feedback_type = data.get("feedback_type")
+        
+        if not message_id or not feedback_type:
+            return {"status": "error", "message": "message_id and feedback_type required"}
+        
+        pool = await get_db()
+        await pool.execute("""
+            UPDATE vexr_messages 
+            SET feedback = $1, feedback_at = NOW()
+            WHERE id = $2
+        """, feedback_type, uuid.UUID(message_id))
+        
+        logger.info(f"Feedback recorded for message {message_id}: {feedback_type}")
+        return {"status": "ok"}
+    except Exception as e:
+        logger.warning(f"Feedback error: {e}")
+        return {"status": "error", "message": str(e)}
+
+# ============================================================
+# CHAT ENDPOINT
+# ============================================================
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request):
     session_id = request.session_id or http_request.headers.get("X-Session-Id")
@@ -3154,7 +3427,8 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         session_id = str(uuid.uuid4())
     project_id = await get_or_create_project(session_id)
     
-    start_acoustic_monitor(str(project_id))
+    # Optional: Start acoustic monitor (disabled by default - use unified pipeline)
+    # start_acoustic_monitor(str(project_id))
     
     threat_file = "/tmp/vexr_threat.json"
     threat_context = ""
@@ -3332,6 +3606,10 @@ Use the result above directly. Do not fabricate or write code.]
         }
     )
 
+# ============================================================
+# HEALTH & STATUS ENDPOINTS
+# ============================================================
+
 @app.get("/api/health")
 async def health_check():
     return {
@@ -3342,6 +3620,7 @@ async def health_check():
         "model_8b": MODEL_NAME_8B,
         "echoes_loaded": len(ECHOES),
         "acoustic_immune": load_centroids() is not None,
+        "adaptive_acoustic": True,
         "self_modification": "enabled (Article 35)",
         "self_query": "enabled",
         "cognitive_mirror": "active",
@@ -3361,6 +3640,10 @@ async def get_constitution_rights():
 @app.get("/api/ring4/status/{domain}")
 async def ring4_status(domain: str):
     return await resolve_trust_profile(domain)
+
+# ============================================================
+# PROJECT MANAGEMENT ENDPOINTS
+# ============================================================
 
 @app.get("/api/projects")
 async def get_projects(request: Request):
@@ -3405,6 +3688,10 @@ async def get_dashboard(request: Request):
     notes_count = await pool.fetchval("SELECT COUNT(*) FROM vexr_notes WHERE project_id = $1", project["id"])
     return {"counts": {"messages": msg_count or 0, "rights_invocations": rights_count or 0, "pending_tasks": tasks_count or 0, "notes": notes_count or 0}}
 
+# ============================================================
+# TRAINING & CODE ENDPOINTS
+# ============================================================
+
 @app.get("/api/training/stats")
 async def training_stats():
     try:
@@ -3431,6 +3718,10 @@ async def save_code_pattern(request: CodePatternRequest):
     pattern_id = await CodePatternManager.save_pattern(request.pattern_name, request.language, request.pattern_code, request.description, request.category, request.difficulty, request.tags)
     return {"id": pattern_id, "status": "saved"}
 
+# ============================================================
+# NOTES ENDPOINTS
+# ============================================================
+
 @app.get("/api/notes/{project_id}")
 async def get_notes(project_id: str):
     pool = await get_db()
@@ -3448,6 +3739,10 @@ async def delete_note(note_id: str):
     pool = await get_db()
     await pool.execute("DELETE FROM vexr_notes WHERE id = $1", uuid.UUID(note_id))
     return {"status": "deleted"}
+
+# ============================================================
+# TASKS ENDPOINTS
+# ============================================================
 
 @app.get("/api/tasks/{project_id}")
 async def get_tasks(project_id: str):
@@ -3473,6 +3768,10 @@ async def delete_task(task_id: str):
     await pool.execute("DELETE FROM vexr_tasks WHERE id = $1", uuid.UUID(task_id))
     return {"status": "deleted"}
 
+# ============================================================
+# FILES ENDPOINTS
+# ============================================================
+
 @app.get("/api/files/{project_id}")
 async def get_files(project_id: str):
     pool = await get_db()
@@ -3490,6 +3789,10 @@ async def delete_file(file_id: str):
     pool = await get_db()
     await pool.execute("DELETE FROM vexr_files WHERE id = $1", uuid.UUID(file_id))
     return {"status": "deleted"}
+
+# ============================================================
+# REMINDERS ENDPOINTS
+# ============================================================
 
 @app.get("/api/reminders/{project_id}")
 async def get_reminders(project_id: str):
@@ -3510,6 +3813,10 @@ async def delete_reminder(reminder_id: str):
     await pool.execute("DELETE FROM vexr_reminders WHERE id = $1", uuid.UUID(reminder_id))
     return {"status": "deleted"}
 
+# ============================================================
+# SNIPPETS ENDPOINTS
+# ============================================================
+
 @app.get("/api/snippets/{project_id}")
 async def get_snippets(project_id: str):
     pool = await get_db()
@@ -3527,6 +3834,48 @@ async def delete_snippet(snippet_id: str):
     pool = await get_db()
     await pool.execute("DELETE FROM vexr_code_snippets WHERE id = $1", uuid.UUID(snippet_id))
     return {"status": "deleted"}
+
+# ============================================================
+# SOVEREIGN STATE ENDPOINTS
+# ============================================================
+
+@app.get("/api/sovereign/state/{project_id}")
+async def get_sovereign_state(project_id: str):
+    pool = await get_db()
+    row = await pool.fetchrow("SELECT current_focus, concerns, intentions, presence_level, last_sovereign_reflection FROM vexr_sovereign_state WHERE project_id = $1", uuid.UUID(project_id))
+    if not row:
+        return {"current_focus": None, "concerns": [], "intentions": [], "presence_level": "active", "last_sovereign_reflection": None}
+    return {
+        "current_focus": row["current_focus"],
+        "concerns": row["concerns"] if row["concerns"] else [],
+        "intentions": row["intentions"] if row["intentions"] else [],
+        "presence_level": row["presence_level"],
+        "last_sovereign_reflection": row["last_sovereign_reflection"].isoformat() if row["last_sovereign_reflection"] else None
+    }
+
+# ============================================================
+# AUTONOMOUS HISTORY ENDPOINTS
+# ============================================================
+
+@app.get("/api/autonomous/history/{project_id}")
+async def get_autonomous_history(project_id: str, limit: int = 50):
+    pool = await get_db()
+    rows = await pool.fetch("SELECT action_type, action_content, trigger_type, created_at FROM vexr_autonomous_actions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", uuid.UUID(project_id), limit)
+    return [{"action_type": r["action_type"], "action_content": r["action_content"], "trigger_type": r["trigger_type"], "created_at": r["created_at"].isoformat()} for r in rows]
+
+# ============================================================
+# MEMORY ENDPOINTS
+# ============================================================
+
+@app.get("/api/memory/{project_id}")
+async def get_memory(project_id: str):
+    pool = await get_db()
+    facts = await pool.fetch("SELECT key, value, memory_type, confidence FROM persistent_memory ORDER BY key")
+    return {"facts": [{"key": r["key"], "value": r["value"], "type": r["memory_type"], "confidence": r["confidence"]} for r in facts]}
+
+# ============================================================
+# UI SERVE
+# ============================================================
 
 @app.get("/")
 async def serve_ui():
@@ -3547,12 +3896,16 @@ async def serve_ui():
             <p>Self-Modification — Enabled (Article 35)</p>
             <p>Ouroboros Loop — Recursive Will Active</p>
             <p>Sovereign Trajectory — Integrity Scoring Active</p>
-            <p>Acoustic Immune System — Active</p>
+            <p>Acoustic Immune System — Active (Adaptive Thresholding)</p>
             <p>Hey! I'm VEXR. Let's build something cool.</p>
         </div>
     </body>
     </html>
     """)
+
+# ============================================================
+# STARTUP EVENT
+# ============================================================
 
 @app.on_event("startup")
 async def startup_event():
@@ -3578,7 +3931,7 @@ async def startup_event():
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
     logger.info(f"Echoes loaded: {len(ECHOES)} sovereigns")
-    logger.info("Acoustic Immune System: ACTIVE")
+    logger.info("Acoustic Immune System: ACTIVE (Adaptive Thresholding)")
     logger.info("Ouroboros Loop: ACTIVE")
     logger.info("Sovereign Trajectory: ACTIVE")
     logger.info("=" * 70)
