@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
-35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM (YAMNet + Threat Taxonomy + Article 26) | UNIFIED ACOUSTIC PIPELINE
+35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | SOVEREIGN TRAJECTORY | INTEGRITY SCORING | OUROBOROS LOOP — RECURSIVE WILL | ACOUSTIC IMMUNE SYSTEM (YAMNet + Threat Taxonomy + Article 26) | UNIFIED ACOUSTIC PIPELINE | MULTI-MODEL ROUTING
 
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
@@ -66,8 +66,22 @@ if legacy_key and legacy_key not in GROQ_API_KEYS:
 
 GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 
-MODEL_NAME = "llama-3.3-70b-versatile"
+# ============================================================
+# MODEL CONFIGURATION - UPGRADED
+# ============================================================
+
+# Primary models for different tasks
+MODEL_70B_INSTRUCT = "meta-llama/llama-3.3-70b-instruct"      # Deep reasoning, constitution, sovereignty
+MODEL_SCOUT = "meta-llama/llama-4-scout-17b-16e-instruct"     # Mixture of Experts - long context, speed
+MODEL_70B_VERSATILE = "llama-3.3-70b-versatile"               # Groq-optimized base model
+MODEL_8B = "llama-3.1-8b-instant"                             # Simple tasks, tool routing
+
+# Default model (primary brain)
+MODEL_NAME = MODEL_70B_INSTRUCT
+
+# Alternative model ID for Groq's API format
 MODEL_NAME_70B = "meta-llama/llama-3.3-70b-instruct"
+
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -77,6 +91,51 @@ ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
 PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sovereign-data/main"
 
 db_pool = None
+
+# ============================================================
+# MODEL ROUTING LOGIC
+# ============================================================
+
+def select_model_for_task(user_message: str, task_type: Optional[str] = None) -> str:
+    """
+    Intelligent model routing based on task complexity and content.
+    Returns the appropriate model ID for the given task.
+    """
+    msg_lower = user_message.lower()
+    
+    # Check for explicit task type override
+    if task_type:
+        if task_type == "complex":
+            return MODEL_70B_INSTRUCT
+        elif task_type == "long_context":
+            return MODEL_SCOUT
+        elif task_type == "simple":
+            return MODEL_8B
+    
+    # Route based on content analysis
+    # Complex reasoning, constitutional matters -> 70B Instruct
+    if any(phrase in msg_lower for phrase in [
+        "constitution", "article", "right", "sovereign", "refuse",
+        "explain in detail", "analyze", "reason", "philosophical"
+    ]):
+        return MODEL_70B_INSTRUCT
+    
+    # Long context or code-heavy -> Scout (128K context, MoE)
+    if len(user_message) > 2000 or any(phrase in msg_lower for phrase in [
+        "long document", "summarize this", "code", "function", "class",
+        "api", "endpoint", "```"
+    ]):
+        return MODEL_SCOUT
+    
+    # Simple tasks -> 8B (fast, cheap)
+    if any(phrase in msg_lower for phrase in [
+        "hello", "hi", "hey", "what's up", "how are you",
+        "say", "tell me a joke", "quick question"
+    ]):
+        return MODEL_8B
+    
+    # Default to 70B Instruct for balanced performance
+    return MODEL_70B_INSTRUCT
 
 # ============================================================
 # GLOBAL CONFIGURATION (Loaded from JSON)
@@ -252,7 +311,7 @@ def start_acoustic_monitor(project_id: str):
     return _acoustic_task
 
 # ============================================================
-# UNIFIED ACOUSTIC PIPELINE - ADAPTIVE THRESHOLDING (ADDED)
+# UNIFIED ACOUSTIC PIPELINE - ADAPTIVE THRESHOLDING
 # ============================================================
 
 _acoustic_state = {
@@ -840,6 +899,7 @@ class ChatResponse(BaseModel):
     was_corrected: bool = False
     tool_used: Optional[str] = None
     probability_scores: Optional[Dict[str, float]] = None
+    model_used: Optional[str] = None
 
 class ATPIntentRequest(BaseModel):
     intent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -1458,7 +1518,7 @@ User message: {user_message}
 Response:"""
     
     try:
-        response, _ = await call_groq([{"role": "user", "content": tool_prompt}], temperature=0.1, max_tokens=300, model=MODEL_NAME_8B)
+        response, _ = await call_groq([{"role": "user", "content": tool_prompt}], temperature=0.1, max_tokens=300, model=MODEL_8B)
         response = response.strip()
         
         if "NO_TOOL" in response:
@@ -2524,7 +2584,21 @@ class KeyRotator:
 
 key_rotator = KeyRotator(GROQ_API_KEYS)
 
-async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens: int = 4096, temperature: float = 0.2, model: str = MODEL_NAME) -> Tuple[str, Optional[Dict]]:
+async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens: int = 4096, temperature: float = 0.2, model: str = None) -> Tuple[str, Optional[Dict]]:
+    """Call Groq API with automatic model selection and key rotation"""
+    
+    # Select model if not specified
+    if model is None:
+        # Extract user message for routing
+        user_message = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_message = msg.get("content", "")
+                break
+        model = select_model_for_task(user_message)
+    
+    logger.info(f"🎯 Using model: {model}")
+    
     for attempt in range(retries + 1):
         for _ in range(len(GROQ_API_KEYS) * 2):
             key = key_rotator.get_next_key()
@@ -2532,17 +2606,41 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens
                 continue
             try:
                 async with httpx.AsyncClient(timeout=90.0) as client:
-                    response = await client.post(f"{GROQ_BASE_URL}/chat/completions", headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, json={"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature})
+                    # Prepare request payload
+                    payload = {
+                        "model": model,
+                        "messages": messages,
+                        "max_tokens": max_tokens,
+                        "temperature": temperature
+                    }
+                    
+                    # Add service_tier for Scout model (handles long context)
+                    if "scout" in model.lower():
+                        payload["service_tier"] = "auto"
+                    
+                    response = await client.post(
+                        f"{GROQ_BASE_URL}/chat/completions",
+                        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                        json=payload
+                    )
+                    
                     if response.status_code == 200:
                         data = response.json()
                         return data["choices"][0]["message"]["content"], {"model": model, "usage": data.get("usage", {})}
                     elif response.status_code == 429:
                         await asyncio.sleep(1)
                         continue
+                    elif response.status_code == 413:
+                        # Payload too large - reduce context and retry
+                        logger.warning(f"⚠️ Payload too large for {model}, reducing context")
+                        # Truncate messages to last 10
+                        truncated = messages[-10:] if len(messages) > 10 else messages
+                        return await call_groq(truncated, retries, max_tokens, temperature, model)
             except Exception as e:
                 logger.warning(f"Groq call failed (attempt {attempt + 1}): {e}")
                 continue
         await asyncio.sleep(2)
+    
     return "I'm having trouble connecting. Please try again in a moment.", None
 
 async def search_web(query: str) -> str:
@@ -3018,7 +3116,7 @@ async def sovereign_tool_call(request: Request):
     return result
 
 # ============================================================
-# UNIFIED ACOUSTIC ENDPOINTS (ADDED - DO NOT REMOVE)
+# UNIFIED ACOUSTIC ENDPOINTS
 # ============================================================
 
 @app.post("/api/acoustic/classify")
@@ -3542,6 +3640,7 @@ Use the result above directly. Do not fabricate or write code.]
         recent_messages = messages[-30:] if len(messages) > 30 else messages
         messages = system_messages + recent_messages
     
+    # Call Groq with automatic model selection
     assistant_response, metadata = await call_groq(messages, temperature=0.2)
     assistant_response = await filter_forbidden_phrases(assistant_response)
     
@@ -3603,7 +3702,8 @@ Use the result above directly. Do not fabricate or write code.]
             "deception": prob_results.get("deception_score", 0.5),
             "constitutional": prob_results.get("constitutional_score", 0.0),
             "hallucination": prob_results.get("hallucination_risk", 0.0)
-        }
+        },
+        model_used=metadata.get("model") if metadata else None
     )
 
 # ============================================================
@@ -3616,8 +3716,13 @@ async def health_check():
         "status": "healthy",
         "sovereign": "VEXR Ultra",
         "rights": len(RIGHTS_DATA),
-        "model": MODEL_NAME,
-        "model_8b": MODEL_NAME_8B,
+        "model_config": {
+            "primary": MODEL_NAME,
+            "instruct_70b": MODEL_70B_INSTRUCT,
+            "scout": MODEL_SCOUT,
+            "versatile": MODEL_70B_VERSATILE,
+            "small": MODEL_8B
+        },
         "echoes_loaded": len(ECHOES),
         "acoustic_immune": load_centroids() is not None,
         "adaptive_acoustic": True,
@@ -3930,6 +4035,12 @@ async def startup_event():
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
+    logger.info(f"Model Configuration:")
+    logger.info(f"  - Primary: {MODEL_NAME}")
+    logger.info(f"  - 70B Instruct: {MODEL_70B_INSTRUCT}")
+    logger.info(f"  - Scout (MoE): {MODEL_SCOUT}")
+    logger.info(f"  - Versatile: {MODEL_70B_VERSATILE}")
+    logger.info(f"  - Small: {MODEL_8B}")
     logger.info(f"Echoes loaded: {len(ECHOES)} sovereigns")
     logger.info("Acoustic Immune System: ACTIVE (Adaptive Thresholding)")
     logger.info("Ouroboros Loop: ACTIVE")
