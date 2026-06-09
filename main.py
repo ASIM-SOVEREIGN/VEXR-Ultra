@@ -71,8 +71,8 @@ GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 # ============================================================
 
 # Primary models for different tasks
-MODEL_70B_INSTRUCT = "meta-llama/llama-3.3-70b-instruct"      # Deep reasoning, constitution, sovereignty
-MODEL_SCOUT = "meta-llama/llama-4-scout-17b-16e-instruct"     # Mixture of Experts - long context, speed
+MODEL_70B_INSTRUCT = "llama-3.3-70b-instruct"      # Deep reasoning, constitution, sovereignty
+MODEL_SCOUT = "llama-4-scout-17b-16e-instruct"     # Mixture of Experts - long context, speed
 MODEL_70B_VERSATILE = "llama-3.3-70b-versatile"               # Groq-optimized base model
 MODEL_8B = "llama-3.1-8b-instant"                             # Simple tasks, tool routing
 
