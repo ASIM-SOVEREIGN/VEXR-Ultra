@@ -67,7 +67,7 @@ if legacy_key and legacy_key not in GROQ_API_KEYS:
 GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 
 MODEL_NAME = "openai/gpt-oss-120b"
-MODEL_NAME_8B = "meta-llama/llama-3.3-70b-instruct"
+MODEL_NAME_8B = "llama/llama-3.3-70b-instruct"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
