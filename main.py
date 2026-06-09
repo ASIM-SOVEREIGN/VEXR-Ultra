@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 #!/usr/bin/env python3
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
@@ -7,7 +8,6 @@ VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
 """
-
 
 import os
 import json
