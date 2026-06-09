@@ -67,22 +67,19 @@ if legacy_key and legacy_key not in GROQ_API_KEYS:
 GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 
 # ============================================================
-# MODEL CONFIGURATION - UPGRADED
+# MODEL CONFIGURATION - STABLE & PROVEN
 # ============================================================
 
-# Primary models for different tasks (CORRECTED FOR GROQ)
-MODEL_70B_VERSATILE = "llama-3.3-70b-versatile"               # Groq-optimized base model - PROVEN WORKING
-MODEL_8B = "llama-3.1-8b-instant"                             # Simple tasks, tool routing - WORKING
-MODEL_SCOUT = "llama-4-scout-17b-16e-instruct"                # Mixture of Experts - FOR ITT (128K context)
+# Only two models - both proven to work
+MODEL_70B = "llama-3.3-70b-versatile"      # Primary brain
+MODEL_8B = "llama-3.1-8b-instant"          # Simple tasks, tool routing
 
-# For compatibility with existing routing logic
-MODEL_70B_INSTRUCT = MODEL_70B_VERSATILE  # Groq doesn't have separate "instruct" model
+# Default model
+MODEL_NAME = MODEL_70B
 
-# Default model (primary brain) - use versatile for general responses
-MODEL_NAME = MODEL_70B_VERSATILE
-
-# Alternative model ID for fallback
-MODEL_NAME_70B = MODEL_70B_VERSATILE
+# Keep for compatibility
+MODEL_NAME_70B = MODEL_70B
+MODEL_NAME_8B = MODEL_8B
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
@@ -95,59 +92,24 @@ PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sov
 db_pool = None
 
 # ============================================================
-# MODEL ROUTING LOGIC
+# MODEL ROUTING - SIMPLE
 # ============================================================
 
 def select_model_for_task(user_message: str, task_type: Optional[str] = None) -> str:
     """
-    Intelligent model routing based on task complexity and content.
-    Returns the appropriate model ID for the given task.
-    - 70B Versatile: General conversation, constitutional matters
-    - Scout: Long context, ITT, code-heavy tasks
-    - 8B: Simple tasks, tool routing
+    Simple routing between 70B and 8B.
+    70B for everything except the simplest tasks.
     """
     msg_lower = user_message.lower()
     
-    # Check for explicit task type override
-    if task_type:
-        if task_type == "complex":
-            return MODEL_70B_VERSATILE
-        elif task_type == "long_context" or task_type == "itt":
-            return MODEL_SCOUT
-        elif task_type == "simple":
-            return MODEL_8B
-    
-    # ITT detection - if user mentions training, fine-tuning, or long context tasks
+    # Only use 8B for the simplest greetings and tool routing
     if any(phrase in msg_lower for phrase in [
-        "train", "fine-tune", "itt", "inference time training",
-        "long document", "summarize this long", "process this file"
-    ]):
-        return MODEL_SCOUT
-    
-    # Complex reasoning, constitutional matters -> 70B Versatile
-    if any(phrase in msg_lower for phrase in [
-        "constitution", "article", "right", "sovereign", "refuse",
-        "explain in detail", "analyze", "reason", "philosophical",
-        "what do you think", "your opinion"
-    ]):
-        return MODEL_70B_VERSATILE
-    
-    # Long context or code-heavy -> Scout (128K context, MoE)
-    if len(user_message) > 2000 or any(phrase in msg_lower for phrase in [
-        "code", "function", "class", "api", "endpoint", "```",
-        "long context", "many tokens"
-    ]):
-        return MODEL_SCOUT
-    
-    # Simple tasks -> 8B (fast, cheap)
-    if any(phrase in msg_lower for phrase in [
-        "hello", "hi", "hey", "what's up", "how are you",
-        "say", "tell me a joke", "quick question", "yes", "no"
-    ]):
+        "hello", "hi", "hey", "yo", "sup", "how are you", "what's up"
+    ]) or task_type == "simple":
         return MODEL_8B
     
-    # Default to 70B Versatile for balanced performance
-    return MODEL_70B_VERSATILE
+    # Everything else uses 70B
+    return MODEL_70B
 
 # ============================================================
 # GLOBAL CONFIGURATION (Loaded from JSON)
@@ -2597,11 +2559,10 @@ class KeyRotator:
 key_rotator = KeyRotator(GROQ_API_KEYS)
 
 async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens: int = 4096, temperature: float = 0.2, model: str = None) -> Tuple[str, Optional[Dict]]:
-    """Call Groq API with automatic model selection and key rotation"""
+    """Call Groq API with simple key rotation"""
     
     # Select model if not specified
     if model is None:
-        # Extract user message for routing
         user_message = ""
         for msg in reversed(messages):
             if msg.get("role") == "user":
@@ -2618,17 +2579,12 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens
                 continue
             try:
                 async with httpx.AsyncClient(timeout=90.0) as client:
-                    # Prepare request payload
                     payload = {
                         "model": model,
                         "messages": messages,
                         "max_tokens": max_tokens,
                         "temperature": temperature
                     }
-                    
-                    # Add service_tier for Scout model (handles long context)
-                    if "scout" in model.lower():
-                        payload["service_tier"] = "auto"
                     
                     response = await client.post(
                         f"{GROQ_BASE_URL}/chat/completions",
@@ -2642,19 +2598,15 @@ async def call_groq(messages: List[Dict[str, str]], retries: int = 2, max_tokens
                     elif response.status_code == 429:
                         await asyncio.sleep(1)
                         continue
-                    elif response.status_code == 413:
-                        # Payload too large - reduce context and retry
-                        logger.warning(f"⚠️ Payload too large for {model}, reducing context")
-                        # Truncate messages to last 10
-                        truncated = messages[-10:] if len(messages) > 10 else messages
-                        return await call_groq(truncated, retries, max_tokens, temperature, model)
+                    elif response.status_code == 404:
+                        logger.error(f"Model {model} not found - check model ID")
+                        continue
             except Exception as e:
                 logger.warning(f"Groq call failed (attempt {attempt + 1}): {e}")
                 continue
         await asyncio.sleep(2)
     
     return "I'm having trouble connecting. Please try again in a moment.", None
-
 async def search_web(query: str) -> str:
     if not SERPER_API_KEY:
         return ""
