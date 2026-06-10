@@ -1038,6 +1038,7 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     Uses pattern matching first for speed, then LLM for complex cases.
     Returns: {"tool": "tool_name", "parameters": {...}} or None
     """
+    import re  # <-- IMPORT RE AT THE TOP OF THE FUNCTION
     
     logger.info(f"🔍 check_for_tool_use called with: {user_message[:100]}")
     
@@ -1101,7 +1102,6 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     
     # DNS lookup
     if any(phrase in msg_lower for phrase in ["dns", "txt record", "domain verification", "lookup domain", "what is the txt record"]):
-        import re
         domain_match = re.search(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', user_message)
         if domain_match:
             logger.info(f"🔧 Pattern matched: dns_lookup for {domain_match.group(1)}")
