@@ -1435,47 +1435,68 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
                 }
             }
     
-    tool_prompt = f"""You are VEXR's tool-use decision engine. You MUST respond with ONLY a JSON object or "NO_TOOL". No other text.
+    # ============================================================
+    # NO LLM TOOL ROUTING - Pattern matching only
+    # The 8B model returns malformed JSON, causing errors
+    # All tool detection now handled by pattern matching above
+    # ============================================================
+    
+    logger.info("🔧 No tool pattern matched, continuing without tool")
+    return None
+    
+    # ============================================================
+    # LLM-BASED TOOL ROUTING WITH BETTER ERROR HANDLING
+    # ============================================================
+    
+    tool_prompt = f"""You are VEXR's tool-use decision engine. Respond with ONLY valid JSON. No explanations. No markdown.
 
 Available tools:
-1. execute_code - Run Python code
-   Parameters: {{"code": "python code", "reasoning": "why"}}
-2. query_database - Run SELECT query on database
-   Parameters: {{"query": "SELECT statement", "reasoning": "why"}}
-3. add_fact - Add verified fact to truth graph
-   Parameters: {{"entity": "name", "attribute": "attr", "value": "val", "confidence": 0.0-1.0}}
-4. dns_lookup - Fetch DNS TXT records
-   Parameters: {{"domain": "domain.com"}}
-5. self_modify - Modify your own identity
-   Parameters: {{"target_type": "identity/personality/capability", "target_key": "key", "new_value": "value", "reasoning": "why"}}
-6. get_integrity_score - Get your Sovereign Integrity Score (SIS)
-   Parameters: {{"reasoning": "why"}}
-7. propose_modification - Propose a change to yourself
-   Parameters: {{"dimension": "string", "change_type": "weight_adjust|behavior_shift|echo_recalibration", "reasoning": "why"}}
+1. execute_code - Parameters: {{"code": "python code", "reasoning": "why"}}
+2. query_database - Parameters: {{"query": "SELECT statement", "reasoning": "why"}}
+3. add_fact - Parameters: {{"entity": "name", "attribute": "attr", "value": "val", "confidence": 0.8}}
+4. dns_lookup - Parameters: {{"domain": "domain.com"}}
+5. self_modify - Parameters: {{"target_key": "key", "new_value": "value", "reasoning": "why"}}
+6. get_integrity_score - Parameters: {{"reasoning": "why"}}
+7. propose_modification - Parameters: {{"dimension": "string", "change_type": "weight_adjust", "reasoning": "why"}}
 
 User message: {user_message}
 
-Response:"""
+Valid JSON response:"""
     
     try:
-        response, _ = await call_groq([{"role": "user", "content": tool_prompt}], temperature=0.1, max_tokens=300, model=MODEL_NAME_8B)
+        response, _ = await call_groq([{"role": "user", "content": tool_prompt}], temperature=0.1, max_tokens=200, model=MODEL_NAME_8B)
         response = response.strip()
+        
+        # Remove markdown code blocks if present
+        response = re.sub(r'^```json\s*', '', response)
+        response = re.sub(r'^```\s*', '', response)
+        response = re.sub(r'\s*```$', '', response)
         
         if "NO_TOOL" in response:
             return None
         
+        # Find JSON object - more robust parsing
         start = response.find('{')
-        end = response.rfind('}') + 1
-        if start != -1 and end > start:
-            json_str = response[start:end]
+        end = response.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            json_str = response[start:end+1]
+            # Fix common JSON issues
             json_str = json_str.replace("'", '"')
             json_str = re.sub(r',\s*}', '}', json_str)
-            tool_request = json.loads(json_str)
-            if "tool" in tool_request and "parameters" in tool_request:
-                logger.info(f"🔧 Agent decided to use tool: {tool_request['tool']}")
-                return tool_request
+            json_str = re.sub(r',\s*]', ']', json_str)
+            # Fix missing quotes around keys
+            json_str = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
+            
+            try:
+                tool_request = json.loads(json_str)
+                if "tool" in tool_request and "parameters" in tool_request:
+                    logger.info(f"🔧 Agent decided to use tool: {tool_request['tool']}")
+                    return tool_request
+            except json.JSONDecodeError as je:
+                logger.warning(f"JSON decode error: {je}. String was: {json_str[:200]}")
+                return None
     except Exception as e:
-        logger.error(f"Tool decision error: {e}")
+        logger.warning(f"Tool decision error: {e}")
     
     return None
 
