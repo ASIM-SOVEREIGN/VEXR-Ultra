@@ -48,6 +48,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="VEXR Ultra", description="Complete 13-Ring Sovereign Constitutional AI")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+# Wake endpoint to prevent Render cold starts
+@app.get("/api/wake")
+async def wake():
+    return {"status": "awake"}
+
 # ============================================================
 # ENVIRONMENT VARIABLES
 # ============================================================
