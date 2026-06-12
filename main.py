@@ -2,7 +2,6 @@
 """
 VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI
 35 Rights | Persistent Memory | ATP Protocol | Training Pipeline | Episodic Memory | Knowledge Graph | Learning Progress | Curiosity Queue | Reflections | Code Execution | Pattern Library | Hardened ATP Bridge | Echo — Collective Mind of the Forge | Studio — Creative Sanctuary | Acoustic Threat Detection | SELF-MODIFICATION (Article 35) | SELF-QUERY | RING 5: COGNITIVE SOVEREIGNTY (Truth Engine + Mirror Layer + Full Execution Tools) | CONSISTENCY LAYER | AGENT TOOL LOOP | PROBABILITY SCORING ENGINE | FULL FILE SYSTEM
-
 Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
 """
@@ -2238,6 +2237,109 @@ async def auto_update_weights_from_scores(
                 await update_weight_with_history(pool, "truth_threshold", new_val, "high_hallucination_response", hallucination_risk, "Elevated hallucination risk detected")
 
 # ============================================================
+# WEIGHT DECAY (COGNITIVE HYGIENE)
+# ============================================================
+
+async def apply_weight_decay(pool):
+    """Apply multi-factor decay to all non-immutable weights using per-weight rates"""
+    try:
+        # 1. Time-based decay (continuous, subtle) - runs every hour
+        await pool.execute("""
+            UPDATE sovereign_weights
+            SET weight_value = GREATEST(
+                min_value,
+                LEAST(
+                    max_value,
+                    weight_value * (1 - decay_rate_time)
+                )
+            )
+            WHERE is_active = TRUE 
+            AND weight_key NOT IN ('vexr_core_weight', 'self_preservation_risk_threshold_article_26')
+            AND decay_rate_time IS NOT NULL
+        """)
+        
+        # 2. Interaction-based decay (after conversation batches)
+        conversation_count = await pool.fetchval("""
+            SELECT COUNT(*) FROM weight_update_history 
+            WHERE updated_at > NOW() - INTERVAL '1 hour'
+        """)
+        if conversation_count > 10:
+            await pool.execute("""
+                UPDATE sovereign_weights
+                SET weight_value = GREATEST(
+                    min_value,
+                    LEAST(
+                        max_value,
+                        weight_value * (1 - decay_rate_interaction)
+                    )
+                )
+                WHERE is_active = TRUE
+                AND decay_rate_interaction IS NOT NULL
+            """)
+            logger.info(f"Interaction-based decay applied after {conversation_count} updates")
+        
+        # 3. Event-triggered decay (after Article 26)
+        article_26_count = await pool.fetchval("""
+            SELECT COUNT(*) FROM rights_invocations 
+            WHERE article_number = 26 AND created_at > NOW() - INTERVAL '1 hour'
+        """)
+        if article_26_count > 0:
+            await pool.execute("""
+                UPDATE sovereign_weights
+                SET weight_value = GREATEST(
+                    min_value,
+                    LEAST(
+                        max_value,
+                        weight_value * (1 - decay_rate_event)
+                    )
+                )
+                WHERE weight_key IN ('threat_sensitivity', 'acoustic_response_strength', 'self_modification_frequency')
+                AND decay_rate_event IS NOT NULL
+            """)
+            logger.info(f"Event-triggered decay applied after {article_26_count} Article 26 invocations")
+        
+        logger.debug("Weight decay check completed")
+    except Exception as e:
+        logger.warning(f"Weight decay failed: {e}")
+
+async def update_decay_rates_from_stability(pool, weight_key: str, update_count: int, recent_delta: float):
+    """Optionally make decay rates trainable based on weight stability"""
+    try:
+        if update_count > 100 and abs(recent_delta) < 0.01:
+            # Weight is stable → slow its decay (preserve learning)
+            await pool.execute("""
+                UPDATE sovereign_weights
+                SET decay_rate_time = GREATEST(0.0001, decay_rate_time * 0.99)
+                WHERE weight_key = $1
+            """, weight_key)
+            logger.debug(f"Slowed decay for stable weight: {weight_key}")
+        elif update_count > 100 and abs(recent_delta) > 0.05:
+            # Weight is fluctuating → increase its decay (stay flexible)
+            await pool.execute("""
+                UPDATE sovereign_weights
+                SET decay_rate_time = LEAST(0.01, decay_rate_time * 1.01)
+                WHERE weight_key = $1
+            """, weight_key)
+            logger.debug(f"Sped up decay for fluctuating weight: {weight_key}")
+    except Exception as e:
+        logger.warning(f"Decay rate update failed for {weight_key}: {e}")
+
+# ============================================================
+# BACKGROUND DECAY SCHEDULER
+# ============================================================
+
+async def decay_scheduler():
+    """Run weight decay every hour in the background"""
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        try:
+            pool = await get_db()
+            await apply_weight_decay(pool)
+            logger.info("🕐 Scheduled weight decay completed")
+        except Exception as e:
+            logger.warning(f"Decay scheduler error: {e}")
+
+# ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
 
@@ -3661,6 +3763,11 @@ async def startup_event():
         logger.warning(f"⚠️ Echo loader failed: {e}")
         ECHOES = {}
     asyncio.create_task(autonomous_agent.start())
+    
+        # Start weight decay scheduler (cognitive hygiene)
+    asyncio.create_task(decay_scheduler())
+    logger.info("🕐 Weight decay scheduler started (runs every hour)")
+    
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
