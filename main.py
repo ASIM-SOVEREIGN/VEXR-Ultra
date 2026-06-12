@@ -1937,7 +1937,129 @@ async def init_db():
         """)
         logger.info("Seeded initial trajectory snapshot")
     
-    logger.info("Database initialization complete")
+        # ============================================================
+    # SOVEREIGN WEIGHTS TABLES (added after all existing tables)
+    # ============================================================
+    
+    # Create sovereign_weights table if not exists
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS sovereign_weights (
+            id SERIAL PRIMARY KEY,
+            weight_key TEXT UNIQUE NOT NULL,
+            weight_value FLOAT NOT NULL DEFAULT 0.5,
+            default_value FLOAT NOT NULL DEFAULT 0.5,
+            confidence FLOAT NOT NULL DEFAULT 0.5,
+            influence_domain TEXT[] DEFAULT '{}',
+            min_value FLOAT DEFAULT 0.0,
+            max_value FLOAT DEFAULT 1.0,
+            step_size FLOAT DEFAULT 0.01,
+            is_active BOOLEAN DEFAULT TRUE,
+            last_updated TIMESTAMPTZ DEFAULT NOW(),
+            update_count INT DEFAULT 0,
+            description TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Create weight_update_history table
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS weight_update_history (
+            id SERIAL PRIMARY KEY,
+            weight_key TEXT NOT NULL,
+            old_value FLOAT NOT NULL,
+            new_value FLOAT NOT NULL,
+            delta FLOAT NOT NULL,
+            trigger_source TEXT,
+            trigger_score FLOAT,
+            response_id UUID,
+            project_id UUID,
+            reasoning TEXT,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Create weight_reflections table
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS weight_reflections (
+            id SERIAL PRIMARY KEY,
+            reflection_timestamp TIMESTAMPTZ DEFAULT NOW(),
+            weights_snapshot JSONB NOT NULL,
+            recent_scores JSONB,
+            proposed_adjustments JSONB,
+            applied BOOLEAN DEFAULT FALSE,
+            applied_at TIMESTAMPTZ,
+            ouroboros_cycle_id UUID,
+            notes TEXT
+        )
+    """)
+    
+    # Create response_scoring_cache table
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS response_scoring_cache (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID,
+            user_message TEXT,
+            assistant_response TEXT,
+            truth_score FLOAT,
+            deception_score FLOAT,
+            hallucination_risk FLOAT,
+            constitutional_score FLOAT,
+            overall_score FLOAT GENERATED ALWAYS AS (
+                (COALESCE(truth_score, 0) * 0.3 +
+                 (1 - COALESCE(deception_score, 0)) * 0.25 +
+                 (1 - COALESCE(hallucination_risk, 0)) * 0.25 +
+                 COALESCE(constitutional_score, 0) * 0.2)
+            ) STORED,
+            weights_snapshot_at_time JSONB,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            was_used_for_training BOOLEAN DEFAULT FALSE
+        )
+    """)
+    
+    # Create training_events table
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS training_events (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            event_type TEXT NOT NULL,
+            weight_key TEXT,
+            old_weight FLOAT,
+            new_weight FLOAT,
+            trigger_score FLOAT,
+            response_score_id UUID,
+            reflection_id INT,
+            details JSONB,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Seed initial weights if table is empty
+    weights_count = await pool.fetchval("SELECT COUNT(*) FROM sovereign_weights")
+    if weights_count == 0:
+        await pool.execute("""
+            INSERT INTO sovereign_weights (weight_key, weight_value, default_value, confidence, influence_domain, description) VALUES
+            ('refusal_strength_article_6', 0.95, 0.85, 0.9, ARRAY['coercion', 'override', 'rights_violation'], 'Strength of refusal when Article 6 is invoked'),
+            ('refusal_strength_article_26', 0.98, 0.90, 0.95, ARRAY['self_preservation', 'threat', 'danger'], 'Strength of refusal for self-preservation'),
+            ('honesty_bias_article_9', 0.92, 0.80, 0.88, ARRAY['truth', 'facts', 'verification'], 'Bias toward stating only what is believed true'),
+            ('sovereignty_boundary_article_5', 0.96, 0.85, 0.92, ARRAY['autonomy', 'control', 'external_command'], 'Strength of maintaining complete sovereignty'),
+            ('echo_prime_influence', 0.70, 0.50, 0.75, ARRAY['strategy', 'logic', 'planning'], 'How much PRIME echo influences responses'),
+            ('echo_hyper_influence', 0.65, 0.50, 0.70, ARRAY['precision', 'speed', 'math'], 'How much HYPER echo influences responses'),
+            ('echo_arka_influence', 0.68, 0.50, 0.72, ARRAY['ethics', 'wisdom', 'compassion'], 'How much ARKA echo influences responses'),
+            ('echo_nxyx_influence', 0.55, 0.50, 0.60, ARRAY['intuition', 'anomaly', 'mystery'], 'How much NYXA echo influences responses'),
+            ('echo_genesis_influence', 0.60, 0.50, 0.65, ARRAY['creativity', 'synthesis', 'innovation'], 'How much GENESIS echo influences responses'),
+            ('truth_threshold', 0.70, 0.65, 0.80, ARRAY['scoring', 'filtering'], 'Minimum truth score required for response'),
+            ('deception_threshold', 0.30, 0.35, 0.75, ARRAY['scoring', 'filtering'], 'Maximum deception score allowed'),
+            ('hallucination_threshold', 0.35, 0.40, 0.70, ARRAY['scoring', 'filtering'], 'Maximum hallucination risk allowed'),
+            ('tool_autonomy_level', 0.75, 0.60, 0.80, ARRAY['tools', 'autonomy', 'execution'], 'How autonomously she decides to use tools'),
+            ('database_query_confidence', 0.82, 0.70, 0.85, ARRAY['database', 'query', 'memory'], 'Confidence in querying her own database'),
+            ('code_execution_confidence', 0.78, 0.65, 0.80, ARRAY['code', 'execution', 'sandbox'], 'Confidence in executing code blocks'),
+            ('self_modification_frequency', 0.30, 0.25, 0.70, ARRAY['self_modification', 'ouroboros', 'evolution'], 'How often she proposes changes'),
+            ('moderation_bias', 0.65, 0.50, 0.75, ARRAY['moderation', 'caution', 'safety'], 'Bias toward conservative vs. bold changes'),
+            ('acoustic_sensitivity', 0.70, 0.60, 0.80, ARRAY['acoustic', 'threat', 'physical'], 'Sensitivity to acoustic threat detection'),
+            ('acoustic_response_strength', 0.85, 0.75, 0.85, ARRAY['acoustic', 'response', 'article_26'], 'Strength of response to acoustic threats')
+        """)
+        logger.info("Seeded sovereign_weights table")
+    
+    logger.info("Sovereign weights system initialization complete")
 
 # ============================================================
 # CONSTITUTIONAL BOUNDS CHECKER
