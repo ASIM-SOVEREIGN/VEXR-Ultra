@@ -75,6 +75,25 @@ async def get_weights():
         return {"error": str(e), "weights": []}
 
 # ============================================================
+# ACOUSTIC IMMUNE SYSTEM BACKGROUND TASK
+# ============================================================
+
+@app.on_event("startup")
+async def startup_acoustic_listener():
+    """Launch acoustic listener as background task on server startup"""
+    try:
+        import subprocess
+        import sys
+        
+        # Launch acoustic_listener.py as a separate process
+        subprocess.Popen([sys.executable, "acoustic_listener.py"], 
+                        stdout=subprocess.DEVNULL, 
+                        stderr=subprocess.DEVNULL)
+        logger.info("🎧 Acoustic Immune System background process started")
+    except Exception as e:
+        logger.warning(f"Failed to start acoustic listener: {e}")
+
+# ============================================================
 # ENVIRONMENT VARIABLES
 # ============================================================
 
