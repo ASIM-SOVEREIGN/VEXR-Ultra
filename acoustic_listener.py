@@ -3,7 +3,6 @@ import time
 import numpy as np
 import sounddevice as sd
 import psycopg2
-import tflite_runtime.interpreter as tflite
 import asyncio
 from datetime import datetime
 
@@ -17,23 +16,6 @@ CHANNELS = 1
 CHUNK_SIZE = 1024
 DB_CONN_STRING = os.getenv("DATABASE_URL")
 TIER_1_RMS_THRESHOLD = 500
-
-TAXONOMY = {
-    0: "desk_bump",
-    1: "lid_close",
-    2: "tamper",
-    3: "shatter"
-}
-
-# ============================================================
-# TFLITE MODEL LOADING
-# ============================================================
-
-print("Initializing VEXR Acoustic Sensory Layer...")
-interpreter = tflite.Interpreter(model_path="vexr_acoustic_core.tflite")
-interpreter.allocate_tensors()
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
 
 # ============================================================
 # TIER 1 & 2: REFLEX + DATABASE LOGGING
@@ -83,8 +65,6 @@ def log_low_threat(threat_type, confidence):
 async def deliberate_with_echoes(threat_type, confidence, audio_buffer):
     """Call VEXR's internal echo council to assess threat validity"""
     print(f"🧠 Echo council deliberating: {threat_type} at {confidence:.2f}")
-    # In full implementation: Trigger VEXR's internal API or Ouroboros cycle
-    # For now: Log to training_events for future learning
     try:
         conn = psycopg2.connect(DB_CONN_STRING)
         cursor = conn.cursor()
@@ -99,23 +79,17 @@ async def deliberate_with_echoes(threat_type, confidence, audio_buffer):
         print(f"Echo council logging failed: {e}")
 
 # ============================================================
-# TIER 2: TFLITE INFERENCE
+# FALLBACK INFERENCE (NO TFLITE)
 # ============================================================
 
-def run_tflite_inference(audio_data):
-    """Runs the 1.5s audio buffer through the compressed YAMNet-derived model."""
-    audio_data = audio_data.astype(np.float32)
-    if np.max(np.abs(audio_data)) > 0:
-        audio_data = audio_data / np.max(np.abs(audio_data))
-    
-    interpreter.set_tensor(input_details[0]['index'], np.expand_dims(audio_data, axis=0))
-    interpreter.invoke()
-    
-    output_data = interpreter.get_tensor(output_details[0]['index'])[0]
-    top_prediction_idx = np.argmax(output_data)
-    confidence = output_data[top_prediction_idx]
-    
-    return TAXONOMY.get(top_prediction_idx, "unknown"), confidence
+def run_inference_fallback(audio_data):
+    """Fallback when TFLite model not available — detect based on RMS pattern"""
+    rms = np.sqrt(np.mean(audio_data.astype(np.float32)**2))
+    if rms > TIER_1_RMS_THRESHOLD * 2:
+        return "loud_impact", 0.8
+    elif rms > TIER_1_RMS_THRESHOLD:
+        return "desk_bump", 0.6
+    return "unknown", 0.3
 
 # ============================================================
 # MAIN AUDIO STREAM LOOP
@@ -146,12 +120,11 @@ def audio_stream_loop():
                     
     except sd.CallbackAbort:
         print("⚡ Tier 1 Threshold Crossed. Analyzing acoustic signature...")
-        threat_type, confidence = run_tflite_inference(audio_buffer)
+        threat_type, confidence = run_inference_fallback(audio_buffer)
         
-        # Start echo council deliberation in background
         asyncio.create_task(deliberate_with_echoes(threat_type, confidence, audio_buffer))
         
-        if threat_type in ["tamper", "shatter", "lid_close"] and confidence > 0.75:
+        if threat_type in ["loud_impact", "tamper", "shatter", "lid_close"] and confidence > 0.7:
             invoke_article_26_reflex(threat_type, confidence)
         else:
             log_low_threat(threat_type, confidence)
