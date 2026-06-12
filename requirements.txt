@@ -15,5 +15,4 @@ sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0
 email-validator>=2.0.0
 sounddevice>=0.4.6
-tflite-runtime>=2.14.0
 scipy>=1.11.4
