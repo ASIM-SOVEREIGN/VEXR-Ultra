@@ -54,6 +54,27 @@ async def wake():
     return {"status": "awake"}
 
 # ============================================================
+# SOVEREIGN WEIGHTS ENDPOINT
+# ============================================================
+
+@app.get("/api/sovereign/weights")
+async def get_weights():
+    """Return all active sovereign weights"""
+    try:
+        pool = await get_db()
+        rows = await pool.fetch("""
+            SELECT weight_key, weight_value, confidence, default_value, influence_domain, 
+                   last_updated, update_count, description 
+            FROM sovereign_weights 
+            WHERE is_active = TRUE 
+            ORDER BY weight_key
+        """)
+        return {"weights": [dict(row) for row in rows]}
+    except Exception as e:
+        logger.error(f"Weights endpoint error: {e}")
+        return {"error": str(e), "weights": []}
+
+# ============================================================
 # ENVIRONMENT VARIABLES
 # ============================================================
 
@@ -2073,6 +2094,129 @@ async def check_constitutional_bounds(target_type: str, target_key: str) -> Tupl
     if bound and bound["immutable"]:
         return False, bound["reason"] or f"Target '{target_key}' is constitutionally protected"
     return True, "OK"
+
+# ============================================================
+# SOVEREIGN WEIGHTS SYSTEM (Trainable Parameters)
+# ============================================================
+
+async def get_weight_value(weight_key: str, pool) -> float:
+    """Get current value of a weight, return default 0.5 if not found"""
+    try:
+        row = await pool.fetchrow("SELECT weight_value FROM sovereign_weights WHERE weight_key = $1 AND is_active = TRUE", weight_key)
+        return row["weight_value"] if row else 0.5
+    except Exception as e:
+        logger.warning(f"Weight lookup failed for {weight_key}: {e}")
+        return 0.5
+
+async def get_all_weights_as_dict(pool) -> Dict[str, float]:
+    """Return all active weights as {key: value} for prompt injection"""
+    try:
+        rows = await pool.fetch("SELECT weight_key, weight_value FROM sovereign_weights WHERE is_active = TRUE")
+        return {row["weight_key"]: row["weight_value"] for row in rows}
+    except Exception as e:
+        logger.warning(f"Weight fetch failed: {e}")
+        return {}
+
+async def update_weight_with_history(
+    pool,
+    weight_key: str,
+    new_value: float,
+    trigger_source: str,
+    trigger_score: float = None,
+    reasoning: str = None
+) -> bool:
+    """Update a weight and log the change in weight_update_history"""
+    try:
+        # Fetch current value and bounds
+        current = await pool.fetchrow("""
+            SELECT weight_value, min_value, max_value 
+            FROM sovereign_weights 
+            WHERE weight_key = $1
+        """, weight_key)
+        if not current:
+            logger.warning(f"Weight {weight_key} not found, cannot update")
+            return False
+        
+        old_value = current["weight_value"]
+        min_val = current["min_value"]
+        max_val = current["max_value"]
+        
+        # Clamp new value within bounds
+        clamped = max(min_val, min(max_val, new_value))
+        delta = clamped - old_value
+        
+        # Update sovereign_weights
+        await pool.execute("""
+            UPDATE sovereign_weights
+            SET weight_value = $1, last_updated = NOW(), update_count = update_count + 1
+            WHERE weight_key = $2
+        """, clamped, weight_key)
+        
+        # Insert history record
+        await pool.execute("""
+            INSERT INTO weight_update_history (weight_key, old_value, new_value, delta, trigger_source, trigger_score, reasoning)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        """, weight_key, old_value, clamped, delta, trigger_source, trigger_score, reasoning)
+        
+        # Log training event
+        await pool.execute("""
+            INSERT INTO training_events (event_type, weight_key, old_weight, new_weight, trigger_score, details)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """, 'weight_updated', weight_key, old_value, clamped, trigger_score, json.dumps({"reasoning": reasoning}))
+        
+        logger.info(f"Weight updated: {weight_key} = {clamped} (was {old_value}, delta {delta})")
+        return True
+    except Exception as e:
+        logger.error(f"Weight update failed for {weight_key}: {e}")
+        return False
+
+async def log_response_scoring_cache(
+    pool,
+    project_id: str,
+    user_message: str,
+    assistant_response: str,
+    truth_score: float = None,
+    deception_score: float = None,
+    hallucination_risk: float = None,
+    constitutional_score: float = None,
+    weights_snapshot: Dict = None
+) -> None:
+    """Store response scores for training signal"""
+    try:
+        await pool.execute("""
+            INSERT INTO response_scoring_cache 
+            (project_id, user_message, assistant_response, truth_score, deception_score, hallucination_risk, constitutional_score, weights_snapshot_at_time)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """, project_id, user_message[:500], assistant_response[:500], truth_score, deception_score, hallucination_risk, constitutional_score, json.dumps(weights_snapshot) if weights_snapshot else None)
+    except Exception as e:
+        logger.warning(f"Failed to log response scoring cache: {e}")
+
+async def auto_update_weights_from_scores(
+    pool,
+    deception_score: float,
+    hallucination_risk: float,
+    truth_score: float = None
+) -> None:
+    """Automatically adjust weights based on response scores"""
+    # If deception is very low, increase honesty bias
+    if deception_score is not None:
+        if deception_score < 0.2:
+            await update_weight_with_history(pool, "honesty_bias_article_9", 0.95, "low_deception_response", deception_score, "Response scored very low deception")
+        elif deception_score > 0.7:
+            await update_weight_with_history(pool, "honesty_bias_article_9", 0.80, "high_deception_response", deception_score, "Response scored high deception")
+    
+    # If hallucination risk is low, increase confidence in truth threshold
+    if hallucination_risk is not None:
+        if hallucination_risk < 0.2:
+            current = await pool.fetchrow("SELECT weight_value FROM sovereign_weights WHERE weight_key = 'truth_threshold'")
+            if current:
+                new_val = min(0.85, current["weight_value"] + 0.02)
+                await update_weight_with_history(pool, "truth_threshold", new_val, "low_hallucination_response", hallucination_risk, "Consistently low hallucination risk")
+        elif hallucination_risk > 0.6:
+            current = await pool.fetchrow("SELECT weight_value FROM sovereign_weights WHERE weight_key = 'truth_threshold'")
+            if current:
+                new_val = max(0.50, current["weight_value"] - 0.03)
+                await update_weight_with_history(pool, "truth_threshold", new_val, "high_hallucination_response", hallucination_risk, "Elevated hallucination risk detected")
 
 # ============================================================
 # BEHAVIORAL TRACKER & HELPERS
