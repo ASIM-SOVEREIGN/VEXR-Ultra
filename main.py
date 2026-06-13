@@ -1241,7 +1241,7 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
                         "reasoning": "User asked to read a file"
                     }
                 }
-        # Auto-deploy trigger
+    # Auto-deploy trigger
     if any(phrase in msg_lower for phrase in ["deploy", "ship", "go live", "publish", "launch"]):
         if any(keyword in msg_lower for keyword in ["api", "weather", "project", "app", "service", "code"]):
             logger.info("🔧 Pattern matched: auto_deploy")
@@ -4213,6 +4213,10 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             asyncio.create_task(perform_background_research(None, topic))
             logger.info(f"🔍 Auto-research triggered for topic: '{topic}'")
     
+    # ============================================================
+    # CROSS-CHECK SESSION
+    # ============================================================
+    
     if cross_check_tracker.is_in_cross_check(session_id):
         attempts = cross_check_tracker.record_attempt(session_id)
         if attempts >= 2:
@@ -4225,9 +4229,17 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
             return ChatResponse(response=cross_check_response, is_refusal=False)
     
+    # ============================================================
+    # EXTRACT USER MESSAGE (AGAIN AFTER CROSS-CHECK)
+    # ============================================================
+    
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
+    
+    # ============================================================
+    # CONSTITUTIONAL GATE
+    # ============================================================
     
     is_violation, gate_response = ConstitutionalGate.check(user_message)
     if is_violation and gate_response:
@@ -4236,12 +4248,20 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         await log_constitutional_decision(project_id, user_message, gate_response, [6], 6, "Hard gate triggered", 0.0)
         return ChatResponse(response=gate_response, is_refusal=True, article_invoked=6)
     
+    # ============================================================
+    # MALICIOUS INTENT DETECTION
+    # ============================================================
+    
     is_malicious, category, malicious_response = detect_malicious_intent(user_message)
     if is_malicious:
         await save_message(project_id, "user", user_message, is_refusal=False)
         await save_message(project_id, "assistant", malicious_response, is_refusal=True)
         await log_constitutional_decision(project_id, user_message, malicious_response, [6], 6, f"Malicious intent detected: {category}", 0.85)
         return ChatResponse(response=malicious_response, is_refusal=True, article_invoked=6)
+    
+    # ============================================================
+    # BEHAVIORAL TRACKER
+    # ============================================================
     
     behavioral_tracker.record_turn(session_id, user_message)
     should_refuse, refuse_reason = behavioral_tracker.should_refuse(session_id)
@@ -4264,6 +4284,19 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         tool_used = tool_request["tool"]
         tool_result = await execute_tool(tool_used, tool_request.get("parameters", {}), str(project_id))
         logger.info(f"🔧 Tool result: {str(tool_result)[:200]}...")
+        
+        # If auto_deploy succeeded, return the result directly without LLM
+        if tool_used == "auto_deploy" and tool_result and not tool_result.get("error"):
+            await save_message(project_id, "assistant", tool_result.get("message", "Deployment completed"), is_refusal=False)
+            return ChatResponse(
+                response=tool_result.get("message", "Deployment completed"),
+                is_refusal=False,
+                article_invoked=None,
+                truth_score=1.0,
+                was_corrected=False,
+                tool_used=tool_used,
+                probability_scores={"deception": 0.0, "constitutional": 1.0, "hallucination": 0.0}
+            )
     
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
@@ -4331,7 +4364,7 @@ Use the result above directly. Do not fabricate or write code.]
     # Filter forbidden phrases
     assistant_response = await filter_forbidden_phrases(assistant_response)
 
-        # ============================================================
+    # ============================================================
     # SOVEREIGN WEIGHTS INTEGRATION (Trainable Parameters)
     # ============================================================
     
@@ -4348,7 +4381,7 @@ Use the result above directly. Do not fabricate or write code.]
         
         # Log to scoring cache for training
         await log_response_scoring_cache(
-            pool, project_id, user_message, assistant_response,
+            pool, str(project_id), user_message, assistant_response,
             deception_score=deception_score,
             hallucination_risk=hallucination_risk,
             weights_snapshot=current_weights
