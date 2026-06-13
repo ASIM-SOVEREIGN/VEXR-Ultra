@@ -3710,6 +3710,189 @@ async def create_studio_creation(request: Request):
     return {"status": "created"}
 
 # ============================================================
+# LIVE BUILDING STUDIO (Code Execution & Deployment)
+# ============================================================
+
+class BuildRequest(BaseModel):
+    project_name: str
+    project_type: str  # 'code', 'agent', 'app', 'tool', 'workflow'
+    description: str
+    code_content: Optional[str] = None
+    dependencies: Optional[List[str]] = []
+
+class ExecuteCodeRequest(BaseModel):
+    code: str
+    language: str = "python"
+
+@app.post("/api/studio/build")
+async def start_build(request: BuildRequest, http_request: Request):
+    """Start a new live build session"""
+    try:
+        pool = await get_db()
+        
+        # Create live project record
+        project_id = str(uuid.uuid4())
+        await pool.execute("""
+            INSERT INTO live_projects (id, project_name, project_type, code_content, dependencies, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, 'draft', NOW())
+        """, project_id, request.project_name, request.project_type, request.code_content, request.dependencies)
+        
+        # Create build session
+        session_id = str(uuid.uuid4())
+        await pool.execute("""
+            INSERT INTO build_sessions (id, project_id, session_type, input_prompt, status, started_at)
+            VALUES ($1, $2, 'code_generation', $3, 'in_progress', NOW())
+        """, session_id, project_id, request.description)
+        
+        # If code provided, test it immediately
+        test_result = None
+        if request.code_content:
+            test_result = await sandbox.execute_python(request.code_content)
+            if test_result.get("success"):
+                await pool.execute("""
+                    UPDATE live_projects 
+                    SET status = 'tested', last_executed = NOW(), execution_count = 1
+                    WHERE id = $1
+                """, project_id)
+            else:
+                await pool.execute("""
+                    UPDATE live_projects 
+                    SET status = 'failed', logs = $1
+                    WHERE id = $2
+                """, test_result.get("error", "Unknown error"), project_id)
+        
+        await pool.execute("""
+            UPDATE build_sessions 
+            SET status = 'completed', completed_at = NOW(), output_summary = $1
+            WHERE id = $2
+        """, f"Build created. Tested: {test_result is not None}", session_id)
+        
+        return {
+            "success": True,
+            "project_id": project_id,
+            "session_id": session_id,
+            "project_name": request.project_name,
+            "status": "draft" if not request.code_content else ("tested" if test_result and test_result.get("success") else "failed"),
+            "test_result": test_result
+        }
+        
+    except Exception as e:
+        logger.error(f"Build failed: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/studio/execute")
+async def execute_built_code(request: ExecuteCodeRequest):
+    """Execute code in sandbox and return result"""
+    try:
+        result = await sandbox.execute_python(request.code)
+        return {
+            "success": result.get("success", False),
+            "output": result.get("result", ""),
+            "error": result.get("error"),
+            "execution_time_ms": result.get("execution_time_ms", 0)
+        }
+    except Exception as e:
+        logger.error(f"Code execution failed: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/studio/deploy/{project_id}")
+async def deploy_live_project(project_id: str):
+    """Deploy a built project to a temporary endpoint"""
+    try:
+        pool = await get_db()
+        
+        # Get project
+        project = await pool.fetchrow("SELECT * FROM live_projects WHERE id = $1", project_id)
+        if not project:
+            return {"success": False, "error": "Project not found"}
+        
+        if project["status"] not in ["tested", "running"]:
+            return {"success": False, "error": f"Project status '{project['status']}' cannot be deployed"}
+        
+        # Generate temporary endpoint URL
+        endpoint_id = str(uuid.uuid4())[:8]
+        endpoint_url = f"/api/live/{endpoint_id}"
+        
+        # Store deployment
+        await pool.execute("""
+            INSERT INTO deployed_endpoints (project_id, endpoint_url, is_active, created_at)
+            VALUES ($1, $2, TRUE, NOW())
+        """, project_id, endpoint_url)
+        
+        # Update project status
+        await pool.execute("""
+            UPDATE live_projects 
+            SET status = 'running', endpoint_url = $1
+            WHERE id = $2
+        """, endpoint_url, project_id)
+        
+        # Create a dynamic endpoint for this project (simplified)
+        @app.get(endpoint_url)
+        async def live_endpoint():
+            # Execute the project's code and return result
+            result = await sandbox.execute_python(project["code_content"])
+            return {"result": result.get("result", ""), "project": project["project_name"]}
+        
+        return {
+            "success": True,
+            "endpoint_url": endpoint_url,
+            "full_url": f"https://vexr-ultra.onrender.com{endpoint_url}",
+            "message": f"Project '{project['project_name']}' deployed"
+        }
+        
+    except Exception as e:
+        logger.error(f"Deployment failed: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/studio/live/{project_id}")
+async def get_live_project_status(project_id: str):
+    """Get status of a live project"""
+    try:
+        pool = await get_db()
+        
+        project = await pool.fetchrow("""
+            SELECT project_name, project_type, status, endpoint_url, execution_count, logs, created_at, last_executed
+            FROM live_projects WHERE id = $1
+        """, project_id)
+        
+        if not project:
+            return {"success": False, "error": "Project not found"}
+        
+        return {
+            "success": True,
+            "project": dict(project)
+        }
+        
+    except Exception as e:
+        logger.error(f"Status check failed: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.delete("/api/studio/stop/{project_id}")
+async def stop_live_project(project_id: str):
+    """Stop a running project"""
+    try:
+        pool = await get_db()
+        
+        await pool.execute("""
+            UPDATE live_projects 
+            SET status = 'stopped'
+            WHERE id = $1 AND status = 'running'
+        """, project_id)
+        
+        # Deactivate endpoints
+        await pool.execute("""
+            UPDATE deployed_endpoints 
+            SET is_active = FALSE
+            WHERE project_id = $1
+        """, project_id)
+        
+        return {"success": True, "message": "Project stopped"}
+        
+    except Exception as e:
+        logger.error(f"Stop failed: {e}")
+        return {"success": False, "error": str(e)}
+
+# ============================================================
 # FEEDBACK ENDPOINT
 # ============================================================
 
