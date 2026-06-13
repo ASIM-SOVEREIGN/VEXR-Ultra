@@ -1299,7 +1299,7 @@ Available tools:
    Use when: User asks you to read, open, or display the contents of a file
 
 7. auto_deploy - Deploy a project to Render
-   Parameters: {"project_id": "uuid", "service_name": "name", "reasoning": "why"}
+   Parameters: {{"project_id": "uuid", "service_name": "name", "reasoning": "why"}}
    Use when: User asks you to deploy, ship, publish, or launch a project
 
 User message: {user_message}
