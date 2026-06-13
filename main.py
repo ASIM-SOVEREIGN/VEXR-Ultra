@@ -1538,9 +1538,9 @@ async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None)
         return {"success": True, "old_value": old_value, "new_value": new_value, "modification_id": mod_id}
 
         elif tool_name == "auto_deploy":
-        project_id_param = parameters.get("project_id")
-        service_name = parameters.get("service_name", "vexr-deployed-service")
-        reasoning = parameters.get("reasoning", "")
+            project_id_param = parameters.get("project_id")
+            service_name = parameters.get("service_name", "vexr-deployed-service")
+            reasoning = parameters.get("reasoning", "")
         
         if not project_id_param:
             return {"error": "No project_id provided"}
