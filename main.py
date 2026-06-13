@@ -21,6 +21,7 @@ import hashlib
 import time
 import io
 import contextlib
+import httpx
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
@@ -1934,6 +1935,25 @@ async def process_research_queue(pool):
                 WHERE id = $1
             """, row["id"])
 
+async def perform_background_research(pool, user_message: str, project_id: str = None):
+    """Background research triggered by user questions"""
+    try:
+        if pool is None:
+            pool = await get_db()
+        
+        # Extract topic (simple)
+        topic = user_message.lower()
+        for phrase in ["who is", "what is", "tell me about", "explain", "how does", "why do", "what are"]:
+            if phrase in topic:
+                topic = topic.split(phrase, 1)[-1].strip()[:100]
+                break
+        
+        # Run research in background
+        await autonomous_research(pool, topic, "user_question", max_sites=2)
+        logger.info(f"📚 Background research completed for topic: '{topic}'")
+    except Exception as e:
+        logger.error(f"Background research failed: {e}")
+
 # ============================================================
 # SANDBOX EXECUTOR
 # ============================================================
@@ -3733,7 +3753,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             pass
     
     await autonomous_agent.reset_conversation_state(project_id)
-
+    
     # ============================================================
     # AUTONOMOUS RESEARCH TRIGGER (Knowledge Gap Detection)
     # ============================================================
