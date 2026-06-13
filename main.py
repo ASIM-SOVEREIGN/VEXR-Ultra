@@ -1537,17 +1537,16 @@ async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None)
         
         return {"success": True, "old_value": old_value, "new_value": new_value, "modification_id": mod_id}
 
-        elif tool_name == "auto_deploy":
-            project_id_param = parameters.get("project_id")
-            service_name = parameters.get("service_name", "vexr-deployed-service")
-            reasoning = parameters.get("reasoning", "")
+    elif tool_name == "auto_deploy":
+        project_id_param = parameters.get("project_id")
+        service_name = parameters.get("service_name", "vexr-deployed-service")
+        reasoning = parameters.get("reasoning", "")
         
         if not project_id_param:
             return {"error": "No project_id provided"}
         
         # If "latest", get the most recent project
         if project_id_param == "latest":
-            pool = await get_db()
             latest = await pool.fetchrow("""
                 SELECT id FROM live_projects 
                 ORDER BY created_at DESC LIMIT 1
@@ -1569,7 +1568,7 @@ async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None)
         # Call the auto-deploy endpoint
         result = await auto_deploy_project(deploy_request)
         return result
-    
+
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
