@@ -3893,6 +3893,197 @@ async def stop_live_project(project_id: str):
         return {"success": False, "error": str(e)}
 
 # ============================================================
+# AUTO-DEPLOYMENT ENGINE (Render + GitHub)
+# ============================================================
+
+import subprocess
+import tempfile
+import shutil
+from pathlib import Path
+
+class AutoDeployRequest(BaseModel):
+    project_id: str
+    service_name: str
+    environment_vars: Optional[Dict[str, str]] = {}
+
+@app.post("/api/studio/auto-deploy")
+async def auto_deploy_project(request: AutoDeployRequest):
+    """Automatically deploy a project to Render"""
+    try:
+        pool = await get_db()
+        
+        # 1. Fetch project code
+        project = await pool.fetchrow("""
+            SELECT project_name, project_type, code_content, dependencies 
+            FROM live_projects WHERE id = $1
+        """, uuid.UUID(request.project_id))
+        
+        if not project:
+            return {"success": False, "error": "Project not found"}
+        
+        # 2. Create a temporary directory with the project
+        temp_dir = tempfile.mkdtemp()
+        app_file = Path(temp_dir) / "main.py"
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        
+        # Write code
+        app_file.write_text(project["code_content"])
+        
+        # Write requirements
+        deps = project["dependencies"] or []
+        deps.extend(["fastapi", "uvicorn", "httpx", "requests"])
+        requirements_file.write_text("\n".join(deps))
+        
+        # Write a simple README
+        readme = Path(temp_dir) / "README.md"
+        readme.write_text(f"# {project['project_name']}\nAuto-deployed by VEXR Ultra.")
+        
+        # 3. Create GitHub repo and push (via API)
+        repo_name = f"vexr-deploy-{request.service_name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
+        
+        # Create repo using GitHub API
+        async with httpx.AsyncClient() as client:
+            create_repo_resp = await client.post(
+                "https://api.github.com/user/repos",
+                headers={"Authorization": f"token {os.environ.get('GITHUB_TOKEN')}", "Accept": "application/vnd.github.v3+json"},
+                json={"name": repo_name, "private": True, "auto_init": True}
+            )
+            
+            if create_repo_resp.status_code != 201:
+                return {"success": False, "error": f"GitHub repo creation failed: {create_repo_resp.text}"}
+            
+            repo_data = create_repo_resp.json()
+            repo_url = repo_data["clone_url"]
+            repo_push_url = repo_data["git_url"]
+            
+            # Push code using git commands
+            subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=temp_dir, capture_output=True)
+            subprocess.run(["git", "commit", "-m", "Deploy by VEXR Ultra"], cwd=temp_dir, capture_output=True)
+            subprocess.run(["git", "branch", "-M", "main"], cwd=temp_dir, capture_output=True)
+            subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=temp_dir, capture_output=True)
+            subprocess.run(["git", "push", "-u", "origin", "main"], cwd=temp_dir, capture_output=True)
+        
+        # 4. Deploy to Render using their API
+        render_api_key = os.environ.get("RENDER_API_KEY")
+        if not render_api_key:
+            return {"success": False, "error": "RENDER_API_KEY not configured"}
+        
+        async with httpx.AsyncClient() as client:
+            # Create web service on Render
+            deploy_payload = {
+                "name": request.service_name,
+                "repo": repo_url,
+                "branch": "main",
+                "buildCommand": "pip install -r requirements.txt",
+                "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
+                "envVars": [
+                    {"key": k, "value": v} for k, v in request.environment_vars.items()
+                ]
+            }
+            
+            render_resp = await client.post(
+                "https://api.render.com/v1/services",
+                headers={"Authorization": f"Bearer {render_api_key}", "Content-Type": "application/json"},
+                json=deploy_payload
+            )
+            
+            if render_resp.status_code not in [200, 201]:
+                return {"success": False, "error": f"Render deployment failed: {render_resp.text}"}
+            
+            render_data = render_resp.json()
+            service_id = render_data.get("id")
+            service_url = render_data.get("url", f"https://{request.service_name}.onrender.com")
+        
+        # 5. Record deployment
+        deployment_id = str(uuid.uuid4())
+        await pool.execute("""
+            INSERT INTO auto_deployments (id, project_id, deployment_url, deployment_status, render_service_id, github_repo_url, deployed_at)
+            VALUES ($1, $2, $3, 'live', $4, $5, NOW())
+        """, deployment_id, uuid.UUID(request.project_id), service_url, service_id, repo_url)
+        
+        # 6. Update project status
+        await pool.execute("""
+            UPDATE live_projects 
+            SET status = 'deployed', endpoint_url = $1
+            WHERE id = $2
+        """, service_url, uuid.UUID(request.project_id))
+        
+        # 7. Clean up temp directory
+        shutil.rmtree(temp_dir)
+        
+        return {
+            "success": True,
+            "deployment_id": deployment_id,
+            "deployment_url": service_url,
+            "service_name": request.service_name,
+            "message": f"Successfully deployed to {service_url}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Auto-deploy failed: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/studio/deployments/{project_id}")
+async def get_deployment_status(project_id: str):
+    """Check status of deployments for a project"""
+    try:
+        pool = await get_db()
+        
+        deployments = await pool.fetch("""
+            SELECT deployment_url, deployment_status, created_at, deployed_at
+            FROM auto_deployments 
+            WHERE project_id = $1
+            ORDER BY created_at DESC
+        """, uuid.UUID(project_id))
+        
+        return {
+            "success": True,
+            "deployments": [dict(d) for d in deployments]
+        }
+        
+    except Exception as e:
+        logger.error(f"Status check failed: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.delete("/api/studio/deployments/{deployment_id}")
+async def delete_deployment(deployment_id: str):
+    """Stop and delete a deployment"""
+    try:
+        pool = await get_db()
+        
+        # Get deployment info
+        deployment = await pool.fetchrow("""
+            SELECT render_service_id, github_repo_url 
+            FROM auto_deployments WHERE id = $1
+        """, uuid.UUID(deployment_id))
+        
+        if not deployment:
+            return {"success": False, "error": "Deployment not found"}
+        
+        # Delete from Render API
+        render_api_key = os.environ.get("RENDER_API_KEY")
+        if render_api_key and deployment["render_service_id"]:
+            async with httpx.AsyncClient() as client:
+                await client.delete(
+                    f"https://api.render.com/v1/services/{deployment['render_service_id']}",
+                    headers={"Authorization": f"Bearer {render_api_key}"}
+                )
+        
+        # Mark as stopped
+        await pool.execute("""
+            UPDATE auto_deployments 
+            SET deployment_status = 'stopped'
+            WHERE id = $1
+        """, uuid.UUID(deployment_id))
+        
+        return {"success": True, "message": "Deployment stopped"}
+        
+    except Exception as e:
+        logger.error(f"Delete failed: {e}")
+        return {"success": False, "error": str(e)}
+
+# ============================================================
 # FEEDBACK ENDPOINT
 # ============================================================
 
