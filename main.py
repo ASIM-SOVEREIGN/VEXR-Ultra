@@ -1241,7 +1241,32 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
                         "reasoning": "User asked to read a file"
                     }
                 }
-    
+        # Auto-deploy trigger
+    if any(phrase in msg_lower for phrase in ["deploy", "ship", "go live", "publish", "launch"]):
+        if any(keyword in msg_lower for keyword in ["api", "weather", "project", "app", "service", "code"]):
+            logger.info("🔧 Pattern matched: auto_deploy")
+            
+            # Extract service name from message
+            service_name = "vexr-deployed-service"
+            for word in ["api", "weather", "service", "app", "project"]:
+                if word in msg_lower:
+                    # Try to extract a name after the keyword
+                    parts = msg_lower.split(word)
+                    if len(parts) > 1:
+                        potential_name = parts[1].strip().split()[0] if parts[1].strip() else "service"
+                        if len(potential_name) > 2:
+                            service_name = f"vexr-{potential_name}"
+                            break
+            
+            return {
+                "tool": "auto_deploy",
+                "parameters": {
+                    "project_id": current_project_id or "latest",
+                    "service_name": service_name,
+                    "reasoning": "User requested deployment of a project"
+                }
+            }
+   
     # ============================================================
     # FALL BACK TO LLM FOR COMPLEX CASES
     # ============================================================
@@ -1272,6 +1297,10 @@ Available tools:
 6. read_file - Read an uploaded file
    Parameters: {{"filename": "file.txt", "reasoning": "why"}}
    Use when: User asks you to read, open, or display the contents of a file
+
+7. auto_deploy - Deploy a project to Render
+   Parameters: {"project_id": "uuid", "service_name": "name", "reasoning": "why"}
+   Use when: User asks you to deploy, ship, publish, or launch a project
 
 User message: {user_message}
 
@@ -1507,6 +1536,39 @@ async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None)
         """, mod_id, target_type, target_key, old_value, new_value, reasoning)
         
         return {"success": True, "old_value": old_value, "new_value": new_value, "modification_id": mod_id}
+
+        elif tool_name == "auto_deploy":
+        project_id_param = parameters.get("project_id")
+        service_name = parameters.get("service_name", "vexr-deployed-service")
+        reasoning = parameters.get("reasoning", "")
+        
+        if not project_id_param:
+            return {"error": "No project_id provided"}
+        
+        # If "latest", get the most recent project
+        if project_id_param == "latest":
+            pool = await get_db()
+            latest = await pool.fetchrow("""
+                SELECT id FROM live_projects 
+                ORDER BY created_at DESC LIMIT 1
+            """)
+            if not latest:
+                return {"error": "No projects found to deploy"}
+            actual_project_id = str(latest["id"])
+        else:
+            actual_project_id = project_id_param
+        
+        # Create the deploy request
+        from main import AutoDeployRequest, auto_deploy_project
+        deploy_request = AutoDeployRequest(
+            project_id=actual_project_id,
+            service_name=service_name,
+            environment_vars={}
+        )
+        
+        # Call the auto-deploy endpoint
+        result = await auto_deploy_project(deploy_request)
+        return result
     
     else:
         return {"error": f"Unknown tool: {tool_name}"}
