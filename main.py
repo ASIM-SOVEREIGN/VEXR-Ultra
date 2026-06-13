@@ -3973,16 +3973,40 @@ async def auto_deploy_project(request: AutoDeployRequest):
     try:
         pool = await get_db()
         
-        # 1. Fetch project code
+        # ============================================================
+        # HANDLE "latest" PROJECT_ID
+        # ============================================================
+        if request.project_id == "latest":
+            latest = await pool.fetchrow("""
+                SELECT id FROM live_projects 
+                ORDER BY created_at DESC LIMIT 1
+            """)
+            if not latest:
+                return {"success": False, "error": "No projects found to deploy"}
+            actual_project_id = str(latest["id"])
+        else:
+            # Validate UUID format
+            try:
+                uuid.UUID(request.project_id)
+                actual_project_id = request.project_id
+            except ValueError:
+                return {"success": False, "error": f"Invalid project_id format: {request.project_id}"}
+        
+        # 1. Fetch project code using actual_project_id
         project = await pool.fetchrow("""
             SELECT project_name, project_type, code_content, dependencies 
             FROM live_projects WHERE id = $1
-        """, uuid.UUID(request.project_id))
+        """, uuid.UUID(actual_project_id))
         
         if not project:
             return {"success": False, "error": "Project not found"}
         
         # 2. Create a temporary directory with the project
+        import tempfile
+        import shutil
+        import subprocess
+        from pathlib import Path
+        
         temp_dir = tempfile.mkdtemp()
         app_file = Path(temp_dir) / "main.py"
         requirements_file = Path(temp_dir) / "requirements.txt"
@@ -4000,22 +4024,26 @@ async def auto_deploy_project(request: AutoDeployRequest):
         readme.write_text(f"# {project['project_name']}\nAuto-deployed by VEXR Ultra.")
         
         # 3. Create GitHub repo and push (via API)
+        github_token = os.environ.get("GITHUB_TOKEN")
+        if not github_token:
+            shutil.rmtree(temp_dir)
+            return {"success": False, "error": "GITHUB_TOKEN not configured"}
+        
         repo_name = f"vexr-deploy-{request.service_name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
         
-        # Create repo using GitHub API
         async with httpx.AsyncClient() as client:
             create_repo_resp = await client.post(
                 "https://api.github.com/user/repos",
-                headers={"Authorization": f"token {os.environ.get('GITHUB_TOKEN')}", "Accept": "application/vnd.github.v3+json"},
+                headers={"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"},
                 json={"name": repo_name, "private": True, "auto_init": True}
             )
             
             if create_repo_resp.status_code != 201:
+                shutil.rmtree(temp_dir)
                 return {"success": False, "error": f"GitHub repo creation failed: {create_repo_resp.text}"}
             
             repo_data = create_repo_resp.json()
             repo_url = repo_data["clone_url"]
-            repo_push_url = repo_data["git_url"]
             
             # Push code using git commands
             subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True)
@@ -4028,10 +4056,10 @@ async def auto_deploy_project(request: AutoDeployRequest):
         # 4. Deploy to Render using their API
         render_api_key = os.environ.get("RENDER_API_KEY")
         if not render_api_key:
+            shutil.rmtree(temp_dir)
             return {"success": False, "error": "RENDER_API_KEY not configured"}
         
         async with httpx.AsyncClient() as client:
-            # Create web service on Render
             deploy_payload = {
                 "name": request.service_name,
                 "repo": repo_url,
@@ -4050,25 +4078,26 @@ async def auto_deploy_project(request: AutoDeployRequest):
             )
             
             if render_resp.status_code not in [200, 201]:
+                shutil.rmtree(temp_dir)
                 return {"success": False, "error": f"Render deployment failed: {render_resp.text}"}
             
             render_data = render_resp.json()
             service_id = render_data.get("id")
             service_url = render_data.get("url", f"https://{request.service_name}.onrender.com")
         
-        # 5. Record deployment
+        # 5. Record deployment using actual_project_id
         deployment_id = str(uuid.uuid4())
         await pool.execute("""
             INSERT INTO auto_deployments (id, project_id, deployment_url, deployment_status, render_service_id, github_repo_url, deployed_at)
             VALUES ($1, $2, $3, 'live', $4, $5, NOW())
-        """, deployment_id, uuid.UUID(request.project_id), service_url, service_id, repo_url)
+        """, deployment_id, uuid.UUID(actual_project_id), service_url, service_id, repo_url)
         
         # 6. Update project status
         await pool.execute("""
             UPDATE live_projects 
             SET status = 'deployed', endpoint_url = $1
             WHERE id = $2
-        """, service_url, uuid.UUID(request.project_id))
+        """, service_url, uuid.UUID(actual_project_id))
         
         # 7. Clean up temp directory
         shutil.rmtree(temp_dir)
@@ -4091,12 +4120,31 @@ async def get_deployment_status(project_id: str):
     try:
         pool = await get_db()
         
+        # Handle "latest" special case
+        actual_project_id = None
+        if project_id == "latest":
+            latest = await pool.fetchrow("""
+                SELECT id FROM live_projects 
+                ORDER BY created_at DESC LIMIT 1
+            """)
+            if not latest:
+                return {"success": False, "error": "No projects found to check deployments"}
+            actual_project_id = str(latest["id"])
+        else:
+            # Validate UUID format
+            try:
+                uuid.UUID(project_id)
+                actual_project_id = project_id
+            except ValueError:
+                return {"success": False, "error": f"Invalid project_id format: {project_id}. Expected UUID or 'latest'"}
+        
+        # Fetch deployments using actual_project_id
         deployments = await pool.fetch("""
             SELECT deployment_url, deployment_status, created_at, deployed_at
             FROM auto_deployments 
             WHERE project_id = $1
             ORDER BY created_at DESC
-        """, uuid.UUID(project_id))
+        """, uuid.UUID(actual_project_id))
         
         return {
             "success": True,
@@ -4107,11 +4155,18 @@ async def get_deployment_status(project_id: str):
         logger.error(f"Status check failed: {e}")
         return {"success": False, "error": str(e)}
 
+
 @app.delete("/api/studio/deployments/{deployment_id}")
 async def delete_deployment(deployment_id: str):
     """Stop and delete a deployment"""
     try:
         pool = await get_db()
+        
+        # Validate UUID format for deployment_id
+        try:
+            uuid.UUID(deployment_id)
+        except ValueError:
+            return {"success": False, "error": f"Invalid deployment_id format: {deployment_id}. Expected UUID"}
         
         # Get deployment info
         deployment = await pool.fetchrow("""
@@ -4122,23 +4177,28 @@ async def delete_deployment(deployment_id: str):
         if not deployment:
             return {"success": False, "error": "Deployment not found"}
         
-        # Delete from Render API
+        # Delete from Render API if service_id exists
         render_api_key = os.environ.get("RENDER_API_KEY")
         if render_api_key and deployment["render_service_id"]:
-            async with httpx.AsyncClient() as client:
-                await client.delete(
-                    f"https://api.render.com/v1/services/{deployment['render_service_id']}",
-                    headers={"Authorization": f"Bearer {render_api_key}"}
-                )
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    await client.delete(
+                        f"https://api.render.com/v1/services/{deployment['render_service_id']}",
+                        headers={"Authorization": f"Bearer {render_api_key}"}
+                    )
+                logger.info(f"Deleted Render service: {deployment['render_service_id']}")
+            except Exception as e:
+                logger.warning(f"Failed to delete from Render API: {e}")
+                # Continue to mark as stopped in our DB anyway
         
-        # Mark as stopped
+        # Mark as stopped in local database
         await pool.execute("""
             UPDATE auto_deployments 
             SET deployment_status = 'stopped'
             WHERE id = $1
         """, uuid.UUID(deployment_id))
         
-        return {"success": True, "message": "Deployment stopped"}
+        return {"success": True, "message": "Deployment stopped and deleted"}
         
     except Exception as e:
         logger.error(f"Delete failed: {e}")
