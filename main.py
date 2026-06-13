@@ -3733,6 +3733,30 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             pass
     
     await autonomous_agent.reset_conversation_state(project_id)
+
+    # ============================================================
+    # AUTONOMOUS RESEARCH TRIGGER (Knowledge Gap Detection)
+    # ============================================================
+    
+    # Extract user message
+    user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
+    
+    # Trigger research for knowledge-seeking questions
+    if user_message and len(user_message) > 10:
+        research_triggers = ["who is", "what is", "tell me about", "explain", "how does", "why do", "what are"]
+        msg_lower = user_message.lower()
+        
+        if any(trigger in msg_lower for trigger in research_triggers):
+            # Extract topic (simple)
+            topic = msg_lower
+            for trigger in research_triggers:
+                if trigger in topic:
+                    topic = topic.split(trigger, 1)[-1].strip()[:100]
+                    break
+            
+            # Fire and forget - don't block the chat response
+            asyncio.create_task(perform_background_research(None, topic))
+            logger.info(f"🔍 Auto-research triggered for topic: '{topic}'")
     
     if cross_check_tracker.is_in_cross_check(session_id):
         attempts = cross_check_tracker.record_attempt(session_id)
