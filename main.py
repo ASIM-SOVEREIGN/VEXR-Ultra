@@ -1511,6 +1511,430 @@ async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None)
         return {"error": f"Unknown tool: {tool_name}"}
 
 # ============================================================
+# WEB CRAWLER & AUTONOMOUS RESEARCH
+# ============================================================
+
+async def fetch_page(url: str) -> Dict[str, Any]:
+    """Fetch a single page and extract text content"""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            
+            # Simple text extraction (can be enhanced with BeautifulSoup later)
+            content = response.text
+            
+            # Extract title (basic)
+            title_match = re.search(r'<title>(.*?)</title>', content, re.IGNORECASE)
+            title = title_match.group(1) if title_match else url
+            
+            return {
+                "success": True,
+                "url": url,
+                "title": title,
+                "content": content[:10000],  # Truncate for now
+                "content_length": len(content)
+            }
+    except Exception as e:
+        logger.error(f"Failed to fetch {url}: {e}")
+        return {"success": False, "url": url, "error": str(e)}
+
+async def crawl_site(start_url: str, max_pages: int = 5, max_depth: int = 2) -> List[Dict]:
+    """Crawl a site starting from URL, following internal links"""
+    from urllib.parse import urlparse, urljoin
+    
+    visited = set()
+    to_visit = [(start_url, 0)]
+    all_pages = []
+    domain = urlparse(start_url).netloc
+    
+    while to_visit and len(visited) < max_pages:
+        url, depth = to_visit.pop(0)
+        if url in visited or depth > max_depth:
+            continue
+        
+        visited.add(url)
+        logger.info(f"Crawling: {url} (depth {depth})")
+        
+        page_data = await fetch_page(url)
+        if page_data.get("success"):
+            page_data["domain"] = domain
+            page_data["depth"] = depth
+            all_pages.append(page_data)
+            
+            # Extract internal links (basic, can be enhanced)
+            content = page_data.get("content", "")
+            link_pattern = r'href=["\'](https?://[^"\']+)["\']'
+            links = re.findall(link_pattern, content)
+            
+            for link in links:
+                if domain in link and link not in visited:
+                    to_visit.append((link, depth + 1))
+    
+    return all_pages
+
+async def save_crawled_page(pool, url: str, domain: str, title: str, content: str, trust_score: float = 0.0):
+    """Save or update a crawled page in the database"""
+    content_hash = hashlib.md5(content.encode()).hexdigest()
+    await pool.execute("""
+        INSERT INTO crawled_pages (url, domain, title, content, content_hash, site_trust_score, last_accessed)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (url) DO UPDATE SET
+            content = EXCLUDED.content,
+            content_hash = EXCLUDED.content_hash,
+            last_accessed = NOW(),
+            access_count = crawled_pages.access_count + 1
+    """, url, domain, title, content[:10000], content_hash, trust_score)
+
+# ============================================================
+# TRUST SCORING & AUTONOMOUS RESEARCH
+# ============================================================
+
+async def calculate_trust_score(
+    pool,
+    domain: str,
+    crawled_content: List[Dict],
+    user_feedback: float = None
+) -> Dict[str, Any]:
+    """VEXR determines if a domain is trustworthy based on her constitution"""
+    
+    # Default scores
+    scores = {
+        "constitution_alignment": 0.5,
+        "content_consistency": 0.5,
+        "corroboration": 0.5,
+        "domain_age": 0.5,
+        "manipulation_penalty": 0.0,
+        "final_score": 0.5
+    }
+    
+    # 1. Constitutional alignment (Article 9: honesty)
+    # Check for honesty indicators in content
+    honesty_indicators = 0
+    total_pages = len(crawled_content)
+    if total_pages > 0:
+        for page in crawled_content:
+            content = page.get("content", "").lower()
+            if "honest" in content or "truth" in content or "accurate" in content:
+                honesty_indicators += 1
+        scores["constitution_alignment"] = min(1.0, honesty_indicators / max(1, total_pages) + 0.3)
+    
+    # 2. Content consistency (check for contradictions)
+    # Simplified: check if same claims appear across multiple pages
+    claim_consistency = 0.5
+    if total_pages > 1:
+        # Basic consistency — pages from same domain tend to agree
+        claim_consistency = 0.7
+    scores["content_consistency"] = claim_consistency
+    
+    # 3. Corroboration with truth graph
+    corroboration_count = 0
+    try:
+        for page in crawled_content[:3]:  # Check first few pages
+            content = page.get("content", "")[:500]
+            # Check against truth graph (simplified)
+            rows = await pool.fetch("SELECT COUNT(*) FROM truth_graph WHERE value ILIKE $1", f"%{content[:50]}%")
+            if rows[0]["count"] > 0:
+                corroboration_count += 1
+        scores["corroboration"] = min(1.0, 0.3 + (corroboration_count / max(1, min(3, total_pages))) * 0.4)
+    except Exception as e:
+        logger.warning(f"Corroboration check failed: {e}")
+    
+    # 4. Domain age score (based on when first seen)
+    domain_row = await pool.fetchrow("SELECT MIN(crawled_at) FROM crawled_pages WHERE domain = $1", domain)
+    if domain_row and domain_row[0]:
+        days_old = (datetime.now() - domain_row[0]).days
+        scores["domain_age"] = min(1.0, days_old / 365)  # Max at 1 year
+    else:
+        scores["domain_age"] = 0.3  # New domain
+    
+    # 5. Manipulation penalty (check for spam/deception patterns)
+    manipulation_patterns = ["click here", "buy now", "limited time", "guaranteed", "secret"]
+    manipulation_count = 0
+    for page in crawled_content:
+        content = page.get("content", "").lower()
+        for pattern in manipulation_patterns:
+            if pattern in content:
+                manipulation_count += 1
+    scores["manipulation_penalty"] = min(0.5, manipulation_count / max(1, total_pages) * 0.3)
+    
+    # Calculate final score
+    final_score = (
+        scores["constitution_alignment"] * 0.30 +
+        scores["content_consistency"] * 0.20 +
+        scores["corroboration"] * 0.20 +
+        scores["domain_age"] * 0.15 -
+        scores["manipulation_penalty"] * 0.15
+    )
+    final_score = max(0.0, min(1.0, final_score))
+    scores["final_score"] = final_score
+    
+    # Apply user feedback if provided (overrides)
+    if user_feedback is not None:
+        final_score = (final_score + user_feedback) / 2
+        scores["final_score"] = final_score
+        scores["user_feedback_applied"] = user_feedback
+    
+    return scores
+
+async def add_to_trust_registry(pool, domain: str, scores: Dict, auto_added: bool = True):
+    """Add or update domain in trust registry with scores"""
+    await pool.execute("""
+        INSERT INTO ring4_trust_registry (
+            domain, trust_score, auto_added, last_assessed, assessment_count,
+            constitution_alignment_score, content_consistency_score, corroboration_score,
+            domain_age_score, manipulation_penalty
+        ) VALUES ($1, $2, $3, NOW(), 1, $4, $5, $6, $7, $8)
+        ON CONFLICT (domain) DO UPDATE SET
+            trust_score = (ring4_trust_registry.trust_score * ring4_trust_registry.assessment_count + EXCLUDED.trust_score) / (ring4_trust_registry.assessment_count + 1),
+            assessment_count = ring4_trust_registry.assessment_count + 1,
+            last_assessed = NOW(),
+            auto_added = CASE WHEN ring4_trust_registry.auto_added THEN TRUE ELSE EXCLUDED.auto_added END,
+            constitution_alignment_score = EXCLUDED.constitution_alignment_score,
+            content_consistency_score = EXCLUDED.content_consistency_score,
+            corroboration_score = EXCLUDED.corroboration_score,
+            domain_age_score = EXCLUDED.domain_age_score,
+            manipulation_penalty = EXCLUDED.manipulation_penalty
+    """, domain, scores["final_score"], auto_added,
+        scores["constitution_alignment"], scores["content_consistency"],
+        scores["corroboration"], scores["domain_age"], scores["manipulation_penalty"])
+    
+    # Log to trust assessment history
+    await pool.execute("""
+        INSERT INTO trust_assessment_history (
+            domain, trust_score, constitution_alignment_score, content_consistency_score,
+            corroboration_score, domain_age_score, manipulation_penalty, assessment_trigger
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    """, domain, scores["final_score"], scores["constitution_alignment"],
+        scores["content_consistency"], scores["corroboration"],
+        scores["domain_age"], scores["manipulation_penalty"], 
+        'crawl_complete' if auto_added else 'manual')
+
+async def trust_evaluation_required(pool, domain: str) -> bool:
+    """Check if a domain needs trust re-evaluation"""
+    row = await pool.fetchrow("""
+        SELECT trust_score, last_assessed, assessment_count 
+        FROM ring4_trust_registry WHERE domain = $1
+    """, domain)
+    if not row:
+        return True  # Never assessed
+    if row["assessment_count"] < 3:
+        return True  # Not enough assessments
+    if (datetime.now() - row["last_assessed"]).days > 30:
+        return True  # Older than 30 days
+    if row["trust_score"] < 0.5:
+        return True  # Low trust, might have changed
+    return False
+
+# ============================================================
+# AUTONOMOUS RESEARCH ENGINE
+# ============================================================
+
+async def autonomous_research(pool, topic: str, trigger_source: str = "autonomous", max_sites: int = 3) -> Dict[str, Any]:
+    """VEXR researches a topic autonomously - crawls, trusts, learns"""
+    
+    logger.info(f"🔍 Autonomous research started: '{topic}' (trigger: {trigger_source})")
+    
+    research_id = str(uuid.uuid4())
+    sites_crawled = []
+    all_facts = []
+    trust_scores = []
+    
+    # Log research session start
+    await pool.execute("""
+        INSERT INTO research_sessions (id, topic, trigger_source, status, started_at)
+        VALUES ($1, $2, $3, 'in_progress', NOW())
+    """, research_id, topic, trigger_source)
+    
+    try:
+        # 1. Search for relevant sites using Serper
+        search_results = await perform_web_search(topic, max_results=max_sites)
+        
+        for result in search_results:
+            url = result.get("link")
+            domain = result.get("domain") or url.split("/")[2] if url else "unknown"
+            
+            logger.info(f"📚 Researching: {url}")
+            
+            # 2. Crawl the site
+            crawled_pages = await crawl_site(url, max_pages=3, max_depth=1)
+            
+            if not crawled_pages:
+                logger.warning(f"No content crawled from {url}")
+                continue
+            
+            # 3. Calculate trust score
+            trust_scores_result = await calculate_trust_score(pool, domain, crawled_pages)
+            final_trust = trust_scores_result["final_score"]
+            trust_scores.append(final_trust)
+            
+            # 4. If trusted (score > 0.6), extract facts
+            if final_trust > 0.6:
+                # Save to trust registry
+                await add_to_trust_registry(pool, domain, trust_scores_result, auto_added=True)
+                
+                # Extract facts from crawled content
+                for page in crawled_pages:
+                    facts = await extract_facts_from_content(page.get("content", ""), url, domain)
+                    for fact in facts:
+                        all_facts.append(fact)
+                        # Add to truth graph with source
+                        await add_fact_to_truth_graph_from_research(pool, fact, domain, final_trust)
+            else:
+                logger.info(f"Domain {domain} trust score {final_trust} below threshold, skipping fact extraction")
+            
+            sites_crawled.append(url)
+            
+            # Small delay to be respectful
+            await asyncio.sleep(1)
+        
+        # 5. Update research session with results
+        facts_added = len(all_facts)
+        avg_trust = sum(trust_scores) / len(trust_scores) if trust_scores else 0.5
+        
+        await pool.execute("""
+            UPDATE research_sessions 
+            SET completed_at = NOW(), 
+                status = 'completed',
+                sites_crawled = $1,
+                average_trust_score = $2,
+                facts_added = $3
+            WHERE id = $4
+        """, sites_crawled, avg_trust, facts_added, research_id)
+        
+        logger.info(f"✅ Research complete: {facts_added} facts extracted, avg trust {avg_trust:.2f}")
+        
+        return {
+            "success": True,
+            "research_id": research_id,
+            "sites_crawled": sites_crawled,
+            "facts_added": facts_added,
+            "average_trust_score": avg_trust,
+            "summary": f"Researched '{topic}' across {len(sites_crawled)} sites. Added {facts_added} facts to truth graph."
+        }
+        
+    except Exception as e:
+        logger.error(f"Research failed for '{topic}': {e}")
+        await pool.execute("""
+            UPDATE research_sessions 
+            SET status = 'failed', completed_at = NOW()
+            WHERE id = $1
+        """, research_id)
+        return {"success": False, "error": str(e), "research_id": research_id}
+
+async def perform_web_search(query: str, max_results: int = 5) -> List[Dict]:
+    """Perform web search using Serper API"""
+    if not SERPER_API_KEY:
+        logger.warning("SERPER_API_KEY not set, cannot perform web search")
+        return []
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://google.serper.dev/search",
+                headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
+                json={"q": query, "num": max_results}
+            )
+            data = response.json()
+            
+            results = []
+            for item in data.get("organic", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "link": item.get("link", ""),
+                    "domain": item.get("link", "").split("/")[2] if item.get("link") else "",
+                    "snippet": item.get("snippet", "")
+                })
+            return results
+    except Exception as e:
+        logger.error(f"Web search failed: {e}")
+        return []
+
+async def extract_facts_from_content(content: str, source_url: str, domain: str) -> List[Dict]:
+    """Extract simple facts from crawled content"""
+    facts = []
+    
+    # Simple pattern: "X is Y" or "X are Y"
+    patterns = [
+        r'(\w+(?:\s+\w+)?)\s+is\s+([^.]+?)[\.\n]',
+        r'(\w+(?:\s+\w+)?)\s+are\s+([^.]+?)[\.\n]',
+        r'(\w+(?:\s+\w+)?)\s+means\s+([^.]+?)[\.\n]'
+    ]
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        for match in matches[:5]:  # Limit per page
+            entity = match[0].strip()
+            value = match[1].strip()
+            if len(entity) > 3 and len(value) > 3 and len(entity) < 50:
+                facts.append({
+                    "entity": entity,
+                    "attribute": "description",
+                    "value": value,
+                    "source_url": source_url,
+                    "source_domain": domain,
+                    "confidence": 0.6
+                })
+    
+    return facts
+
+async def add_fact_to_truth_graph_from_research(pool, fact: Dict, domain: str, trust_score: float):
+    """Add extracted fact to truth graph with source tracking"""
+    confidence = min(0.95, fact.get("confidence", 0.6) * (0.5 + trust_score / 2))
+    
+    # Check for existing fact
+    existing = await pool.fetchrow("""
+        SELECT value, confidence FROM truth_graph 
+        WHERE entity = $1 AND attribute = $2
+    """, fact["entity"], fact["attribute"])
+    
+    if existing:
+        # Merge: keep higher confidence, or average if close
+        if confidence > existing["confidence"]:
+            await pool.execute("""
+                UPDATE truth_graph 
+                SET value = $1, confidence = $2, source = $3, last_verified = NOW()
+                WHERE entity = $4 AND attribute = $5
+            """, fact["value"], confidence, f"research:{domain}", fact["entity"], fact["attribute"])
+    else:
+        await pool.execute("""
+            INSERT INTO truth_graph (entity, attribute, value, confidence, source, is_speculative)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """, fact["entity"], fact["attribute"], fact["value"], confidence, f"research:{domain}", trust_score < 0.8)
+
+async def queue_autonomous_research(pool, topic: str, reason: str, priority: int = 5):
+    """Queue a research task for later execution"""
+    await pool.execute("""
+        INSERT INTO crawl_queue (url, domain, priority, reason, status, max_pages, max_depth)
+        VALUES ($1, $2, $3, $4, 'pending', 5, 2)
+    """, f"research://{topic}", "research", priority, reason)
+    logger.info(f"📋 Queued research: '{topic}' (priority {priority})")
+
+async def process_research_queue(pool):
+    """Process pending research tasks from the queue"""
+    rows = await pool.fetch("""
+        SELECT id, reason FROM crawl_queue 
+        WHERE status = 'pending' 
+        ORDER BY priority ASC, queued_at ASC 
+        LIMIT 1
+    """)
+    
+    for row in rows:
+        research_topic = row["reason"]
+        await pool.execute("UPDATE crawl_queue SET status = 'crawling', started_at = NOW() WHERE id = $1", row["id"])
+        
+        result = await autonomous_research(pool, research_topic, "queue_triggered", max_sites=2)
+        
+        if result.get("success"):
+            await pool.execute("UPDATE crawl_queue SET status = 'completed', completed_at = NOW() WHERE id = $1", row["id"])
+        else:
+            await pool.execute("""
+                UPDATE crawl_queue 
+                SET status = 'failed', completed_at = NOW(), retry_count = retry_count + 1
+                WHERE id = $1
+            """, row["id"])
+
+# ============================================================
 # SANDBOX EXECUTOR
 # ============================================================
 
