@@ -4075,6 +4075,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
                     "envSpecificDetails": {
                         "python": {
                             "version": "3.11"
+                            "plan": "free"
                         }
                     }
                 }
