@@ -4067,17 +4067,10 @@ async def auto_deploy_project(request: AutoDeployRequest):
                 "branch": "main",
                 "autoDeploy": "yes",
                 "serviceDetails": {
+                    "env": "python",
                     "buildCommand": "pip install -r requirements.txt",
                     "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
-                    "runtime": "python",
-                    "numInstances": 1,
-                    "plan": "free",
-                    "envSpecificDetails": {
-                        "python": {
-                            "version": "3.11",
-                            "plan": "free",
-                        }
-                    }
+                    "plan": "free"
                 }
             }
             
