@@ -4066,6 +4066,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
                 "type": "web_service",
                 "repo": repo_url,
                 "branch": "main",
+                "runtime": "python",
                 "serviceDetails": {
                     "runtime": "python",  # ← INSIDE serviceDetails
                     "buildCommand": "pip install -r requirements.txt",
