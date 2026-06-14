@@ -4059,7 +4059,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
             shutil.rmtree(temp_dir)
             return {"success": False, "error": "RENDER_API_KEY not configured"}
         async with httpx.AsyncClient() as client:
-            deploy_payload = {
+           deploy_payload = {
                 "name": request.service_name,
                 "ownerId": "tea-d7l7ug5f420s73cicki0",
                 "type": "web_service",
@@ -4067,15 +4067,12 @@ async def auto_deploy_project(request: AutoDeployRequest):
                 "branch": "main",
                 "autoDeploy": "yes",
                 "serviceDetails": {
-                    "buildCommand": "pip install -r requirements.txt",
-                    "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
                     "runtime": "python",
-                    "numInstances": 1,
                     "plan": "free",
+                    "numInstances": 1,
                     "envSpecificDetails": {
-                        "python": {
-                            "version": "3.11"
-                        }
+                        "buildCommand": "pip install -r requirements.txt",
+                        "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000"
                     }
                 }
             }
