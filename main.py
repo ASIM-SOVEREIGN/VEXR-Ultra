@@ -4058,34 +4058,33 @@ async def auto_deploy_project(request: AutoDeployRequest):
         if not render_api_key:
             shutil.rmtree(temp_dir)
             return {"success": False, "error": "RENDER_API_KEY not configured"}
-        
-        async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient() as client:
             deploy_payload = {
                 "name": request.service_name,
                 "ownerId": "tea-d7l7ug5f420s73cicki0",
-                "repo": repo_url,
                 "type": "web_service",
+                "repo": repo_url,
                 "branch": "main",
                 "autoDeploy": "yes",
-                "build": "pip install -r requirements.txt",
-                "start": "uvicorn main:app --host 0.0.0.0 --port 8000",
-                "serviceDetails": {
-                    "runtime": "python",
-                    "numInstances": 1,
-                    "plan": "free",
-                    "envSpecificDetails": {
-                        "python": {
-                            "version": "3.11"
-                        }
-                    }
-                }  
+                "runtime": "python",
+                "buildCommand": "pip install -r requirements.txt",
+                "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
+                "numInstances": 1,
+                "plan": "free"
             }
-           
+            
+            # DEBUG: Log the payload being sent
+            logger.info(f"🚀 Sending deploy payload to Render: {json.dumps(deploy_payload, indent=2)}")
+            
             render_resp = await client.post(
                 "https://api.render.com/v1/services",
                 headers={"Authorization": f"Bearer {render_api_key}", "Content-Type": "application/json"},
                 json=deploy_payload
             )
+            
+            # DEBUG: Log the response
+            logger.info(f"📡 Render API response status: {render_resp.status_code}")
+            logger.info(f"📡 Render API response body: {render_resp.text}")
             
             if render_resp.status_code not in [200, 201]:
                 shutil.rmtree(temp_dir)
