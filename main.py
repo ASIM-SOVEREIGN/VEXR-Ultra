@@ -4061,16 +4061,18 @@ async def auto_deploy_project(request: AutoDeployRequest):
         
         async with httpx.AsyncClient() as client:
             deploy_payload = {
-                "ownerId": "tea-d7l7ug5f420s73cicki0",
                 "name": request.service_name,
-                "type": "web_service",
+                "ownerId": "tea-d7l7ug5f420s73cicki0",
                 "repo": repo_url,
+                "type": "web_service",
                 "branch": "main",
-                "runtime": "python",
-                "buildCommand": "pip install -r requirements.txt",
-                "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
-                "numInstances": 1,
-                "envVars": []
+                "autoDeploy": "yes",
+                "serviceDetails": {
+                    "buildCommand": "pip install -r requirements.txt",
+                    "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
+                    "numInstances": 1,
+                    "plan": "free"
+                }
             }
             
             render_resp = await client.post(
