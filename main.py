@@ -4069,6 +4069,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
                 "runtime": "python",
                 "buildCommand": "pip install -r requirements.txt",
                 "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
+                "numInstances": 1,
                 "envVars": [
                     {"key": k, "value": v} for k, v in request.environment_vars.items()
                 ]
