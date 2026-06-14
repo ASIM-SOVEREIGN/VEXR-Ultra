@@ -4035,7 +4035,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
             create_repo_resp = await client.post(
                 "https://api.github.com/user/repos",
                 headers={"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"},
-                json={"name": repo_name, "private": True, "auto_init": True}
+                json={"name": repo_name, "private": False, "auto_init": True}
             )
             
             if create_repo_resp.status_code != 201:
@@ -4043,7 +4043,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
                 return {"success": False, "error": f"GitHub repo creation failed: {create_repo_resp.text}"}
             
             repo_data = create_repo_resp.json()
-            repo_url = repo_data["clone_url"]
+            repo_url = repo_data["html_url"]
             
             # Push code using git commands
             subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True)
