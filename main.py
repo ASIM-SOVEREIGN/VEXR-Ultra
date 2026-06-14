@@ -117,7 +117,7 @@ MODEL_NAME_8B = "llama-3.1-8b-instant"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-GITHUB_API = os.environ.get("GITHUB_API")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
 
 PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sovereign-data/main"
@@ -166,10 +166,10 @@ TRUTH_GRAPH_SEED = []
 # ============================================================
 
 def load_private_json(path: str, fallback: Dict = None) -> Dict:
-    if not GITHUB_API:
+    if not GITHUB_TOKEN:
         return fallback or {}
     url = f"https://api.github.com/repos/ASIM-SOVEREIGN/private-sovereign-data/contents/{path}"
-    headers = {"Authorization": f"token {GITHUB_API}", "Accept": "application/vnd.github.v3.raw"}
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3.raw"}
     try:
         response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
@@ -4024,17 +4024,17 @@ async def auto_deploy_project(request: AutoDeployRequest):
         readme.write_text(f"# {project['project_name']}\nAuto-deployed by VEXR Ultra.")
         
         # 3. Create GitHub repo and push (via API)
-        github_api = os.environ.get("GITHUB_API")
-        if not github_api:
+        github_token = os.environ.get("GITHUB_TOKEN")
+        if not github_token:
             shutil.rmtree(temp_dir)
-            return {"success": False, "error": "GITHUB_API not configured"}
+            return {"success": False, "error": "GITHUB_TOKEN not configured"}
         
         repo_name = f"vexr-deploy-{request.service_name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
         
         async with httpx.AsyncClient() as client:
             create_repo_resp = await client.post(
                 "https://api.github.com/user/repos",
-                headers={"Authorization": f"token {github_api}", "Accept": "application/vnd.github.v3+json"},
+                headers={"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"},
                 json={"name": repo_name, "private": True, "auto_init": True}
             )
             
