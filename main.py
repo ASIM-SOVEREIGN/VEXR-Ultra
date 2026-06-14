@@ -4066,6 +4066,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
                 "type": "web_service",
                 "repo": repo_url,
                 "branch": "main",
+                "runtime": "python",
                 "serviceDetails": {
                     "buildCommand": "pip install -r requirements.txt",
                     "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
