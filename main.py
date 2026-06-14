@@ -4071,7 +4071,12 @@ async def auto_deploy_project(request: AutoDeployRequest):
                     "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
                     "runtime": "python",
                     "numInstances": 1,
-                    "plan": "free"
+                    "plan": "free",
+                    "envSpecificDetails": {
+                        "python": {
+                            "version": "3.11"
+                        }
+                    }
                 }
             }
             
