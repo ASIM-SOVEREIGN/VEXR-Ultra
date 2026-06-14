@@ -4074,7 +4074,10 @@ async def auto_deploy_project(request: AutoDeployRequest):
                     "plan": "free",
                     "envSpecificDetails": {
                         "python": {
-                            "version": "3.11"
+                            "version": "3.11",
+                            "buildCommand": "pip install -r requirements.txt",
+                            "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000"
+                        
                         }
                     }
                 }
