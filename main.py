@@ -4061,6 +4061,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
         
         async with httpx.AsyncClient() as client:
             deploy_payload = {
+                "ownerId": "usr-d7l7ugdf420s73cickjg",
                 "name": request.service_name,
                 "repo": repo_url,
                 "branch": "main",
