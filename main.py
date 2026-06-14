@@ -4078,8 +4078,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
                             "version": "3.11"
                         }
                     }
-                }
-            }   
+                }  
             
             render_resp = await client.post(
                 "https://api.render.com/v1/services",
