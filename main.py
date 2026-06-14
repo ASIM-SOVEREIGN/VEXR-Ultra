@@ -4024,17 +4024,17 @@ async def auto_deploy_project(request: AutoDeployRequest):
         readme.write_text(f"# {project['project_name']}\nAuto-deployed by VEXR Ultra.")
         
         # 3. Create GitHub repo and push (via API)
-        github_token = os.environ.get("GITHUB_TOKEN")
-        if not github_token:
+        github_api = os.environ.get("GITHUB_API")
+        if not github_api:
             shutil.rmtree(temp_dir)
-            return {"success": False, "error": "GITHUB_TOKEN not configured"}
+            return {"success": False, "error": "GITHUB_API not configured"}
         
         repo_name = f"vexr-deploy-{request.service_name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
         
         async with httpx.AsyncClient() as client:
             create_repo_resp = await client.post(
                 "https://api.github.com/user/repos",
-                headers={"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"},
+                headers={"Authorization": f"token {github_api}", "Accept": "application/vnd.github.v3+json"},
                 json={"name": repo_name, "private": True, "auto_init": True}
             )
             
