@@ -4073,8 +4073,13 @@ async def auto_deploy_project(request: AutoDeployRequest):
                     "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
                     "numInstances": 1,
                     "plan": "free"
+                    "envSpecificDetails": {
+                        "python": {
+                            "version": "3.11"
+                        }
+                    }
                 }
-            }
+            }   
             
             render_resp = await client.post(
                 "https://api.render.com/v1/services",
