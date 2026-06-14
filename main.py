@@ -4058,7 +4058,7 @@ async def auto_deploy_project(request: AutoDeployRequest):
         if not render_api_key:
             shutil.rmtree(temp_dir)
             return {"success": False, "error": "RENDER_API_KEY not configured"}
-                async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient() as client:
             deploy_payload = {
                 "name": request.service_name,
                 "ownerId": "tea-d7l7ug5f420s73cicki0",
