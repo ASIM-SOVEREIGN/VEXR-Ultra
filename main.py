@@ -4074,16 +4074,10 @@ async def auto_deploy_project(request: AutoDeployRequest):
                     "plan": "free",
                     "envSpecificDetails": {
                         "python": {
-                        "version": "3.11"
-                        "envSpecificDetails": {
-                            "python": {
-                                "version": "3.11",
-                                    "plan": "free"
-                                }
-                            }
+                            "version": "3.11"
                         }
                     }
-                } 
+                }
             }
             
             # DEBUG: Log the payload being sent
