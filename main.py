@@ -4078,8 +4078,6 @@ async def auto_deploy_project(request: AutoDeployRequest):
                             "plan": "free"
                         }
                     }
-                }
-            }
             
             # DEBUG: Log the payload being sent
             logger.info(f"🚀 Sending deploy payload to Render: {json.dumps(deploy_payload, indent=2)}")
