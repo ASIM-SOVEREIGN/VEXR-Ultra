@@ -4074,10 +4074,10 @@ async def auto_deploy_project(request: AutoDeployRequest):
                     "plan": "free",
                     "envSpecificDetails": {
                         "python": {
-                            "version": "3.11"
-                            "plan": "free"
-                        }
+                        "version": "3.11"
+                        "plan": "free"
                     }
+                }
             
             # DEBUG: Log the payload being sent
             logger.info(f"🚀 Sending deploy payload to Render: {json.dumps(deploy_payload, indent=2)}")
