@@ -4058,24 +4058,24 @@ async def auto_deploy_project(request: AutoDeployRequest):
         if not render_api_key:
             shutil.rmtree(temp_dir)
             return {"success": False, "error": "RENDER_API_KEY not configured"}
-        async with httpx.AsyncClient() as client:
-           deploy_payload = {
-    "name": request.service_name,
-    "ownerId": "tea-d7l7ug5f420s73cicki0",
-    "type": "web_service",
-    "repo": repo_url,
-    "branch": "main",
-    "autoDeploy": "yes",
-    "serviceDetails": {
-        "runtime": "python",
-        "plan": "free",
-        "numInstances": 1,
-        "envSpecificDetails": {
-            "buildCommand": "pip install -r requirements.txt",
-            "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000"
-        }
-    }
-}
+        async with httpx.AsyncClient() as client:      
+            deploy_payload = {
+                "name": request.service_name,
+                "ownerId": "tea-d7l7ug5f420s73cicki0",
+                "type": "web_service",
+                "repo": repo_url,
+                "branch": "main",
+                "autoDeploy": "yes",
+                "serviceDetails": {
+                    "runtime": "python",
+                    "plan": "free",
+                    "numInstances": 1,
+                    "envSpecificDetails": {
+                        "buildCommand": "pip install -r requirements.txt",
+                        "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000"
+                    }
+                }
+            }
             
             # DEBUG: Log the payload being sent
             logger.info(f"🚀 Sending deploy payload to Render: {json.dumps(deploy_payload, indent=2)}")
