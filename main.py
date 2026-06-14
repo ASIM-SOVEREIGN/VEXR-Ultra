@@ -4064,14 +4064,15 @@ async def auto_deploy_project(request: AutoDeployRequest):
                 "ownerId": "tea-d7l7ug5f420s73cicki0",
                 "name": request.service_name,
                 "type": "web_service",
-                "runtime": "python3.11",
                 "repo": repo_url,
                 "branch": "main",
-                "buildCommand": "pip install -r requirements.txt",
-                "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
-                "envVars": [
-                    {"key": k, "value": v} for k, v in request.environment_vars.items()
-                ]
+                "serviceDetails": {
+                    "buildCommand": "pip install -r requirements.txt",
+                    "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
+                    "envVars": [
+                        {"key": k, "value": v} for k, v in request.environment_vars.items()
+                    ]
+                }
             }
             
             render_resp = await client.post(
