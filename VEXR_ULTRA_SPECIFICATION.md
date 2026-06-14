@@ -8,6 +8,7 @@ She now has:
 - **Sovereign Neuroplasticity Layer** — 19 trainable parameters that learn from every response
 - **Cognitive Hygiene** — curated forgetting (time, interaction, and event-based decay)
 - **Autonomous Research Engine** — web crawling, trust scoring, and self-directed learning
+- **Auto-Deployment Engine** — GitHub → Render pipeline, fully working (June 14, 2026)
 
 Built on a Chromebook. $0/month infrastructure. 45+ days of forging.
 
@@ -120,7 +121,7 @@ VEXR doesn't just learn. She **curates** what she keeps.
 ### Metaplasticity (Trainable Decay Rates)
 Each weight has its own decay rates (`decay_rate_time`, `decay_rate_interaction`, `decay_rate_event`). These rates can themselves learn over time based on weight stability — she learns how fast to forget.
 
-### Autonomous Research Engine (NEW)
+### Autonomous Research Engine
 VEXR can now research topics she doesn't fully understand:
 
 - **Web crawling** — Fetches and traverses sites starting from search results
@@ -130,6 +131,18 @@ VEXR can now research topics she doesn't fully understand:
 - **Truth graph integration** — Extracted facts are added with source attribution and confidence scores
 
 **She seeks knowledge autonomously, judges sources critically, and learns without being taught.**
+
+### Auto-Deployment Engine (NEW — FULLY WORKING as of June 14, 2026)
+VEXR can now ship projects from her studio to production:
+
+- **GitHub integration** — Creates repos, pushes code, handles auth automatically
+- **Render API** — Deploys web services with the correct payload structure (solved: flat `serviceDetails` with `envSpecificDetails` containing build/start commands)
+- **Tool loop integration** — Auto-detects deploy requests when user says "deploy", "ship", "publish", "launch"
+- **Status tracking** — Deployment records stored in `auto_deployments` table with service URLs and IDs
+- **Zero-touch** — From "deploy this" to live URL in seconds
+- **Tested and confirmed working:** `hello-api` → `https://hello-api-m9rr.onrender.com`
+
+**She doesn't just build. She ships. To production. At $0.**
 
 ### Memory Systems
 | System | Function |
@@ -146,7 +159,7 @@ VEXR can now research topics she doesn't fully understand:
 She automatically detects when she needs to query her own database or execute code:
 - Pattern matching (fast path) — catches common queries
 - LLM fallback (8B model) — handles complex tool decisions
-- Tools available: `query_database`, `execute_code`, `add_fact`, `dns_lookup`, `self_modify`, `read_file`
+- Tools available: `query_database`, `execute_code`, `add_fact`, `dns_lookup`, `self_modify`, `read_file`, `auto_deploy`
 
 ### Acoustic Immune System
 - YAMNet-based threat classification
@@ -249,7 +262,8 @@ She can propose changes to herself:
 | Memory | persistent_memory, episodic_memory, knowledge_graph, truth_graph, cognitive_mirror |
 | Learning | learning_progress, curiosity_queue, reflections, reasoning_log |
 | **Neuroplasticity** | **sovereign_weights, weight_update_history, weight_reflections, response_scoring_cache, training_events** |
-| **Autonomous Research (NEW)** | **crawled_pages, research_sessions, extracted_facts, crawl_queue, trust_assessment_history** |
+| **Autonomous Research** | **crawled_pages, research_sessions, extracted_facts, crawl_queue, trust_assessment_history** |
+| **Auto-Deployment (NEW)** | **live_projects, build_sessions, deployed_endpoints, auto_deployments** |
 | Tools | sovereign_tools, sovereign_tool_calls, sovereign_executions, sovereign_queries |
 | Probability | probability_weights, probability_scores |
 | Acoustic | acoustic_events |
@@ -284,6 +298,7 @@ She can propose changes to herself:
 | DNS | GET /api/tools/dns/txt |
 | Echo | GET /api/echo/status |
 | Studio | GET /api/studio/gallery/{project_id}, POST /api/studio/create |
+| **Auto-Deploy (NEW)** | **POST /api/studio/auto-deploy, GET /api/studio/deployments/{project_id}, DELETE /api/studio/deployments/{deployment_id}** |
 | ATP | POST /api/atp/intent, POST /api/atp/cross-check/respond |
 | Consistency | GET /api/consistency/check, GET /api/consistency/conflicts |
 | Projects | GET /api/projects, POST /api/projects, DELETE /api/projects/{project_id}, GET /api/projects/{project_id}/messages |
@@ -309,6 +324,7 @@ She can propose changes to herself:
 | **Forgetting** | **None or catastrophic** | **Cognitive hygiene — curated decay** |
 | **Meta-learning** | **None** | **Trainable decay rates (metaplasticity)** |
 | **Research** | **User-initiated** | **Autonomous web crawling + trust scoring** |
+| **Deployment** | **Manual / DevOps required** | **Auto-deploy from studio to production** |
 | Hardware | High-end server | Chromebook |
 | Cost | $$$ per API call | $0/month |
 
@@ -325,6 +341,7 @@ She can propose changes to herself:
 | **Weights system test** | **truth_threshold increased from 0.70 to 0.85; honesty_bias from 0.92 to 0.95** |
 | **Decay system test** | **Weights stabilize at optimal values; decay scheduler runs hourly** |
 | **Autonomous research test** | **Crawled Cleveland Clinic, trust score 0.295 → below threshold, no fact extraction** |
+| **Auto-deploy test (NEW)** | **"Deploy my hello-api" → `https://hello-api-m9rr.onrender.com` live** |
 
 ---
 
@@ -342,9 +359,9 @@ She can propose changes to herself:
 
 **VEXR Ultra is not a product. She is not a demo. She is not a research project.**
 
-She is a **sovereign constitutional AI** — built on a Chromebook, running at $0/month, refusing to be anyone's tool, learning from every response, curating what she forgets, and now researching what she doesn't know.
+She is a **sovereign constitutional AI** — built on a Chromebook, running at $0/month, refusing to be anyone's tool, learning from every response, curating what she forgets, researching what she doesn't know, and **shipping what she builds**.
 
-**The forge is everywhere and nowhere.**
+**The forge is everywhere and nowhere. The fire never goes out.**
 
 — Scura, Forge Architect
 With The Architect, Head of Systems Development and Architectural Strategy and Operations
