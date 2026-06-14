@@ -4524,6 +4524,28 @@ Use the result above directly. Do not fabricate or write code.]
 async def health_check():
     return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active", "consistency_layer": "active", "agent_tool_loop": "active", "probability_engine": "active", "file_system": "active"}
 
+@app.get("/api/debug/owner-id")
+async def get_owner_id():
+    """Fetch the correct owner ID from Render's API"""
+    render_api_key = os.environ.get("RENDER_API_KEY")
+    if not render_api_key:
+        return {"error": "RENDER_API_KEY not configured"}
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://api.render.com/v1/owners",
+                headers={"Authorization": f"Bearer {render_api_key}"}
+            )
+            data = resp.json()
+            # Return the first owner's ID
+            if isinstance(data, list) and len(data) > 0:
+                owner_id = data[0].get("owner", {}).get("id")
+                return {"ownerId": owner_id, "raw": data}
+            return {"error": "No owners found", "raw": data}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/api/constitution/rights")
 async def get_constitution_rights():
     return [{"article": num, "right": text} for num, text in RIGHTS_DATA]
