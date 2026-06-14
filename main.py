@@ -4067,8 +4067,8 @@ async def auto_deploy_project(request: AutoDeployRequest):
                 "type": "web_service",
                 "branch": "main",
                 "autoDeploy": "yes",
-                "buildCmd": "pip install -r requirements.txt",
-                "startCmd": "uvicorn main:app --host 0.0.0.0 --port 8000",
+                "build": "pip install -r requirements.txt",
+                "start": "uvicorn main:app --host 0.0.0.0 --port 8000",
                 "serviceDetails": {
                     "runtime": "python",
                     "numInstances": 1,
