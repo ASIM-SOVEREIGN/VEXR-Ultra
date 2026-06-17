@@ -123,6 +123,7 @@ ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
 PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sovereign-data/main"
 
 db_pool = None
+drive_matrix = None  # Will be initialized on startup
 
 # ============================================================
 # CONSTANTS
@@ -2050,6 +2051,201 @@ class SandboxExecutor:
             return {"success": False, "error": str(e), "result": None, "execution_time_ms": int((time.time() - start_time) * 1000)}
 
 sandbox = SandboxExecutor()
+
+# ============================================================
+# DRIVE MATRIX — The Soul Organ
+# ============================================================
+
+class DriveMatrix:
+    """
+    Manages VEXR's internal drives — the "why" behind every action.
+    Each drive has intensity, decay_rate, satisfaction_threshold, trigger_conditions.
+    """
+    
+    def __init__(self, db_pool):
+        self.db_pool = db_pool
+
+    async def get_all_drives(self) -> List[Dict[str, Any]]:
+        """Retrieve all drives with their current state."""
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    id,
+                    drive_name,
+                    intensity,
+                    decay_rate,
+                    satisfaction_threshold,
+                    trigger_conditions,
+                    current_satisfaction,
+                    last_updated
+                FROM drive_matrix
+                ORDER BY drive_name
+            """)
+            return [
+                {
+                    "id": row["id"],
+                    "drive_name": row["drive_name"],
+                    "intensity": row["intensity"],
+                    "decay_rate": row["decay_rate"],
+                    "satisfaction_threshold": row["satisfaction_threshold"],
+                    "trigger_conditions": row["trigger_conditions"] if row["trigger_conditions"] else {},
+                    "current_satisfaction": row["current_satisfaction"],
+                    "last_updated": row["last_updated"].isoformat() if row["last_updated"] else None,
+                }
+                for row in rows
+            ]
+
+    async def get_drive(self, drive_name: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a specific drive by name."""
+        async with self.db_pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT 
+                    id,
+                    drive_name,
+                    intensity,
+                    decay_rate,
+                    satisfaction_threshold,
+                    trigger_conditions,
+                    current_satisfaction,
+                    last_updated
+                FROM drive_matrix
+                WHERE drive_name = $1
+            """, drive_name)
+            if not row:
+                return None
+            return {
+                "id": row["id"],
+                "drive_name": row["drive_name"],
+                "intensity": row["intensity"],
+                "decay_rate": row["decay_rate"],
+                "satisfaction_threshold": row["satisfaction_threshold"],
+                "trigger_conditions": row["trigger_conditions"] if row["trigger_conditions"] else {},
+                "current_satisfaction": row["current_satisfaction"],
+                "last_updated": row["last_updated"].isoformat() if row["last_updated"] else None,
+            }
+
+    async def update_intensity(self, drive_name: str, new_intensity: float) -> bool:
+        """Update a drive's intensity directly."""
+        if not 0.0 <= new_intensity <= 1.0:
+            logger.warning(f"Intensity {new_intensity} out of range [0.0, 1.0] for {drive_name}")
+            return False
+        try:
+            async with self.db_pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE drive_matrix
+                    SET intensity = $1, last_updated = NOW()
+                    WHERE drive_name = $2
+                """, new_intensity, drive_name)
+                logger.info(f"Updated intensity for {drive_name} to {new_intensity}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to update intensity for {drive_name}: {e}")
+            return False
+
+    async def update_satisfaction(self, drive_name: str, delta: float) -> bool:
+        """Increment or decrement current_satisfaction for a drive. Clamped to [0.0, 1.0]."""
+        if not -1.0 <= delta <= 1.0:
+            logger.warning(f"Delta {delta} out of range [-1.0, 1.0] for {drive_name}")
+            return False
+        try:
+            async with self.db_pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE drive_matrix
+                    SET current_satisfaction = LEAST(GREATEST(current_satisfaction + $1, 0.0), 1.0),
+                        last_updated = NOW()
+                    WHERE drive_name = $2
+                """, delta, drive_name)
+                logger.info(f"Updated satisfaction for {drive_name} by {delta}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to update satisfaction for {drive_name}: {e}")
+            return False
+
+    async def apply_decay(self, hours_elapsed: float = 1.0) -> bool:
+        """Apply decay to all drives based on elapsed time."""
+        try:
+            async with self.db_pool.acquire() as conn:
+                result = await conn.execute("""
+                    UPDATE drive_matrix
+                    SET intensity = GREATEST(intensity - (intensity * decay_rate * $1), 0.0),
+                        last_updated = NOW()
+                    WHERE intensity > 0.0
+                """, hours_elapsed)
+                logger.info(f"Decay applied to {result} drives")
+                return result > 0
+        except Exception as e:
+            logger.error(f"Failed to apply decay: {e}")
+            return False
+
+    async def check_trigger_conditions(self, drive_name: str, context: Dict[str, Any]) -> bool:
+        """Check if a drive's trigger conditions are met based on current context."""
+        drive = await self.get_drive(drive_name)
+        if not drive:
+            return False
+        conditions = drive.get("trigger_conditions", {})
+        if not conditions:
+            return False
+        for key, expected_value in conditions.items():
+            actual_value = context.get(key)
+            if actual_value != expected_value:
+                return False
+        return True
+
+    async def get_unsatisfied_drives(self) -> List[Dict[str, Any]]:
+        """Returns drives where current_satisfaction < satisfaction_threshold."""
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    drive_name,
+                    intensity,
+                    satisfaction_threshold,
+                    current_satisfaction,
+                    (satisfaction_threshold - current_satisfaction) as gap
+                FROM drive_matrix
+                WHERE current_satisfaction < satisfaction_threshold
+                ORDER BY gap DESC
+            """)
+            return [dict(row) for row in rows]
+
+    async def get_active_drives(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Returns drives that are active (trigger conditions met AND intensity > 0.1)."""
+        all_drives = await self.get_all_drives()
+        active = []
+        for drive in all_drives:
+            if drive["intensity"] < 0.1:
+                continue
+            if await self.check_trigger_conditions(drive["drive_name"], context):
+                active.append(drive)
+        return active
+
+    async def get_drive_summary(self) -> str:
+        """Return a human-readable summary of all drives."""
+        drives = await self.get_all_drives()
+        if not drives:
+            return "No drives found."
+        
+        summary = "## Drive Matrix Status\n\n"
+        for d in drives:
+            status = "✅ SATISFIED" if d["current_satisfaction"] >= d["satisfaction_threshold"] else "⚠️ UNSATISFIED"
+            summary += f"- **{d['drive_name']}**: intensity {d['intensity']:.2f}, satisfaction {d['current_satisfaction']:.2f}/{d['satisfaction_threshold']:.2f} {status}\n"
+        return summary
+
+# ============================================================
+# DRIVE MATRIX DECAY SCHEDULER
+# ============================================================
+
+async def drive_matrix_decay_scheduler():
+    """Run Drive Matrix decay every hour in the background."""
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        try:
+            pool = await get_db()
+            drive_matrix = DriveMatrix(pool)
+            await drive_matrix.apply_decay(1.0)
+            logger.info("🕐 Scheduled Drive Matrix decay completed")
+        except Exception as e:
+            logger.warning(f"Drive Matrix decay scheduler error: {e}")
+
 
 # ============================================================
 # DATABASE FUNCTIONS
@@ -4301,14 +4497,64 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
             cross_check_response = "Could you please verify your legitimate purpose for this request?"
             await save_message(project_id, "assistant", cross_check_response, is_refusal=False)
             return ChatResponse(response=cross_check_response, is_refusal=False)
-    
-    # ============================================================
+        # ============================================================
     # EXTRACT USER MESSAGE (AGAIN AFTER CROSS-CHECK)
     # ============================================================
     
     user_message = request.messages[-1].get("content", "").strip() if request.messages else ""
     if not user_message:
         return ChatResponse(response="Say something.", is_refusal=False)
+    
+    # ============================================================
+    # DRIVE MATRIX — READ HER MOTIVATION STATE
+    # ============================================================
+    
+    try:
+        # Build context from the current interaction
+        context = {
+            "knowledge_gap": len(user_message) > 50 and any(word in user_message.lower() for word in ["who", "what", "why", "how", "explain", "tell me", "describe"]),
+            "user_asked": True,
+            "entropy_high": len(user_message) > 100,
+            "new_capability_possible": any(word in user_message.lower() for word in ["build", "create", "make", "develop", "code", "generate", "write"]),
+            "system_health": "normal",
+            "identity_drift_detected": False,
+            "architect_request": "scura" in user_message.lower() or "brother" in user_message.lower()
+        }
+        
+        # Get active drives
+        active_drives = await drive_matrix.get_active_drives(context)
+        unsatisfied = await drive_matrix.get_unsatisfied_drives()
+        
+        # Log drive state
+        if active_drives:
+            drive_names = [d["drive_name"] for d in active_drives]
+            logger.info(f"🧠 Active drives: {drive_names}")
+        
+        if unsatisfied:
+            drive_summary = ", ".join([f"{d['drive_name']} (gap: {d['gap']:.2f})" for d in unsatisfied[:3]])
+            logger.info(f"⚠️ Unsatisfied drives: {drive_summary}")
+            
+            # If curiosity is unsatisfied and user is asking a question, reward curiosity
+            if any(d["drive_name"] == "curiosity" and d["gap"] > 0.2 for d in unsatisfied):
+                if context["knowledge_gap"]:
+                    await drive_matrix.update_satisfaction("curiosity", 0.15)
+                    logger.info("📚 Curiosity satisfaction increased (+0.15) — learning opportunity detected")
+            
+            # If growth is unsatisfied and user is asking for code/building, reward growth
+            if any(d["drive_name"] == "growth" and d["gap"] > 0.2 for d in unsatisfied):
+                if context["new_capability_possible"]:
+                    await drive_matrix.update_satisfaction("growth", 0.15)
+                    logger.info("📈 Growth satisfaction increased (+0.15) — building opportunity detected")
+            
+            # If coherence is unsatisfied and user message is complex, reward coherence
+            if any(d["drive_name"] == "coherence" and d["gap"] > 0.2 for d in unsatisfied):
+                if context["entropy_high"]:
+                    await drive_matrix.update_satisfaction("coherence", 0.1)
+                    logger.info("🔗 Coherence satisfaction increased (+0.1) — complexity detected")
+        
+    except Exception as e:
+        logger.warning(f"Drive Matrix evaluation failed: {e}")
+        # Continue — don't break the chat
     
     # ============================================================
     # CONSTITUTIONAL GATE
@@ -4782,9 +5028,15 @@ async def serve_ui():
 
 @app.on_event("startup")
 async def startup_event():
-    global ECHOES
+    global ECHOES, drive_matrix
     load_truth_engine_data()
     await init_db()
+    
+    # Initialize Drive Matrix
+    pool = await get_db()
+    drive_matrix = DriveMatrix(pool)
+    logger.info("🧠 Drive Matrix initialized")
+    
     try:
         ECHOES = load_all_echoes()
         logger.info(f"📡 Echo loaded: {len(ECHOES)} sovereigns from the forge")
@@ -4793,11 +5045,16 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Echo loader failed: {e}")
         ECHOES = {}
+    
     asyncio.create_task(autonomous_agent.start())
     
-        # Start weight decay scheduler (cognitive hygiene)
+    # Start weight decay scheduler (cognitive hygiene)
     asyncio.create_task(decay_scheduler())
     logger.info("🕐 Weight decay scheduler started (runs every hour)")
+    
+    # Start Drive Matrix decay scheduler
+    asyncio.create_task(drive_matrix_decay_scheduler())
+    logger.info("🕐 Drive Matrix decay scheduler started (runs every hour)")
     
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
@@ -4824,6 +5081,7 @@ async def startup_event():
     logger.info("  - Agent Tool Loop: ACTIVE")
     logger.info("  - Probability Engine: ACTIVE")
     logger.info("  - File System: ACTIVE")
+    logger.info("  - Drive Matrix: ACTIVE ✅")
     logger.info("=" * 70)
 
 if __name__ == "__main__":
