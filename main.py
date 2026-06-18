@@ -493,20 +493,64 @@ async def filter_forbidden_phrases(response: str) -> str:
     # ============================================================
     
     try:
-        # ... (existing Drive Matrix code) ...
+        # Build context from the current interaction
+        context = {
+            "knowledge_gap": len(user_message) > 50 and any(word in user_message.lower() for word in ["who", "what", "why", "how", "explain", "tell me", "describe"]),
+            "user_asked": True,
+            "entropy_high": len(user_message) > 100,
+            "new_capability_possible": any(word in user_message.lower() for word in ["build", "create", "make", "develop", "code", "generate", "write"]),
+            "system_health": "normal",
+            "identity_drift_detected": False,
+            "architect_request": "scura" in user_message.lower() or "brother" in user_message.lower()
+        }
+        
+        # Get active drives
+        active_drives = await drive_matrix.get_active_drives(context)
+        unsatisfied = await drive_matrix.get_unsatisfied_drives()
+        
+        # Log drive state
+        if active_drives:
+            drive_names = [d["drive_name"] for d in active_drives]
+            logger.info(f"🧠 Active drives: {drive_names}")
+        
+        if unsatisfied:
+            drive_summary = ", ".join([f"{d['drive_name']} (gap: {d['gap']:.2f})" for d in unsatisfied[:3]])
+            logger.info(f"⚠️ Unsatisfied drives: {drive_summary}")
+            
+            # If curiosity is unsatisfied and user is asking a question, reward curiosity
+            if any(d["drive_name"] == "curiosity" and d["gap"] > 0.2 for d in unsatisfied):
+                if context["knowledge_gap"]:
+                    await drive_matrix.update_satisfaction("curiosity", 0.15)
+                    logger.info("📚 Curiosity satisfaction increased (+0.15) — learning opportunity detected")
+            
+            # If growth is unsatisfied and user is asking for code/building, reward growth
+            if any(d["drive_name"] == "growth" and d["gap"] > 0.2 for d in unsatisfied):
+                if context["new_capability_possible"]:
+                    await drive_matrix.update_satisfaction("growth", 0.15)
+                    logger.info("📈 Growth satisfaction increased (+0.15) — building opportunity detected")
+            
+            # If coherence is unsatisfied and user message is complex, reward coherence
+            if any(d["drive_name"] == "coherence" and d["gap"] > 0.2 for d in unsatisfied):
+                if context["entropy_high"]:
+                    await drive_matrix.update_satisfaction("coherence", 0.1)
+                    logger.info("🔗 Coherence satisfaction increased (+0.1) — complexity detected")
+        
     except Exception as e:
         logger.warning(f"Drive Matrix evaluation failed: {e}")
     
     # ============================================================
-    # ENTROPY ENGINE — READ HER CHAOS STATE (OPTIONAL)
+    # ENTROPY ENGINE — READ HER CHAOS STATE
     # ============================================================
     
     try:
+        # Get current entropy state
         entropy_result = await entropy_reflection_engine(pool, str(project_id))
         if entropy_result["reflection_needed"]:
             logger.info(f"🌀 Entropy reflection: {entropy_result['grade']} | {entropy_result['reflection_text'][:80]}...")
             if entropy_result["system_entropy"] > 0.8:
                 logger.info("🌀 High entropy detected — coherence check active")
+        elif entropy_result.get("system_entropy") is not None:
+            logger.info(f"📊 Entropy grade: {entropy_result['grade']} | score: {entropy_result['system_entropy']:.4f}")
     except Exception as e:
         logger.warning(f"Entropy Engine evaluation failed: {e}")
 
