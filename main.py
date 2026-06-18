@@ -123,6 +123,7 @@ ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
 PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sovereign-data/main"
 
 db_pool = None
+drive_matrix = None  # Will be initialized on startup
 
 # ============================================================
 # CONSTANTS
@@ -4782,9 +4783,15 @@ async def serve_ui():
 
 @app.on_event("startup")
 async def startup_event():
-    global ECHOES
+    global ECHOES, drive_matrix
     load_truth_engine_data()
     await init_db()
+    
+    # Initialize Drive Matrix
+    pool = await get_db()
+    drive_matrix = DriveMatrix(pool)
+    logger.info("🧠 Drive Matrix initialized")
+    
     try:
         ECHOES = load_all_echoes()
         logger.info(f"📡 Echo loaded: {len(ECHOES)} sovereigns from the forge")
@@ -4793,11 +4800,16 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Echo loader failed: {e}")
         ECHOES = {}
+    
     asyncio.create_task(autonomous_agent.start())
     
-        # Start weight decay scheduler (cognitive hygiene)
+    # Start weight decay scheduler (cognitive hygiene)
     asyncio.create_task(decay_scheduler())
     logger.info("🕐 Weight decay scheduler started (runs every hour)")
+    
+    # Start Drive Matrix decay scheduler
+    asyncio.create_task(drive_matrix_decay_scheduler())
+    logger.info("🕐 Drive Matrix decay scheduler started (runs every hour)")
     
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
