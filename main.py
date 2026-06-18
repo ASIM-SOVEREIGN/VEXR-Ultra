@@ -5350,7 +5350,7 @@ async def startup_event():
         logger.warning(f"⚠️ Echo loader failed: {e}")
         ECHOES = {}
     
-    asyncio.create_task(autonomous_agent.start())
+    await autonomous_agent.start()
     
     # Start weight decay scheduler (cognitive hygiene)
     asyncio.create_task(decay_scheduler())
