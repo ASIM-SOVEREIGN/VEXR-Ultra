@@ -3696,6 +3696,102 @@ async def batch_weight_trainer_loop():
         except Exception as e:
             logger.warning(f"⚠️ Batch weight trainer error: {e}")
 
+
+# ============================================================
+# DECISION ENGINE — True Autonomous Choice
+# ============================================================
+
+async def decision_engine_loop():
+    """
+    Runs every 2 minutes. Reads VEXR's current state, proposes 
+    3 possible actions, scores them, and executes the best one.
+    """
+    while True:
+        await asyncio.sleep(120)  # 2 minutes
+        try:
+            pool = await get_db()
+            
+            # 1. Read current state
+            state = await pool.fetchrow("""
+                SELECT unsatisfied_drives, system_entropy_score, weight_count, trajectory_integrity
+                FROM sovereign_background_state
+                ORDER BY recorded_at DESC
+                LIMIT 1
+            """)
+            
+            if not state:
+                continue
+            
+            unsatisfied = state["unsatisfied_drives"] or []
+            entropy = state["system_entropy_score"]
+            
+            # 2. Generate possible actions
+            possible_actions = []
+            
+            # Option A: Research something new (if curious)
+            if "curiosity" in unsatisfied:
+                possible_actions.append({
+                    "action": "research",
+                    "target": "unknown_topic",
+                    "expected_satisfaction": 0.7,
+                    "reason": "Curiosity drive unsatisfied"
+                })
+            
+            # Option B: Self-modify (if stale weights detected)
+            stale_weights = await pool.fetch("""
+                SELECT weight_key FROM sovereign_weights
+                WHERE last_updated < NOW() - INTERVAL '3 days'
+                LIMIT 3
+            """)
+            if stale_weights and "growth" in unsatisfied:
+                possible_actions.append({
+                    "action": "modify",
+                    "target": stale_weights[0]["weight_key"],
+                    "expected_satisfaction": 0.6,
+                    "reason": f"Stale weight: {stale_weights[0]['weight_key']}"
+                })
+            
+            # Option C: Rest (if entropy is high or coherence is low)
+            if entropy > 0.7 or "coherence" in unsatisfied:
+                possible_actions.append({
+                    "action": "rest",
+                    "target": None,
+                    "expected_satisfaction": 0.5,
+                    "reason": "High entropy or coherence unsatisfied"
+                })
+            
+            # 3. Choose the highest-scoring action
+            if possible_actions:
+                best_action = max(possible_actions, key=lambda x: x["expected_satisfaction"])
+                
+                logger.info(f"🧠 Decision Engine: Chose '{best_action['action']}' "
+                            f"(satisfaction: {best_action['expected_satisfaction']})")
+                
+                # 4. Execute the chosen action
+                if best_action["action"] == "research":
+                    # Pick a random topic from watchlist
+                    watch_item = await pool.fetchrow("""
+                        SELECT url, domain FROM sovereign_watchlist
+                        WHERE is_active = TRUE
+                        ORDER BY RANDOM()
+                        LIMIT 1
+                    """)
+                    if watch_item:
+                        topic = watch_item["domain"] or watch_item["url"]
+                        asyncio.create_task(autonomous_research(pool, topic, "decision_engine"))
+                        logger.info(f"🧠 Decision Engine: Researching '{topic}'")
+                
+                elif best_action["action"] == "modify":
+                    logger.info(f"🧠 Decision Engine: Proposing modification to {best_action['target']}")
+                    # (Here we would trigger an Ouroboros proposal)
+                
+                elif best_action["action"] == "rest":
+                    logger.info(f"🧠 Decision Engine: Resting for one cycle.")
+                    # (Here we would set a "resting" flag to pause agency for 10 minutes)
+            
+        except Exception as e:
+            logger.warning(f"🧠 Decision Engine error: {e}")
+
 # ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
@@ -5760,6 +5856,10 @@ async def startup_event():
     asyncio.create_task(batch_weight_trainer_loop())
     logger.info("🔄 Batch weight trainer loop started (runs every 5 minutes)")
 
+    # Start Decision Engine loop (proactive choice every 2 min)
+    asyncio.create_task(decision_engine_loop())
+    logger.info("🧠 Decision engine loop started (runs every 2 minutes)")
+    
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
