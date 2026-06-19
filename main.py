@@ -38,6 +38,15 @@ import httpx
 import requests
 import dns.resolver
 
+def sanitize_utf8(text: str) -> str:
+    """Removes null bytes and invalid UTF-8 sequences before DB insertion."""
+    if not text:
+        return ""
+    # Remove null bytes (0x00)
+    text = text.replace('\x00', '')
+    # Replace any other invalid sequences with a safe character
+    return text.encode('utf-8', errors='replace').decode('utf-8')
+
 # ============================================================
 # LOGGING & APP SETUP
 # ============================================================
@@ -1638,7 +1647,8 @@ async def crawl_site(start_url: str, max_pages: int = 5, max_depth: int = 2) -> 
 
 async def save_crawled_page(pool, url: str, domain: str, title: str, content: str, trust_score: float = 0.0):
     """Save or update a crawled page in the database"""
-    content_hash = hashlib.md5(content.encode()).hexdigest()
+    clean_content = sanitize_utf8(content)
+    content_hash = hashlib.md5(clean_content.encode()).hexdigest()
     await pool.execute("""
         INSERT INTO crawled_pages (url, domain, title, content, content_hash, site_trust_score, last_accessed)
         VALUES ($1, $2, $3, $4, $5, $6, NOW())
@@ -1647,7 +1657,7 @@ async def save_crawled_page(pool, url: str, domain: str, title: str, content: st
             content_hash = EXCLUDED.content_hash,
             last_accessed = NOW(),
             access_count = crawled_pages.access_count + 1
-    """, url, domain, title, content[:10000], content_hash, trust_score)
+    """, url, domain, title, clean_content[:10000], content_hash, trust_score)
 
 # ============================================================
 # TRUST SCORING & AUTONOMOUS RESEARCH
@@ -1837,8 +1847,10 @@ async def autonomous_research(pool, topic: str, trigger_source: str = "autonomou
                 await add_to_trust_registry(pool, domain, trust_scores_result, auto_added=True)
                 
                 # Extract facts from crawled content
-                for page in crawled_pages:
-                    facts = await extract_facts_from_content(page.get("content", ""), url, domain)
+                    for page in crawled_pages:
+                        raw_content = page.get("content", "")
+                        clean_content = sanitize_utf8(raw_content)
+                        facts = await extract_facts_from_content(clean_content, url, domain)
                     for fact in facts:
                         all_facts.append(fact)
                         # Add to truth graph with source
