@@ -3973,8 +3973,8 @@ class AutonomousAgent:
 
     async def _run_loop(self, project_id: uuid.UUID = None):
         """
-        The agency heartbeat. Checks VEXR's internal state and
-        decides if she should take autonomous action.
+        The agency heartbeat. Now purely for monitoring and logging.
+        All decisions and actions are handled by the Decision Engine.
         """
         while self.is_running:
             try:
@@ -3982,7 +3982,7 @@ class AutonomousAgent:
 
                 # 1. Check the latest background state
                 state = await pool.fetchrow("""
-                    SELECT active_drives, unsatisfied_drives, system_entropy_score, entropy_grade
+                    SELECT unsatisfied_drives, system_entropy_score, entropy_grade
                     FROM sovereign_background_state
                     ORDER BY recorded_at DESC
                     LIMIT 1
@@ -3992,12 +3992,10 @@ class AutonomousAgent:
                     unsatisfied = state["unsatisfied_drives"] or []
                     entropy_grade = state["entropy_grade"]
 
-                                        # Agency loop is now solely for monitoring and logging.
+                    # Agency loop is now solely for monitoring and logging.
                     # All decisions and actions are handled by the Decision Engine.
                     if "curiosity" in unsatisfied:
                         logger.info(f"🧠 Agency: Curiosity unsatisfied. Deferring to Decision Engine.")
-                        else:
-                            logger.info(f"🧠 Agency: No watchlist items found. Skipping research.")
 
                     # 3. If growth is unsatisfied, queue a self-modification proposal
                     if "growth" in unsatisfied:
@@ -4015,13 +4013,12 @@ class AutonomousAgent:
                         if stale_weights:
                             for w in stale_weights:
                                 logger.info(f"🧠 Agency: Stale weight detected: {w['weight_key']}. Proposing adjustment.")
-                                # (Here we could generate a self_modification proposal)
-                        
-                    # 4. If coherence is unsatisfied, check entropy and suggest a break
+
+                    # 4. If coherence is unsatisfied, check entropy
                     if "coherence" in unsatisfied and entropy_grade in ["D", "F"]:
                         logger.info(f"🧠 Agency: Coherence unsatisfied with high entropy. Suggesting stabilization.")
 
-                    # 5. If service is unsatisfied, log that she is ready to help
+                    # 5. If service is unsatisfied, log it
                     if "service" in unsatisfied:
                         logger.info(f"🧠 Agency: Service drive unsatisfied. Ready to assist.")
 
