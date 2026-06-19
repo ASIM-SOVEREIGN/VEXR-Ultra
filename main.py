@@ -3465,9 +3465,8 @@ async def background_pulse_loop():
                 entropy_grade = "D"
             else:
                 entropy_grade = "F"
-            
             # 4. Count active weights
-            weight_count = await pool.fetchval("SELECT COUNT(*) FROM sovereign_weights WHERE is_active = TRUE")
+            weight_count = int(await pool.fetchval("SELECT COUNT(*) FROM sovereign_weights WHERE is_active = TRUE"))
             
             # 5. Read latest trajectory integrity
             trajectory = await pool.fetchrow("SELECT sovereign_integrity_score FROM sovereign_trajectory ORDER BY recorded_at DESC LIMIT 1")
