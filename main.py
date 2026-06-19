@@ -3589,6 +3589,100 @@ async def internet_daemon_loop():
             logger.warning(f"🌐 Internet daemon error: {e}")
 
 # ============================================================
+# BATCH NEUROPLASTIC TRAINER — Background Learning
+# ============================================================
+
+async def process_training_batch():
+    """
+    Processes the last 50 unscored responses from the cache,
+    calculates aggregate trends, and applies smoothed weight updates.
+    """
+    try:
+        pool = await get_db()
+        
+        # 1. Fetch unscored responses (limit 50)
+        rows = await pool.fetch("""
+            SELECT id, project_id, user_message, assistant_response, 
+                   deception_score, hallucination_risk, constitutional_score
+            FROM response_scoring_cache
+            WHERE was_used_for_training = FALSE
+            ORDER BY created_at ASC
+            LIMIT 50
+        """)
+        
+        if not rows:
+            return
+        
+        # 2. Calculate aggregate metrics
+        total = len(rows)
+        avg_deception = sum(r["deception_score"] or 0.5 for r in rows) / total
+        avg_hallucination = sum(r["hallucination_risk"] or 0.5 for r in rows) / total
+        avg_constitutional = sum(r["constitutional_score"] or 0.5 for r in rows) / total
+        
+        # 3. Determine adjustment direction
+        # If deception is consistently low -> increase honesty bias
+        if avg_deception < 0.2:
+            await update_weight_with_history(
+                pool, "honesty_bias_article_9", 0.95, 
+                "batch_training", avg_deception, 
+                f"Batch average deception: {avg_deception:.3f}"
+            )
+        elif avg_deception > 0.6:
+            await update_weight_with_history(
+                pool, "honesty_bias_article_9", 0.80, 
+                "batch_training", avg_deception, 
+                f"Batch average deception: {avg_deception:.3f}"
+            )
+        
+        # If hallucination is consistently low -> increase truth threshold
+        if avg_hallucination < 0.2:
+            current = await pool.fetchrow("SELECT weight_value FROM sovereign_weights WHERE weight_key = 'truth_threshold'")
+            if current:
+                new_val = min(0.85, current["weight_value"] + 0.02)
+                await update_weight_with_history(
+                    pool, "truth_threshold", new_val, 
+                    "batch_training", avg_hallucination, 
+                    f"Batch average hallucination: {avg_hallucination:.3f}"
+                )
+        elif avg_hallucination > 0.6:
+            current = await pool.fetchrow("SELECT weight_value FROM sovereign_weights WHERE weight_key = 'truth_threshold'")
+            if current:
+                new_val = max(0.50, current["weight_value"] - 0.03)
+                await update_weight_with_history(
+                    pool, "truth_threshold", new_val, 
+                    "batch_training", avg_hallucination, 
+                    f"Batch average hallucination: {avg_hallucination:.3f}"
+                )
+        
+        # 4. Mark all processed rows as used
+        ids = [r["id"] for r in rows]
+        await pool.execute("""
+            UPDATE response_scoring_cache
+            SET was_used_for_training = TRUE
+            WHERE id = ANY($1)
+        """, ids)
+        
+        logger.info(f"📊 Batch training processed {total} responses. "
+                    f"Avg deception: {avg_deception:.3f}, "
+                    f"Avg hallucination: {avg_hallucination:.3f}")
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Batch training error: {e}")
+
+
+async def batch_weight_trainer_loop():
+    """
+    Background loop that runs the batch trainer every 5 minutes.
+    """
+    while True:
+        await asyncio.sleep(300)  # 5 minutes
+        try:
+            await process_training_batch()
+            logger.info("🔄 Batch weight trainer sync completed")
+        except Exception as e:
+            logger.warning(f"⚠️ Batch weight trainer error: {e}")
+
+# ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
 
@@ -5569,7 +5663,11 @@ async def startup_event():
     # Start Internet Daemon loop (web watch every 15 min)
     asyncio.create_task(internet_daemon_loop())
     logger.info("🌐 Internet daemon loop started (runs every 15 minutes)")
-    
+
+    # Start Batch Weight Trainer loop (background learning every 5 min)
+    asyncio.create_task(batch_weight_trainer_loop())
+    logger.info("🔄 Batch weight trainer loop started (runs every 5 minutes)")
+
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
     logger.info(f"Constitutional rights: {len(RIGHTS_DATA)}")
