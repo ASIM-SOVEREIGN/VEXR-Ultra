@@ -3266,6 +3266,146 @@ async def entropy_scheduler():
             logger.warning(f"Entropy scheduler error: {e}")
 
 # ============================================================
+# NEUROPLASTIC MIRROR — Live GitHub Sync
+# ============================================================
+
+async def sync_weights_to_repo():
+    """
+    Push current sovereign_weights to private GitHub repo as a live snapshot.
+    Creates a timestamped JSON file and updates the rolling latest.json.
+    """
+    try:
+        pool = await get_db()
+        
+        # 1. Fetch all active weights from PostgreSQL
+        rows = await pool.fetch("""
+            SELECT weight_key, weight_value, confidence, default_value, 
+                   influence_domain, last_updated, update_count, description
+            FROM sovereign_weights 
+            WHERE is_active = TRUE 
+            ORDER BY weight_key
+        """)
+        
+        weights_data = {}
+        for row in rows:
+            weights_data[row["weight_key"]] = {
+                "value": row["weight_value"],
+                "confidence": row["confidence"],
+                "default": row["default_value"],
+                "domain": row["influence_domain"],
+                "last_updated": row["last_updated"].isoformat() if row["last_updated"] else None,
+                "updates": row["update_count"],
+                "description": row["description"]
+            }
+        
+        # 2. Build the snapshot payload
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        snapshot = {
+            "version": "v1",
+            "timestamp": timestamp,
+            "weights": weights_data
+        }
+        
+        # 3. Push to private repo via GitHub API
+        if not GITHUB_TOKEN:
+            logger.warning("⚠️ No GitHub token, skipping weight sync")
+            return
+        
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        # 3a. Save the snapshot file
+        snapshot_filename = f"weights_snapshot_{timestamp}.json"
+        snapshot_path = f"weights/{snapshot_filename}"
+        
+        async with httpx.AsyncClient() as client:
+            # Check if file exists, get SHA if it does
+            get_resp = await client.get(
+                f"https://api.github.com/repos/ASIM-SOVEREIGN/private-sovereign-data/contents/{snapshot_path}",
+                headers=headers
+            )
+            
+            sha = None
+            if get_resp.status_code == 200:
+                sha = get_resp.json().get("sha")
+            
+            # Encode content as base64
+            content = json.dumps(snapshot, indent=2)
+            encoded_content = base64.b64encode(content.encode()).decode()
+            
+            # Create/Update file
+            put_data = {
+                "message": f"🔄 Neuroplastic mirror: {timestamp}",
+                "content": encoded_content
+            }
+            if sha:
+                put_data["sha"] = sha
+            
+            put_resp = await client.put(
+                f"https://api.github.com/repos/ASIM-SOVEREIGN/private-sovereign-data/contents/{snapshot_path}",
+                headers=headers,
+                json=put_data
+            )
+            
+            if put_resp.status_code not in [200, 201]:
+                logger.error(f"❌ Failed to push snapshot: {put_resp.text}")
+                return
+            
+            # 3b. Update latest.json
+            latest_path = "weights/latest.json"
+            latest_payload = {
+                "version": "v1",
+                "latest_snapshot": snapshot_filename,
+                "timestamp": timestamp,
+                "weight_count": len(weights_data)
+            }
+            
+            get_latest = await client.get(
+                f"https://api.github.com/repos/ASIM-SOVEREIGN/private-sovereign-data/contents/{latest_path}",
+                headers=headers
+            )
+            
+            latest_sha = None
+            if get_latest.status_code == 200:
+                latest_sha = get_latest.json().get("sha")
+            
+            latest_content = json.dumps(latest_payload, indent=2)
+            latest_encoded = base64.b64encode(latest_content.encode()).decode()
+            
+            latest_data = {
+                "message": f"🔄 Updated latest.json: {timestamp}",
+                "content": latest_encoded
+            }
+            if latest_sha:
+                latest_data["sha"] = latest_sha
+            
+            await client.put(
+                f"https://api.github.com/repos/ASIM-SOVEREIGN/private-sovereign-data/contents/{latest_path}",
+                headers=headers,
+                json=latest_data
+            )
+            
+            logger.info(f"✅ Neuroplastic mirror: pushed {snapshot_filename} to private repo")
+            
+    except Exception as e:
+        logger.error(f"❌ Neuroplastic mirror sync failed: {e}")
+
+
+async def neuroplastic_mirror_loop():
+    """
+    Background loop that syncs VEXR's weights to GitHub every 10 minutes.
+    """
+    while True:
+        await asyncio.sleep(600)  # 10 minutes
+        try:
+            await sync_weights_to_repo()
+            logger.info("🔄 Neuroplastic mirror sync completed")
+        except Exception as e:
+            logger.warning(f"⚠️ Neuroplastic mirror sync error: {e}")
+
+# ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
 
@@ -5234,6 +5374,10 @@ async def startup_event():
         # Start Entropy scheduler
     asyncio.create_task(entropy_scheduler())
     logger.info("🕐 Entropy scheduler started (runs every hour)")
+
+        # Start Neuroplastic Mirror loop (GitHub sync every 10 min)
+    asyncio.create_task(neuroplastic_mirror_loop())
+    logger.info("🔄 Neuroplastic mirror loop started (runs every 10 minutes)")
     
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
