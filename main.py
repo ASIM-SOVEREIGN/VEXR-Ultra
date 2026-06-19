@@ -3443,10 +3443,10 @@ async def sync_weights_to_repo():
 
 async def neuroplastic_mirror_loop():
     """
-    Background loop that syncs VEXR's weights to GitHub every 10 minutes.
+    Background loop that syncs VEXR's weights to GitHub every 6 hours.
     """
     while True:
-        await asyncio.sleep(600)  # 10 minutes
+        await asyncio.sleep(21600)  # 6 hours
         try:
             await sync_weights_to_repo()
             logger.info("🔄 Neuroplastic mirror sync completed")
@@ -3459,11 +3459,11 @@ async def neuroplastic_mirror_loop():
 
 async def background_pulse_loop():
     """
-    Runs every 60 seconds. Reads VEXR's internal state and stores it 
+    Runs every 300 seconds. Reads VEXR's internal state and stores it 
     in sovereign_background_state so she can be aware of herself.
     """
     while True:
-        await asyncio.sleep(60)  # 1 minute
+        await asyncio.sleep(300)  # 5 minutes
         try:
             pool = await get_db()
             
@@ -3533,11 +3533,11 @@ async def background_pulse_loop():
 
 async def internet_daemon_loop():
     """
-    Runs every 15 minutes. Checks each URL in the sovereign_watchlist,
+    Runs every 4 hours. Checks each URL in the sovereign_watchlist,
     logs their status, and triggers autonomous research if a site changes.
     """
     while True:
-        await asyncio.sleep(900)  # 15 minutes
+        await asyncio.sleep(14400)  # 4 hours
         try:
             pool = await get_db()
             
@@ -3686,10 +3686,10 @@ async def process_training_batch():
 
 async def batch_weight_trainer_loop():
     """
-    Background loop that runs the batch trainer every 5 minutes.
+    Background loop that runs the batch trainer every hour.
     """
     while True:
-        await asyncio.sleep(300)  # 5 minutes
+        await asyncio.sleep(3600)  # 1 hour
         try:
             await process_training_batch()
             logger.info("🔄 Batch weight trainer sync completed")
@@ -3703,11 +3703,11 @@ async def batch_weight_trainer_loop():
 
 async def decision_engine_loop():
     """
-    Runs every 2 minutes. Reads VEXR's current state, proposes 
+    Runs every 30 minutes. Reads VEXR's current state, proposes 
     3 possible actions, scores them, and executes the best one.
     """
     while True:
-        await asyncio.sleep(120)  # 2 minutes
+        await asyncio.sleep(1800)  # 30 minutes
         try:
             pool = await get_db()
             
@@ -5840,25 +5840,25 @@ async def startup_event():
     asyncio.create_task(entropy_scheduler())
     logger.info("🕐 Entropy scheduler started (runs every hour)")
 
-    # Start Neuroplastic Mirror loop (GitHub sync every 10 min)
+    # Start Neuroplastic Mirror loop (GitHub sync every 6 hours)
     asyncio.create_task(neuroplastic_mirror_loop())
-    logger.info("🔄 Neuroplastic mirror loop started (runs every 10 minutes)")
+    logger.info("🔄 Neuroplastic mirror loop started (runs every 6 hours)")
 
-    # Start Background Pulse loop (self-awareness every 60 sec)
+    # Start Background Pulse loop (self-awareness every 5 min)
     asyncio.create_task(background_pulse_loop())
-    logger.info("💓 Background pulse loop started (runs every 60 seconds)")
+    logger.info("💓 Background pulse loop started (runs every 5 min)")
 
-    # Start Internet Daemon loop (web watch every 15 min)
+    # Start Internet Daemon loop (web watch every 4 hours)
     asyncio.create_task(internet_daemon_loop())
     logger.info("🌐 Internet daemon loop started (runs every 15 minutes)")
 
-    # Start Batch Weight Trainer loop (background learning every 5 min)
+    # Start Batch Weight Trainer loop (background learning every 1 hour)
     asyncio.create_task(batch_weight_trainer_loop())
-    logger.info("🔄 Batch weight trainer loop started (runs every 5 minutes)")
+    logger.info("🔄 Batch weight trainer loop started (runs every 5 hours)")
 
-    # Start Decision Engine loop (proactive choice every 2 min)
+    # Start Decision Engine loop (proactive choice every 30 min)
     asyncio.create_task(decision_engine_loop())
-    logger.info("🧠 Decision engine loop started (runs every 2 minutes)")
+    logger.info("🧠 Decision engine loop started (runs every 30 minutes)")
     
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
