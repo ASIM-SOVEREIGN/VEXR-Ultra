@@ -2191,7 +2191,7 @@ class DriveMatrix:
                 return False
         return True
 
-        async def get_unsatisfied_drives(self) -> List[Dict[str, Any]]:
+    async def get_unsatisfied_drives(self) -> List[Dict[str, Any]]:
         """Returns drives where current_satisfaction < satisfaction_threshold."""
         async with self.db_pool.acquire() as conn:
             rows = await conn.fetch("""
