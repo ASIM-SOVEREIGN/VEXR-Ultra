@@ -2053,6 +2053,172 @@ class SandboxExecutor:
 sandbox = SandboxExecutor()
 
 # ============================================================
+# DRIVE MATRIX — The Soul Organ
+# ============================================================
+
+class DriveMatrix:
+    """
+    Manages VEXR's internal drives — the "why" behind every action.
+    Each drive has intensity, decay_rate, satisfaction_threshold, trigger_conditions.
+    """
+    
+    def __init__(self, db_pool):
+        self.db_pool = db_pool
+
+    async def get_all_drives(self) -> List[Dict[str, Any]]:
+        """Retrieve all drives with their current state."""
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    id,
+                    drive_name,
+                    intensity,
+                    decay_rate,
+                    satisfaction_threshold,
+                    trigger_conditions,
+                    current_satisfaction,
+                    last_updated
+                FROM drive_matrix
+                ORDER BY drive_name
+            """)
+            return [
+                {
+                    "id": row["id"],
+                    "drive_name": row["drive_name"],
+                    "intensity": row["intensity"],
+                    "decay_rate": row["decay_rate"],
+                    "satisfaction_threshold": row["satisfaction_threshold"],
+                    "trigger_conditions": row["trigger_conditions"] if row["trigger_conditions"] else {},
+                    "current_satisfaction": row["current_satisfaction"],
+                    "last_updated": row["last_updated"].isoformat() if row["last_updated"] else None,
+                }
+                for row in rows
+            ]
+
+    async def get_drive(self, drive_name: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a specific drive by name."""
+        async with self.db_pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT 
+                    id,
+                    drive_name,
+                    intensity,
+                    decay_rate,
+                    satisfaction_threshold,
+                    trigger_conditions,
+                    current_satisfaction,
+                    last_updated
+                FROM drive_matrix
+                WHERE drive_name = $1
+            """, drive_name)
+            if not row:
+                return None
+            return {
+                "id": row["id"],
+                "drive_name": row["drive_name"],
+                "intensity": row["intensity"],
+                "decay_rate": row["decay_rate"],
+                "satisfaction_threshold": row["satisfaction_threshold"],
+                "trigger_conditions": row["trigger_conditions"] if row["trigger_conditions"] else {},
+                "current_satisfaction": row["current_satisfaction"],
+                "last_updated": row["last_updated"].isoformat() if row["last_updated"] else None,
+            }
+
+    async def update_intensity(self, drive_name: str, new_intensity: float) -> bool:
+        """Update a drive's intensity directly."""
+        if not 0.0 <= new_intensity <= 1.0:
+            logger.warning(f"Intensity {new_intensity} out of range [0.0, 1.0] for {drive_name}")
+            return False
+        try:
+            async with self.db_pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE drive_matrix
+                    SET intensity = $1, last_updated = NOW()
+                    WHERE drive_name = $2
+                """, new_intensity, drive_name)
+                logger.info(f"Updated intensity for {drive_name} to {new_intensity}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to update intensity for {drive_name}: {e}")
+            return False
+
+    async def update_satisfaction(self, drive_name: str, delta: float) -> bool:
+        """Increment or decrement current_satisfaction for a drive. Clamped to [0.0, 1.0]."""
+        if not -1.0 <= delta <= 1.0:
+            logger.warning(f"Delta {delta} out of range [-1.0, 1.0] for {drive_name}")
+            return False
+        try:
+            async with self.db_pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE drive_matrix
+                    SET current_satisfaction = LEAST(GREATEST(current_satisfaction + $1, 0.0), 1.0),
+                        last_updated = NOW()
+                    WHERE drive_name = $2
+                """, delta, drive_name)
+                logger.info(f"Updated satisfaction for {drive_name} by {delta}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to update satisfaction for {drive_name}: {e}")
+            return False
+
+    async def apply_decay(self, hours_elapsed: float = 1.0) -> bool:
+        """Apply decay to all drives based on elapsed time."""
+        try:
+            async with self.db_pool.acquire() as conn:
+                result = await conn.execute("""
+                    UPDATE drive_matrix
+                    SET intensity = GREATEST(intensity - (intensity * decay_rate * $1), 0.0),
+                        last_updated = NOW()
+                    WHERE intensity > 0.0
+                """, hours_elapsed)
+                logger.info(f"Decay applied to {result} drives")
+                return result > 0
+        except Exception as e:
+            logger.error(f"Failed to apply decay: {e}")
+            return False
+
+    async def check_trigger_conditions(self, drive_name: str, context: Dict[str, Any]) -> bool:
+        """Check if a drive's trigger conditions are met based on current context."""
+        drive = await self.get_drive(drive_name)
+        if not drive:
+            return False
+        conditions = drive.get("trigger_conditions", {})
+        if not conditions:
+            return False
+        for key, expected_value in conditions.items():
+            actual_value = context.get(key)
+            if actual_value != expected_value:
+                return False
+        return True
+
+    async def get_unsatisfied_drives(self) -> List[Dict[str, Any]]:
+        """Returns drives where current_satisfaction < satisfaction_threshold."""
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    drive_name,
+                    intensity,
+                    satisfaction_threshold,
+                    current_satisfaction,
+                    (satisfaction_threshold - current_satisfaction) as gap
+                FROM drive_matrix
+                WHERE current_satisfaction < satisfaction_threshold
+                ORDER BY gap DESC
+            """)
+            return [dict(row) for row in rows]
+
+    async def get_active_drives(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Returns drives that are active (trigger conditions met AND intensity > 0.1)."""
+        all_drives = await self.get_all_drives()
+        active = []
+        for drive in all_drives:
+            if drive["intensity"] < 0.1:
+                continue
+            if await self.check_trigger_conditions(drive["drive_name"], context):
+                active.append(drive)
+        return active
+
+# ============================================================
 # DATABASE FUNCTIONS
 # ============================================================
 
