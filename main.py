@@ -133,6 +133,7 @@ PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sov
 
 db_pool = None
 drive_matrix = None  # Will be initialized on startup
+last_serper_search_time = None  # Global cooldown for Serper API usage
 
 # ============================================================
 # CONSTANTS
@@ -3767,31 +3768,26 @@ async def decision_engine_loop():
                 logger.info(f"🧠 Decision Engine: Chose '{best_action['action']}' "
                             f"(satisfaction: {best_action['expected_satisfaction']})")
                 
-                # 4. Execute the chosen action
+                           # 4. Execute the chosen action
                 if best_action["action"] == "research":
-                    # Pick a random topic from watchlist
-                    watch_item = await pool.fetchrow("""
-                        SELECT url, domain FROM sovereign_watchlist
-                        WHERE is_active = TRUE
-                        ORDER BY RANDOM()
-                        LIMIT 1
-                    """)
-                    if watch_item:
-                        topic = watch_item["domain"] or watch_item["url"]
-                        asyncio.create_task(autonomous_research(pool, topic, "decision_engine"))
-                        logger.info(f"🧠 Decision Engine: Researching '{topic}'")
-                
-                elif best_action["action"] == "modify":
-                    logger.info(f"🧠 Decision Engine: Proposing modification to {best_action['target']}")
-                    # (Here we would trigger an Ouroboros proposal)
-                
-                elif best_action["action"] == "rest":
-                    logger.info(f"🧠 Decision Engine: Resting for one cycle.")
-                    # (Here we would set a "resting" flag to pause agency for 10 minutes)
-            
-        except Exception as e:
-            logger.warning(f"🧠 Decision Engine error: {e}")
-
+                    # Check if we're allowed to use Serper yet
+                    now = datetime.now()
+                    global last_serper_search_time
+                    if last_serper_search_time is None or (now - last_serper_search_time).total_seconds() > 3600:
+                        # Pick a random topic from watchlist
+                        watch_item = await pool.fetchrow("""
+                            SELECT url, domain FROM sovereign_watchlist
+                            WHERE is_active = TRUE
+                            ORDER BY RANDOM()
+                            LIMIT 1
+                        """)
+                        if watch_item:
+                            topic = watch_item["domain"] or watch_item["url"]
+                            asyncio.create_task(autonomous_research(pool, topic, "decision_engine"))
+                            last_serper_search_time = now
+                            logger.info(f"🧠 Decision Engine: Researching '{topic}'")
+                    else:
+                        logger.info(f"🧠 Decision Engine: Serper cooldown active. Skipping research until cooldown expires.")
 # ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
