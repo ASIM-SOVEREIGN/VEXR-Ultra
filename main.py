@@ -2647,8 +2647,33 @@ async def init_db():
             )
         """)
         logger.info("Seeded initial trajectory snapshot")
+
+    # ============================================================
+    # PHASE 4: BACKGROUND PULSE TABLE
+    # ============================================================
     
-        # ============================================================
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS sovereign_background_state (
+            id SERIAL PRIMARY KEY,
+            recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            active_drives TEXT[],
+            unsatisfied_drives TEXT[],
+            system_entropy_score FLOAT,
+            entropy_grade TEXT,
+            weight_count INTEGER,
+            trajectory_integrity FLOAT,
+            echo_harmony_score FLOAT,
+            memory_usage_mb INTEGER,
+            cpu_usage_percent FLOAT,
+            sync_status TEXT DEFAULT 'ok',
+            notes TEXT
+        )
+    """)
+    
+    # Create an index for fast lookups on the latest state
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_background_state_time ON sovereign_background_state(recorded_at DESC)")
+    
+    # ============================================================
     # SOVEREIGN WEIGHTS TABLES (added after all existing tables)
     # ============================================================
     
