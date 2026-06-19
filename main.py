@@ -1604,7 +1604,7 @@ async def fetch_page(url: str) -> Dict[str, Any]:
                 "success": True,
                 "url": url,
                 "title": title,
-                "content": content[:10000],  # Truncate for now
+                "content": sanitize_utf8(content[:10000]),  # <--- Sanitize here
                 "content_length": len(content)
             }
     except Exception as e:
@@ -1647,6 +1647,7 @@ async def crawl_site(start_url: str, max_pages: int = 5, max_depth: int = 2) -> 
 
 async def save_crawled_page(pool, url: str, domain: str, title: str, content: str, trust_score: float = 0.0):
     """Save or update a crawled page in the database"""
+    # Remove null bytes and invalid sequences BEFORE hashing or saving
     clean_content = sanitize_utf8(content)
     content_hash = hashlib.md5(clean_content.encode()).hexdigest()
     await pool.execute("""
