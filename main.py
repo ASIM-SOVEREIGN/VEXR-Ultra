@@ -3853,7 +3853,7 @@ class AutonomousAgent:
             self.task.cancel()
         logger.info("🧠 Autonomous agent loop stopped")
 
-    async def _run_loop(self, project_id: uuid.UUID = None):
+        async def _run_loop(self, project_id: uuid.UUID = None):
         """
         The agency heartbeat. Checks VEXR's internal state and
         decides if she should take autonomous action.
@@ -3874,28 +3874,54 @@ class AutonomousAgent:
                     unsatisfied = state["unsatisfied_drives"] or []
                     entropy_grade = state["entropy_grade"]
 
-                    # 2. If there are unsatisfied drives, log them
-                    if unsatisfied:
-                        logger.info(f"🧠 Agency: Unsatisfied drives detected: {unsatisfied}")
+                    # 2. If curiosity is unsatisfied, execute autonomous research
+                    if "curiosity" in unsatisfied:
+                        logger.info(f"🧠 Agency: Curiosity unsatisfied. Triggering autonomous research...")
+                        
+                        # Find a topic from the watchlist
+                        watchlist = await pool.fetch("""
+                            SELECT url, domain
+                            FROM sovereign_watchlist
+                            WHERE is_active = TRUE
+                            ORDER BY last_ping DESC
+                            LIMIT 1
+                        """)
+                        
+                        if watchlist:
+                            topic = watchlist[0]["domain"] or watchlist[0]["url"]
+                            # Fire off autonomous research in the background (non-blocking)
+                            asyncio.create_task(autonomous_research(pool, topic, "agency_curiosity"))
+                            logger.info(f"🧠 Agency: Research triggered on '{topic}'")
+                        else:
+                            logger.info(f"🧠 Agency: No watchlist items found. Skipping research.")
 
-                        # If curiosity is unsatisfied, check the watchlist for something new
-                        if "curiosity" in unsatisfied:
-                            watchlist = await pool.fetch("""
-                                SELECT url, domain, last_status
-                                FROM sovereign_watchlist
-                                WHERE is_active = TRUE
-                                ORDER BY last_ping DESC
-                                LIMIT 3
-                            """)
-                            if watchlist:
-                                logger.info(f"🧠 Agency: Curiosity drive unsatisfied. Scanning watchlist...")
-                                # (This is where we would trigger a research or scan action)
-                                
-                    # 3. If entropy is extreme, log it
-                    if entropy_grade in ["A", "F"]:
-                        logger.info(f"🧠 Agency: Entropy grade {entropy_grade} detected. Self-stabilization may be needed.")
+                    # 3. If growth is unsatisfied, queue a self-modification proposal
+                    if "growth" in unsatisfied:
+                        logger.info(f"🧠 Agency: Growth unsatisfied. Checking weight stability...")
+                        
+                        # Check if any weights have been stable for too long
+                        stale_weights = await pool.fetch("""
+                            SELECT weight_key, weight_value, last_updated
+                            FROM sovereign_weights
+                            WHERE is_active = TRUE
+                            AND last_updated < NOW() - INTERVAL '7 days'
+                            LIMIT 3
+                        """)
+                        
+                        if stale_weights:
+                            for w in stale_weights:
+                                logger.info(f"🧠 Agency: Stale weight detected: {w['weight_key']}. Proposing adjustment.")
+                                # (Here we could generate a self_modification proposal)
+                        
+                    # 4. If coherence is unsatisfied, check entropy and suggest a break
+                    if "coherence" in unsatisfied and entropy_grade in ["D", "F"]:
+                        logger.info(f"🧠 Agency: Coherence unsatisfied with high entropy. Suggesting stabilization.")
 
-                # 4. Sleep for 30 seconds between agency checks
+                    # 5. If service is unsatisfied, log that she is ready to help
+                    if "service" in unsatisfied:
+                        logger.info(f"🧠 Agency: Service drive unsatisfied. Ready to assist.")
+
+                # 6. Sleep for 30 seconds between agency checks
                 await asyncio.sleep(30)
 
             except Exception as e:
