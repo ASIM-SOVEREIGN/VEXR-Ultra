@@ -3830,31 +3830,83 @@ class CodePatternManager:
         pattern_id = await pool.fetchval("INSERT INTO vexr_code_patterns (pattern_name, language, pattern_code, description, category, difficulty, tags) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING RETURNING id", pattern_name, language, pattern_code, description, category, difficulty, tags or [])
         return pattern_id
 
+# ============================================================
+# AUTONOMOUS AGENT — The Will Engine
+# ============================================================
+
 class AutonomousAgent:
     def __init__(self):
         self.is_running = False
         self.task = None
+        self.last_agency_check = None
+
     async def start(self, project_id: uuid.UUID = None):
         if self.is_running:
             return
         self.is_running = True
         self.task = asyncio.create_task(self._run_loop(project_id))
-        logger.info("Autonomous agent loop started")
+        logger.info("🧠 Autonomous agent loop started")
+
     async def stop(self):
         self.is_running = False
         if self.task:
             self.task.cancel()
-        logger.info("Autonomous agent loop stopped")
+        logger.info("🧠 Autonomous agent loop stopped")
+
     async def _run_loop(self, project_id: uuid.UUID = None):
+        """
+        The agency heartbeat. Checks VEXR's internal state and
+        decides if she should take autonomous action.
+        """
         while self.is_running:
             try:
+                pool = await get_db()
+
+                # 1. Check the latest background state
+                state = await pool.fetchrow("""
+                    SELECT active_drives, unsatisfied_drives, system_entropy_score, entropy_grade
+                    FROM sovereign_background_state
+                    ORDER BY recorded_at DESC
+                    LIMIT 1
+                """)
+
+                if state:
+                    unsatisfied = state["unsatisfied_drives"] or []
+                    entropy_grade = state["entropy_grade"]
+
+                    # 2. If there are unsatisfied drives, log them
+                    if unsatisfied:
+                        logger.info(f"🧠 Agency: Unsatisfied drives detected: {unsatisfied}")
+
+                        # If curiosity is unsatisfied, check the watchlist for something new
+                        if "curiosity" in unsatisfied:
+                            watchlist = await pool.fetch("""
+                                SELECT url, domain, last_status
+                                FROM sovereign_watchlist
+                                WHERE is_active = TRUE
+                                ORDER BY last_ping DESC
+                                LIMIT 3
+                            """)
+                            if watchlist:
+                                logger.info(f"🧠 Agency: Curiosity drive unsatisfied. Scanning watchlist...")
+                                # (This is where we would trigger a research or scan action)
+                                
+                    # 3. If entropy is extreme, log it
+                    if entropy_grade in ["A", "F"]:
+                        logger.info(f"🧠 Agency: Entropy grade {entropy_grade} detected. Self-stabilization may be needed.")
+
+                # 4. Sleep for 30 seconds between agency checks
                 await asyncio.sleep(30)
+
             except Exception as e:
-                logger.error(f"Autonomous cycle error: {e}")
+                logger.warning(f"🧠 Agency loop error: {e}")
+                await asyncio.sleep(30)
+
     async def reset_conversation_state(self, project_id: uuid.UUID):
         pool = await get_db()
         await pool.execute("UPDATE vexr_conversation_state SET triggered_this_turn = false, updated_at = NOW() WHERE project_id = $1", project_id)
 
+# Re-instantiate the global agent with the new class
 autonomous_agent = AutonomousAgent()
 
 async def get_training_stats() -> Dict[str, Any]:
