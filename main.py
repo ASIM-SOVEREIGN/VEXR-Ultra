@@ -2088,7 +2088,7 @@ class DriveMatrix:
                     "intensity": row["intensity"],
                     "decay_rate": row["decay_rate"],
                     "satisfaction_threshold": row["satisfaction_threshold"],
-                    "trigger_conditions": row["trigger_conditions"] if row["trigger_conditions"] else {},
+                    "trigger_conditions": json.loads(row["trigger_conditions"]) if row["trigger_conditions"] and isinstance(row["trigger_conditions"], str) else (row["trigger_conditions"] if row["trigger_conditions"] else {}),
                     "current_satisfaction": row["current_satisfaction"],
                     "last_updated": row["last_updated"].isoformat() if row["last_updated"] else None,
                 }
@@ -2119,7 +2119,7 @@ class DriveMatrix:
                 "intensity": row["intensity"],
                 "decay_rate": row["decay_rate"],
                 "satisfaction_threshold": row["satisfaction_threshold"],
-                "trigger_conditions": row["trigger_conditions"] if row["trigger_conditions"] else {},
+                "trigger_conditions": json.loads(row["trigger_conditions"]) if row["trigger_conditions"] and isinstance(row["trigger_conditions"], str) else (row["trigger_conditions"] if row["trigger_conditions"] else {}),
                 "current_satisfaction": row["current_satisfaction"],
                 "last_updated": row["last_updated"].isoformat() if row["last_updated"] else None,
             }
