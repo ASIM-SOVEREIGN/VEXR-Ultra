@@ -1742,6 +1742,7 @@ async def calculate_trust_score(
     )
     final_score = max(0.0, min(1.0, final_score))
     scores["final_score"] = final_score
+    scores["trust_threshold"] = 0.3
     
     # Apply user feedback if provided (overrides)
     if user_feedback is not None:
@@ -1842,8 +1843,8 @@ async def autonomous_research(pool, topic: str, trigger_source: str = "autonomou
             final_trust = trust_scores_result["final_score"]
             trust_scores.append(final_trust)
             
-            # 4. If trusted (score > 0.6), extract facts
-            if final_trust > 0.6:
+            # 4. If trusted (score > 0.3), extract facts
+            if final_trust > 0.3:
                 # Save to trust registry
                 await add_to_trust_registry(pool, domain, trust_scores_result, auto_added=True)
                 
