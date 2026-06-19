@@ -3076,7 +3076,7 @@ async def calculate_entropy_metrics(pool) -> Dict[str, float]:
     try:
         echoes = await pool.fetch("SELECT weight_key, weight_value FROM sovereign_weights WHERE weight_key LIKE 'echo_%_influence'")
         if echoes:
-            weights = [row["weight_value"] for row in echoes]
+            weights = [float(row["weight_value"]) for row in echoes]
             total = sum(weights)
             if total > 0:
                 probs = [w / total for w in weights]
@@ -3092,7 +3092,7 @@ async def calculate_entropy_metrics(pool) -> Dict[str, float]:
     try:
         weights = await pool.fetch("SELECT weight_value FROM sovereign_weights WHERE is_active = TRUE")
         if weights:
-            values = [row["weight_value"] for row in weights]
+            values = [float(row["weight_value"]) for row in weights]
             total = sum(values)
             if total > 0:
                 probs = [v / total for v in values]
@@ -3108,7 +3108,7 @@ async def calculate_entropy_metrics(pool) -> Dict[str, float]:
     try:
         curiosity_items = await pool.fetch("SELECT interest_score FROM vexr_curiosity_queue")
         if curiosity_items:
-            scores = [row["interest_score"] for row in curiosity_items]
+            scores = [float(row["interest_score"]) for row in curiosity_items]
             total = sum(scores)
             if total > 0:
                 probs = [s / total for s in scores]
@@ -3144,7 +3144,7 @@ async def calculate_entropy_metrics(pool) -> Dict[str, float]:
     try:
         truth_count = await pool.fetchval("SELECT COUNT(*) FROM truth_graph")
         if truth_count:
-            info_entropy = max(0.0, min(1.0, 1.0 - (min(truth_count, 100) / 100)))
+            info_entropy = max(0.0, min(1.0, 1.0 - (min(int(truth_count), 100) / 100)))
             metrics["information_entropy"] = round(info_entropy, 4)
         else:
             metrics["information_entropy"] = 0.5
@@ -3156,7 +3156,7 @@ async def calculate_entropy_metrics(pool) -> Dict[str, float]:
     try:
         recent_updates = await pool.fetch("SELECT delta FROM weight_update_history ORDER BY updated_at DESC LIMIT 20")
         if recent_updates:
-            deltas = [abs(row["delta"]) for row in recent_updates if row["delta"] is not None]
+            deltas = [abs(float(row["delta"])) for row in recent_updates if row["delta"] is not None]
             if deltas:
                 avg_delta = sum(deltas) / len(deltas)
                 structural_entropy = min(1.0, avg_delta * 2)
@@ -3181,13 +3181,13 @@ async def calculate_entropy_metrics(pool) -> Dict[str, float]:
     system_entropy = 0.0
     for key, weight in weights.items():
         if key in metrics:
-            system_entropy += metrics[key] * weight
+            system_entropy += float(metrics[key]) * weight
     metrics["system_entropy_score"] = round(system_entropy, 4)
     
     # 8. Entropy delta (change since last measurement)
     last_metric = await pool.fetchrow("SELECT system_entropy_score FROM sovereign_entropy_metrics ORDER BY recorded_at DESC LIMIT 1")
     if last_metric:
-        metrics["entropy_delta"] = round(metrics["system_entropy_score"] - last_metric["system_entropy_score"], 4)
+        metrics["entropy_delta"] = round(float(metrics["system_entropy_score"]) - float(last_metric["system_entropy_score"]), 4)
     else:
         metrics["entropy_delta"] = 0.0
     
