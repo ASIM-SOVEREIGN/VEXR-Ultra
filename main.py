@@ -1846,7 +1846,7 @@ async def autonomous_research(pool, topic: str, trigger_source: str = "autonomou
                 # Save to trust registry
                 await add_to_trust_registry(pool, domain, trust_scores_result, auto_added=True)
                 
-                # Extract facts from crawled content
+                    # Extract facts from crawled content
                     for page in crawled_pages:
                         raw_content = page.get("content", "")
                         clean_content = sanitize_utf8(raw_content)
