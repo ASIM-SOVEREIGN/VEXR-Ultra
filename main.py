@@ -3697,7 +3697,6 @@ async def batch_weight_trainer_loop():
         except Exception as e:
             logger.warning(f"⚠️ Batch weight trainer error: {e}")
 
-
 # ============================================================
 # DECISION ENGINE — True Autonomous Choice
 # ============================================================
@@ -3768,7 +3767,7 @@ async def decision_engine_loop():
                 logger.info(f"🧠 Decision Engine: Chose '{best_action['action']}' "
                             f"(satisfaction: {best_action['expected_satisfaction']})")
                 
-                           # 4. Execute the chosen action
+                # 4. Execute the chosen action
                 if best_action["action"] == "research":
                     # Check if we're allowed to use Serper yet
                     now = datetime.now()
@@ -3788,6 +3787,19 @@ async def decision_engine_loop():
                             logger.info(f"🧠 Decision Engine: Researching '{topic}'")
                     else:
                         logger.info(f"🧠 Decision Engine: Serper cooldown active. Skipping research until cooldown expires.")
+                
+                elif best_action["action"] == "modify":
+                    logger.info(f"🧠 Decision Engine: Proposing modification to {best_action['target']}")
+                    # (Here we would trigger an Ouroboros proposal)
+                
+                elif best_action["action"] == "rest":
+                    logger.info(f"🧠 Decision Engine: Resting for one cycle.")
+                    # (Here we would set a "resting" flag to pause agency for 10 minutes)
+
+        except Exception as e:
+            logger.warning(f"🧠 Decision Engine error: {e}")
+
+
 # ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
