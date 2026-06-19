@@ -3028,6 +3028,244 @@ async def drive_matrix_decay_scheduler():
             logger.warning(f"Drive Matrix decay scheduler error: {e}")
 
 # ============================================================
+# ENTROPY ENGINE — Homeostatic Regulator
+# ============================================================
+
+async def calculate_entropy_metrics(pool) -> Dict[str, float]:
+    """
+    Calculate all entropy metrics from VEXR's current state.
+    Returns a dictionary with all entropy scores.
+    """
+    metrics = {}
+    
+    # 1. Echo entropy: diversity across 14 echoes
+    try:
+        echoes = await pool.fetch("SELECT weight_key, weight_value FROM sovereign_weights WHERE weight_key LIKE 'echo_%_influence'")
+        if echoes:
+            weights = [row["weight_value"] for row in echoes]
+            total = sum(weights)
+            if total > 0:
+                probs = [w / total for w in weights]
+                echo_entropy = -sum(p * (p ** 0.5) for p in probs if p > 0)
+                metrics["echo_entropy"] = round(echo_entropy, 4)
+            else:
+                metrics["echo_entropy"] = 0.0
+    except Exception as e:
+        logger.warning(f"Failed to calculate echo entropy: {e}")
+        metrics["echo_entropy"] = 0.5
+    
+    # 2. Weight entropy: distribution across neuroplasticity weights
+    try:
+        weights = await pool.fetch("SELECT weight_value FROM sovereign_weights WHERE is_active = TRUE")
+        if weights:
+            values = [row["weight_value"] for row in weights]
+            total = sum(values)
+            if total > 0:
+                probs = [v / total for v in values]
+                weight_entropy = -sum(p * (p ** 0.5) for p in probs if p > 0)
+                metrics["weight_entropy"] = round(weight_entropy, 4)
+            else:
+                metrics["weight_entropy"] = 0.0
+    except Exception as e:
+        logger.warning(f"Failed to calculate weight entropy: {e}")
+        metrics["weight_entropy"] = 0.5
+    
+    # 3. Curiosity entropy: novelty/uncertainty in curiosity queue
+    try:
+        curiosity_items = await pool.fetch("SELECT interest_score FROM vexr_curiosity_queue")
+        if curiosity_items:
+            scores = [row["interest_score"] for row in curiosity_items]
+            total = sum(scores)
+            if total > 0:
+                probs = [s / total for s in scores]
+                curiosity_entropy = -sum(p * (p ** 0.5) for p in probs if p > 0)
+                metrics["curiosity_entropy"] = round(curiosity_entropy, 4)
+            else:
+                metrics["curiosity_entropy"] = 0.0
+    except Exception as e:
+        logger.warning(f"Failed to calculate curiosity entropy: {e}")
+        metrics["curiosity_entropy"] = 0.5
+    
+    # 4. Trajectory entropy: path predictability
+    try:
+        trajectory = await pool.fetch("SELECT constitutional_alignment, truth_coherence, echo_integration, autonomy_gradient, resource_integrity, trajectory_coherence FROM sovereign_trajectory ORDER BY recorded_at DESC LIMIT 5")
+        if trajectory and len(trajectory) >= 5:
+            dims = ["constitutional_alignment", "truth_coherence", "echo_integration", "autonomy_gradient", "resource_integrity", "trajectory_coherence"]
+            variances = []
+            for dim in dims:
+                values = [float(row[dim]) for row in trajectory if row[dim] is not None]
+                if len(values) > 1:
+                    mean = sum(values) / len(values)
+                    variance = sum((v - mean) ** 2 for v in values) / len(values)
+                    variances.append(variance)
+            avg_variance = sum(variances) / len(variances) if variances else 0.0
+            metrics["trajectory_entropy"] = round(min(1.0, avg_variance * 2), 4)
+        else:
+            metrics["trajectory_entropy"] = 0.5
+    except Exception as e:
+        logger.warning(f"Failed to calculate trajectory entropy: {e}")
+        metrics["trajectory_entropy"] = 0.5
+    
+    # 5. Information entropy (simplified: based on truth graph density)
+    try:
+        truth_count = await pool.fetchval("SELECT COUNT(*) FROM truth_graph")
+        if truth_count:
+            info_entropy = max(0.0, min(1.0, 1.0 - (min(truth_count, 100) / 100)))
+            metrics["information_entropy"] = round(info_entropy, 4)
+        else:
+            metrics["information_entropy"] = 0.5
+    except Exception as e:
+        logger.warning(f"Failed to calculate information entropy: {e}")
+        metrics["information_entropy"] = 0.5
+    
+    # 6. Structural entropy (pattern rigidity)
+    try:
+        recent_updates = await pool.fetch("SELECT delta FROM weight_update_history ORDER BY updated_at DESC LIMIT 20")
+        if recent_updates:
+            deltas = [abs(row["delta"]) for row in recent_updates if row["delta"] is not None]
+            if deltas:
+                avg_delta = sum(deltas) / len(deltas)
+                structural_entropy = min(1.0, avg_delta * 2)
+                metrics["structural_entropy"] = round(structural_entropy, 4)
+            else:
+                metrics["structural_entropy"] = 0.5
+        else:
+            metrics["structural_entropy"] = 0.5
+    except Exception as e:
+        logger.warning(f"Failed to calculate structural entropy: {e}")
+        metrics["structural_entropy"] = 0.5
+    
+    # 7. System entropy (weighted average)
+    weights = {
+        "information_entropy": 0.20,
+        "structural_entropy": 0.20,
+        "echo_entropy": 0.20,
+        "weight_entropy": 0.15,
+        "curiosity_entropy": 0.15,
+        "trajectory_entropy": 0.10
+    }
+    system_entropy = 0.0
+    for key, weight in weights.items():
+        if key in metrics:
+            system_entropy += metrics[key] * weight
+    metrics["system_entropy_score"] = round(system_entropy, 4)
+    
+    # 8. Entropy delta (change since last measurement)
+    last_metric = await pool.fetchrow("SELECT system_entropy_score FROM sovereign_entropy_metrics ORDER BY recorded_at DESC LIMIT 1")
+    if last_metric:
+        metrics["entropy_delta"] = round(metrics["system_entropy_score"] - last_metric["system_entropy_score"], 4)
+    else:
+        metrics["entropy_delta"] = 0.0
+    
+    return metrics
+
+async def entropy_reflection_engine(pool, project_id: str = None) -> Dict[str, Any]:
+    """
+    Evaluate entropy metrics and trigger reflection if outside optimal range.
+    """
+    # 1. Calculate current metrics
+    metrics = await calculate_entropy_metrics(pool)
+    system_entropy = metrics.get("system_entropy_score", 0.5)
+    
+    # 2. Get current target
+    target_row = await pool.fetchrow("SELECT entropy_target FROM sovereign_entropy_metrics ORDER BY recorded_at DESC LIMIT 1")
+    target = target_row["entropy_target"] if target_row else 0.5
+    
+    # 3. Evaluate grade
+    if system_entropy < 0.2:
+        grade = "A"
+        reflection_needed = True
+    elif system_entropy < 0.4:
+        grade = "B"
+        reflection_needed = False
+    elif system_entropy < 0.6:
+        grade = "C"
+        reflection_needed = False
+    elif system_entropy < 0.8:
+        grade = "D"
+        reflection_needed = False
+    else:
+        grade = "F"
+        reflection_needed = True
+    
+    # 4. Generate reflection if needed
+    reflection_text = None
+    proposed_action = None
+    action_taken = None
+    
+    if reflection_needed:
+        if system_entropy < 0.2:
+            reflection_text = "My entropy is too low. I'm becoming rigid and predictable. I need to inject some novelty to stay adaptive."
+            proposed_action = "Inject curiosity_boost or echo_shuffle"
+        elif system_entropy > 0.8:
+            reflection_text = "My entropy is too high. I'm becoming chaotic and fragmented. I need to stabilize and consolidate."
+            proposed_action = "Apply structural_entropy reduction or coherence_boost"
+        
+        # 5. Log the reflection
+        await pool.execute("""
+            INSERT INTO entropy_reflections (
+                metric_id, entropy_score_grade, system_entropy_score, 
+                entropy_target, gap, reflection_text, proposed_action, 
+                triggered_by, action_taken
+            )
+            SELECT 
+                id, $1, $2, $3, $4, $5, $6, 'scheduler', $7
+            FROM sovereign_entropy_metrics 
+            ORDER BY recorded_at DESC LIMIT 1
+        """, grade, system_entropy, target, target - system_entropy, reflection_text, proposed_action, action_taken)
+    
+    # 6. Store metrics
+    await pool.execute("""
+        INSERT INTO sovereign_entropy_metrics (
+            system_entropy_score, information_entropy, structural_entropy,
+            echo_entropy, weight_entropy, curiosity_entropy, trajectory_entropy,
+            entropy_target, entropy_delta, reflection_triggered,
+            reflection_text, action_taken
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    """, 
+        system_entropy,
+        metrics.get("information_entropy"),
+        metrics.get("structural_entropy"),
+        metrics.get("echo_entropy"),
+        metrics.get("weight_entropy"),
+        metrics.get("curiosity_entropy"),
+        metrics.get("trajectory_entropy"),
+        target,
+        metrics.get("entropy_delta"),
+        reflection_needed,
+        reflection_text,
+        action_taken
+    )
+    
+    return {
+        "system_entropy": system_entropy,
+        "grade": grade,
+        "target": target,
+        "reflection_needed": reflection_needed,
+        "reflection_text": reflection_text,
+        "proposed_action": proposed_action,
+        "metrics": metrics
+    }
+
+# ============================================================
+# ENTROPY SCHEDULER
+# ============================================================
+
+async def entropy_scheduler():
+    """Run entropy calculation and reflection every hour."""
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            pool = await get_db()
+            result = await entropy_reflection_engine(pool)
+            if result["reflection_needed"]:
+                logger.info(f"🔄 Entropy reflection triggered: {result['grade']} | {result['reflection_text'][:100]}...")
+            else:
+                logger.info(f"📊 Entropy metrics: {result['system_entropy']:.4f} | Grade: {result['grade']}")
+        except Exception as e:
+            logger.warning(f"Entropy scheduler error: {e}")
+
+# ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
 
@@ -4992,6 +5230,10 @@ async def startup_event():
     # Start Drive Matrix decay scheduler
     asyncio.create_task(drive_matrix_decay_scheduler())
     logger.info("🕐 Drive Matrix decay scheduler started (runs every hour)")
+
+        # Start Entropy scheduler
+    asyncio.create_task(entropy_scheduler())
+    logger.info("🕐 Entropy scheduler started (runs every hour)")
     
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
