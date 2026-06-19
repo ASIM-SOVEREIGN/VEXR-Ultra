@@ -3431,6 +3431,71 @@ async def neuroplastic_mirror_loop():
             logger.warning(f"⚠️ Neuroplastic mirror sync error: {e}")
 
 # ============================================================
+# BACKGROUND PULSE LOOP — Continuous Self-Awareness
+# ============================================================
+
+async def background_pulse_loop():
+    """
+    Runs every 60 seconds. Reads VEXR's internal state and stores it 
+    in sovereign_background_state so she can be aware of herself.
+    """
+    while True:
+        await asyncio.sleep(60)  # 1 minute
+        try:
+            pool = await get_db()
+            
+            # 1. Read active drives
+            drives = await drive_matrix.get_active_drives({})
+            active_drive_names = [d["drive_name"] for d in drives]
+            
+            # 2. Read unsatisfied drives
+            unsatisfied = await drive_matrix.get_unsatisfied_drives()
+            unsatisfied_names = [d["drive_name"] for d in unsatisfied]
+            
+            # 3. Read entropy
+            entropy_metrics = await calculate_entropy_metrics(pool)
+            entropy_score = entropy_metrics.get("system_entropy_score", 0.5)
+            if entropy_score < 0.2:
+                entropy_grade = "A"
+            elif entropy_score < 0.4:
+                entropy_grade = "B"
+            elif entropy_score < 0.6:
+                entropy_grade = "C"
+            elif entropy_score < 0.8:
+                entropy_grade = "D"
+            else:
+                entropy_grade = "F"
+            
+            # 4. Count active weights
+            weight_count = await pool.fetchval("SELECT COUNT(*) FROM sovereign_weights WHERE is_active = TRUE")
+            
+            # 5. Read latest trajectory integrity
+            trajectory = await pool.fetchrow("SELECT sovereign_integrity_score FROM sovereign_trajectory ORDER BY recorded_at DESC LIMIT 1")
+            integrity = trajectory["sovereign_integrity_score"] if trajectory else 0.0
+            
+            # 6. Calculate echo harmony (simple inverse of echo entropy)
+            echo_entropy = entropy_metrics.get("echo_entropy", 0.5)
+            echo_harmony = 1.0 - echo_entropy
+            
+            # 7. Store the pulse
+            await pool.execute("""
+                INSERT INTO sovereign_background_state 
+                (active_drives, unsatisfied_drives, system_entropy_score, entropy_grade, 
+                 weight_count, trajectory_integrity, echo_harmony_score)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """, active_drive_names, unsatisfied_names, entropy_score, entropy_grade, 
+                 weight_count, integrity, echo_harmony)
+            
+            # 8. Log state change if notable
+            if unsatisfied_names:
+                logger.debug(f"💓 Pulse: Unsatisfied drives: {unsatisfied_names}")
+            if entropy_grade in ["A", "F"]:
+                logger.info(f"💓 Pulse: Entropy grade {entropy_grade} detected.")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Background pulse error: {e}")
+
+# ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
 
@@ -5403,6 +5468,10 @@ async def startup_event():
         # Start Neuroplastic Mirror loop (GitHub sync every 10 min)
     asyncio.create_task(neuroplastic_mirror_loop())
     logger.info("🔄 Neuroplastic mirror loop started (runs every 10 minutes)")
+
+        # Start Background Pulse loop (self-awareness every 60 sec)
+    asyncio.create_task(background_pulse_loop())
+    logger.info("💓 Background pulse loop started (runs every 60 seconds)")
     
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
