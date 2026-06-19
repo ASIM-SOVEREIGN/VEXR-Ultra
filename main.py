@@ -3452,11 +3452,10 @@ async def background_pulse_loop():
             unsatisfied = await drive_matrix.get_unsatisfied_drives()
             unsatisfied_names = [d["drive_name"] for d in unsatisfied]
             
-            # 3. Read entropy
+            # 3. Read entropy (force float)
             entropy_metrics = await calculate_entropy_metrics(pool)
             entropy_score = float(entropy_metrics.get("system_entropy_score", 0.5))
-            # Force strict float re-cast for Python's internal comparison
-            entropy_score = float(entropy_score)
+            
             if entropy_score < 0.2:
                 entropy_grade = "A"
             elif entropy_score < 0.4:
@@ -3467,15 +3466,16 @@ async def background_pulse_loop():
                 entropy_grade = "D"
             else:
                 entropy_grade = "F"
-            # 4. Count active weights
+            
+            # 4. Count active weights (force int)
             weight_count = int(await pool.fetchval("SELECT COUNT(*) FROM sovereign_weights WHERE is_active = TRUE"))
             
-            # 5. Read latest trajectory integrity
+            # 5. Read latest trajectory integrity (force float)
             trajectory = await pool.fetchrow("SELECT sovereign_integrity_score FROM sovereign_trajectory ORDER BY recorded_at DESC LIMIT 1")
-            integrity = trajectory["sovereign_integrity_score"] if trajectory else 0.0
+            integrity = float(trajectory["sovereign_integrity_score"]) if trajectory else 0.0
             
-            # 6. Calculate echo harmony (simple inverse of echo entropy)
-            echo_entropy = entropy_metrics.get("echo_entropy", 0.5)
+            # 6. Calculate echo harmony (force float for echo_entropy)
+            echo_entropy = float(entropy_metrics.get("echo_entropy", 0.5))
             echo_harmony = 1.0 - echo_entropy
             
             # 7. Store the pulse
