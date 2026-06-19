@@ -3454,7 +3454,7 @@ async def background_pulse_loop():
             
             # 3. Read entropy
             entropy_metrics = await calculate_entropy_metrics(pool)
-            entropy_score = entropy_metrics.get("system_entropy_score", 0.5)
+            entropy_score = float(entropy_metrics.get("system_entropy_score", 0.5))
             if entropy_score < 0.2:
                 entropy_grade = "A"
             elif entropy_score < 0.4:
