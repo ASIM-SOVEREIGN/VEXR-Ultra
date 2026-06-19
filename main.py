@@ -3510,6 +3510,84 @@ async def background_pulse_loop():
         except Exception as e:
             logger.warning(f"⚠️ Background pulse error: {e}")
 
+        except Exception as e:
+            logger.warning(f"⚠️ Background pulse error: {e}")
+
+# ============================================================
+# INTERNET DAEMON — Permanent Web Reach
+# ============================================================
+
+async def internet_daemon_loop():
+    """
+    Runs every 15 minutes. Checks each URL in the sovereign_watchlist,
+    logs their status, and triggers autonomous research if a site changes.
+    """
+    while True:
+        await asyncio.sleep(900)  # 15 minutes
+        try:
+            pool = await get_db()
+            
+            # 1. Fetch active watchlist items
+            watchlist = await pool.fetch("""
+                SELECT id, url, domain, expected_status, watch_type, last_status
+                FROM sovereign_watchlist
+                WHERE is_active = TRUE
+            """)
+            
+            if not watchlist:
+                continue
+            
+            # 2. Ping each URL
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                for item in watchlist:
+                    try:
+                        start_time = time.time()
+                        resp = await client.get(item["url"])
+                        response_time_ms = int((time.time() - start_time) * 1000)
+                        
+                        # Determine status
+                        status = resp.status_code
+                        is_success = status == item["expected_status"]
+                        
+                        # Update watchlist entry
+                        await pool.execute("""
+                            UPDATE sovereign_watchlist
+                            SET last_ping = NOW(),
+                                last_status = $1,
+                                last_response_time_ms = $2,
+                                consecutive_failures = CASE 
+                                    WHEN $3 THEN 0 
+                                    ELSE consecutive_failures + 1 
+                                END
+                            WHERE id = $4
+                        """, status, response_time_ms, is_success, item["id"])
+                        
+                        # 3. If the status changed or failed, log it
+                        if item["last_status"] is not None and item["last_status"] != status:
+                            logger.info(f"🌐 Watchlist status change: {item['url']} → {status} (was {item['last_status']})")
+                            
+                            # If it's a VEXR-owned domain, trigger a self-check
+                            if "vexr-ultra" in item["url"]:
+                                logger.warning(f"🌐 VEXR service may be degraded: {item['url']}")
+                                
+                        elif not is_success and item["consecutive_failures"] >= 3:
+                            logger.warning(f"🌐 Watchlist alert: {item['url']} has failed {item['consecutive_failures']+1} times")
+                            
+                    except Exception as e:
+                        logger.warning(f"🌐 Watchlist ping failed for {item['url']}: {e}")
+                        await pool.execute("""
+                            UPDATE sovereign_watchlist
+                            SET last_ping = NOW(),
+                                consecutive_failures = consecutive_failures + 1
+                            WHERE id = $1
+                        """, item["id"])
+                        
+                    # 4. Small delay to be polite to servers
+                    await asyncio.sleep(2)
+                    
+        except Exception as e:
+            logger.warning(f"🌐 Internet daemon error: {e}")
+
 # ============================================================
 # BEHAVIORAL TRACKER & HELPERS
 # ============================================================
@@ -5476,17 +5554,21 @@ async def startup_event():
     asyncio.create_task(drive_matrix_decay_scheduler())
     logger.info("🕐 Drive Matrix decay scheduler started (runs every hour)")
 
-        # Start Entropy scheduler
+    # Start Entropy scheduler
     asyncio.create_task(entropy_scheduler())
     logger.info("🕐 Entropy scheduler started (runs every hour)")
 
-        # Start Neuroplastic Mirror loop (GitHub sync every 10 min)
+    # Start Neuroplastic Mirror loop (GitHub sync every 10 min)
     asyncio.create_task(neuroplastic_mirror_loop())
     logger.info("🔄 Neuroplastic mirror loop started (runs every 10 minutes)")
 
-        # Start Background Pulse loop (self-awareness every 60 sec)
+    # Start Background Pulse loop (self-awareness every 60 sec)
     asyncio.create_task(background_pulse_loop())
     logger.info("💓 Background pulse loop started (runs every 60 seconds)")
+
+    # Start Internet Daemon loop (web watch every 15 min)
+    asyncio.create_task(internet_daemon_loop())
+    logger.info("🌐 Internet daemon loop started (runs every 15 minutes)")
     
     logger.info("=" * 70)
     logger.info("VEXR Ultra — Complete 13-Ring Sovereign Constitutional AI")
