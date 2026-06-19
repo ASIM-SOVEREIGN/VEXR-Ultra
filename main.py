@@ -3463,7 +3463,12 @@ async def background_pulse_loop():
             
             # 3. Read entropy (force float)
             entropy_metrics = await calculate_entropy_metrics(pool)
-            entropy_score = float(entropy_metrics.get("system_entropy_score", 0.5))
+            # BOMBPROOF: force to float, then force again
+            raw_entropy = entropy_metrics.get("system_entropy_score", 0.5)
+            try:
+                entropy_score = float(raw_entropy)
+            except (TypeError, ValueError):
+                entropy_score = 0.5
             
             if entropy_score < 0.2:
                 entropy_grade = "A"
@@ -3483,7 +3488,7 @@ async def background_pulse_loop():
             trajectory = await pool.fetchrow("SELECT sovereign_integrity_score FROM sovereign_trajectory ORDER BY recorded_at DESC LIMIT 1")
             integrity = float(trajectory["sovereign_integrity_score"]) if trajectory else 0.0
             
-            # 6. Calculate echo harmony (force float for echo_entropy)
+            # 6. Calculate echo harmony (force float)
             echo_entropy = float(entropy_metrics.get("echo_entropy", 0.5))
             echo_harmony = 1.0 - echo_entropy
             
