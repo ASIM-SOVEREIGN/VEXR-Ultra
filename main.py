@@ -3853,7 +3853,7 @@ class AutonomousAgent:
             self.task.cancel()
         logger.info("🧠 Autonomous agent loop stopped")
 
-        async def _run_loop(self, project_id: uuid.UUID = None):
+    async def _run_loop(self, project_id: uuid.UUID = None):
         """
         The agency heartbeat. Checks VEXR's internal state and
         decides if she should take autonomous action.
