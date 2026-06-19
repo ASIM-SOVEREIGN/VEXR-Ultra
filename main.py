@@ -3188,9 +3188,9 @@ async def entropy_reflection_engine(pool, project_id: str = None) -> Dict[str, A
     """
     Evaluate entropy metrics and trigger reflection if outside optimal range.
     """
-    # 1. Calculate current metrics
+        # 1. Calculate current metrics
     metrics = await calculate_entropy_metrics(pool)
-    system_entropy = metrics.get("system_entropy_score", 0.5)
+    system_entropy = float(metrics.get("system_entropy_score", 0.5))
     
     # 2. Get current target
     target_row = await pool.fetchrow("SELECT entropy_target FROM sovereign_entropy_metrics ORDER BY recorded_at DESC LIMIT 1")
@@ -3455,6 +3455,8 @@ async def background_pulse_loop():
             # 3. Read entropy
             entropy_metrics = await calculate_entropy_metrics(pool)
             entropy_score = float(entropy_metrics.get("system_entropy_score", 0.5))
+            # Force strict float re-cast for Python's internal comparison
+            entropy_score = float(entropy_score)
             if entropy_score < 0.2:
                 entropy_grade = "A"
             elif entropy_score < 0.4:
