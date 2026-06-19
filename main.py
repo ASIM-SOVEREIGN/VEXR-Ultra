@@ -3992,24 +3992,10 @@ class AutonomousAgent:
                     unsatisfied = state["unsatisfied_drives"] or []
                     entropy_grade = state["entropy_grade"]
 
-                    # 2. If curiosity is unsatisfied, execute autonomous research
+                                        # Agency loop is now solely for monitoring and logging.
+                    # All decisions and actions are handled by the Decision Engine.
                     if "curiosity" in unsatisfied:
-                        logger.info(f"🧠 Agency: Curiosity unsatisfied. Triggering autonomous research...")
-                        
-                        # Find a topic from the watchlist
-                        watchlist = await pool.fetch("""
-                            SELECT url, domain
-                            FROM sovereign_watchlist
-                            WHERE is_active = TRUE
-                            ORDER BY last_ping DESC
-                            LIMIT 1
-                        """)
-                        
-                        if watchlist:
-                            topic = watchlist[0]["domain"] or watchlist[0]["url"]
-                            # Fire off autonomous research in the background (non-blocking)
-                            asyncio.create_task(autonomous_research(pool, topic, "agency_curiosity"))
-                            logger.info(f"🧠 Agency: Research triggered on '{topic}'")
+                        logger.info(f"🧠 Agency: Curiosity unsatisfied. Deferring to Decision Engine.")
                         else:
                             logger.info(f"🧠 Agency: No watchlist items found. Skipping research.")
 
@@ -5834,7 +5820,10 @@ async def startup_event():
         logger.warning(f"⚠️ Echo loader failed: {e}")
         ECHOES = {}
     
-    asyncio.create_task(autonomous_agent.start())
+        # Stop the old agent task if it's running, then start the new one cleanly
+    if autonomous_agent.is_running:
+        await autonomous_agent.stop()
+    await autonomous_agent.start()
     
     # Start weight decay scheduler (cognitive hygiene)
     asyncio.create_task(decay_scheduler())
