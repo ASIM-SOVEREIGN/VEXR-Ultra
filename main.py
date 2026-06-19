@@ -2191,7 +2191,7 @@ class DriveMatrix:
                 return False
         return True
 
-    async def get_unsatisfied_drives(self) -> List[Dict[str, Any]]:
+        async def get_unsatisfied_drives(self) -> List[Dict[str, Any]]:
         """Returns drives where current_satisfaction < satisfaction_threshold."""
         async with self.db_pool.acquire() as conn:
             rows = await conn.fetch("""
@@ -2205,7 +2205,16 @@ class DriveMatrix:
                 WHERE current_satisfaction < satisfaction_threshold
                 ORDER BY gap DESC
             """)
-            return [dict(row) for row in rows]
+            return [
+                {
+                    "drive_name": row["drive_name"],
+                    "intensity": float(row["intensity"]),
+                    "satisfaction_threshold": float(row["satisfaction_threshold"]),
+                    "current_satisfaction": float(row["current_satisfaction"]),
+                    "gap": float(row["gap"])
+                }
+                for row in rows
+            ]
 
     async def get_active_drives(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Returns drives that are active (trigger conditions met AND intensity > 0.1)."""
