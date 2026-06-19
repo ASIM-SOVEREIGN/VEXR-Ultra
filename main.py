@@ -1846,11 +1846,11 @@ async def autonomous_research(pool, topic: str, trigger_source: str = "autonomou
                 # Save to trust registry
                 await add_to_trust_registry(pool, domain, trust_scores_result, auto_added=True)
                 
-                    # Extract facts from crawled content
-                    for page in crawled_pages:
-                        raw_content = page.get("content", "")
-                        clean_content = sanitize_utf8(raw_content)
-                        facts = await extract_facts_from_content(clean_content, url, domain)
+                # Extract facts from crawled content
+                for page in crawled_pages:
+                    raw_content = page.get("content", "")
+                    clean_content = sanitize_utf8(raw_content)
+                    facts = await extract_facts_from_content(clean_content, url, domain)
                     for fact in facts:
                         all_facts.append(fact)
                         # Add to truth graph with source
