@@ -1114,7 +1114,12 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     logger.info(f"🔍 check_for_tool_use called with: {user_message[:100]}")
     
     msg_lower = user_message.lower()
-    
+        
+    # PRIORITY RULE: If user provides a URL or asks to search the web, skip the tool loop.
+    if "http" in msg_lower or "search" in msg_lower or "www." in msg_lower or "research" in msg_lower:
+        logger.info("🔧 URL, search, or research query detected: bypassing tool loop, deferring to web search.")
+        return None
+   
     # Query for identity count
     if any(phrase in msg_lower for phrase in ["how many", "count", "how many identities", "how many active", "number of", "total identities"]):
         if any(table in msg_lower for table in ["vexr_identity", "identity", "identities", "active identity"]):
@@ -1406,7 +1411,9 @@ async def execute_tool(tool_name: str, parameters: Dict, project_id: str = None)
                 return {"error": f"Dangerous SQL pattern: {word}"}
         
         try:
-            rows = await pool.fetch(query)
+            # Escape single quotes to prevent JSON parsing breakage
+            safe_query = query.replace("'", "''")
+            rows = await pool.fetch(safe_query)
             results = [dict(row) for row in rows]
             await pool.execute("INSERT INTO sovereign_queries (query_text, target_tables, row_count) VALUES ($1, $2, $3)", query, ["query_database"], len(results))
             return {"success": True, "results": results, "row_count": len(results)}
