@@ -5399,10 +5399,15 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         web_results = await search_web(user_message)
         if web_results:
             web_search_results.append("=== WEB SEARCH RESULTS ===\n" + web_results)
-    
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.append({"role": "system", "content": CODING_IDENTITY})
     messages.append({"role": "system", "content": CAPABILITIES})
+    
+    coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming', 'write a', 'generate a', 'create a']
+    if any(kw in user_message.lower() for kw in coding_keywords):
+        messages.append({"role": "system", "content": CODE_SYSTEM_PROMPT})
+    
+    # Anchor her sovereign identity LAST — this is the final instruction she receives
     messages.append({"role": "system", "content": get_sovereign_identity()})
     
     coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming', 'write a', 'generate a', 'create a']
