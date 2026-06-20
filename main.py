@@ -5430,22 +5430,6 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
                 tool_used=tool_used,
                 probability_scores={"deception": 0.0, "constitutional": 1.0, "hallucination": 0.0}
             )
-        
-    # FALLBACK: If tool loop was bypassed, but ultra_search is on, do a web search
-    if tool_used is None and request.ultra_search:
-        logger.info("🔄 Tool loop bypassed: falling back to web search.")
-        web_results = await perform_web_search(user_message, max_results=3)
-        if web_results:
-            search_context = "=== LIVE WEB SEARCH RESULTS ===\n"
-            for idx, result in enumerate(web_results):
-                search_context += f"\n[{idx+1}] TITLE: {result['title']}\n"
-                search_context += f"   URL: {result['link']}\n"
-                search_context += f"   DOMAIN: {result['domain']}\n"
-                search_context += f"   CONTENT: {result['content'][:2000]}...\n"
-            
-            messages.append({"role": "system", "content": search_context})
-            logger.info(f"🌐 Injected live web content (fallback) for query: '{user_message}'")
-            asyncio.create_task(ingest_search_results(project_id, web_results))
     
     trust_domain = extract_domain_from_message(user_message)
     trust_profile = await resolve_trust_profile(trust_domain) if trust_domain else None
@@ -5464,30 +5448,30 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     messages.append({"role": "system", "content": get_sovereign_identity()})
     
     # ============================================================
-    # WEB SEARCH (Real-time injection)
+    # WEB SEARCH (Live injection)
     # ============================================================
-    
     if request.ultra_search:
-        web_results = await perform_web_search(user_message, max_results=3)
-        if web_results:
-            # Build a structured, real-time context block
-            search_context = "=== LIVE WEB SEARCH RESULTS ===\n"
-            for idx, result in enumerate(web_results):
-                search_context += f"\n[{idx+1}] TITLE: {result['title']}\n"
-                search_context += f"   URL: {result['link']}\n"
-                search_context += f"   DOMAIN: {result['domain']}\n"
-                search_context += f"   CONTENT: {result['content'][:2000]}...\n"
-            
-            messages.append({"role": "system", "content": search_context})
-            logger.info(f"🌐 Injected live web content for query: '{user_message}'")
-            
-            # Ingest real data into truth graph (non-blocking)
-            asyncio.create_task(ingest_search_results(project_id, web_results))
+        # If tool loop bypassed, run a fresh search; otherwise, use existing data
+        if tool_used is None:
+            logger.info("🔄 Tool loop bypassed: running web search.")
+            web_results = await perform_web_search(user_message, max_results=3)
+            if web_results:
+                search_context = "=== LIVE WEB SEARCH RESULTS ===\n"
+                for idx, result in enumerate(web_results):
+                    search_context += f"\n[{idx+1}] TITLE: {result['title']}\n"
+                    search_context += f"   URL: {result['link']}\n"
+                    search_context += f"   DOMAIN: {result['domain']}\n"
+                    search_context += f"   CONTENT: {result['content'][:2000]}...\n"
+                
+                messages.append({"role": "system", "content": search_context})
+                logger.info(f"🌐 Injected live web content for query: '{user_message}'")
+                asyncio.create_task(ingest_search_results(project_id, web_results))
+        else:
+            logger.info("🌐 Tool loop handled search; skipping web search.")
     
     # ============================================================
     # CONTEXT BUILDING (Lessons, Trust, Tool Results)
     # ============================================================
-    
     for ctx in lesson_context:
         messages.append({"role": "system", "content": ctx})
     
