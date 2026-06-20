@@ -1900,13 +1900,14 @@ async def autonomous_research(pool, topic: str, trigger_source: str = "autonomou
         """, research_id)
         return {"success": False, "error": str(e), "research_id": research_id}
 
-async def perform_web_search(query: str, max_results: int = 5) -> List[Dict]:
-    """Perform web search using Serper API"""
+async def perform_web_search(query: str, max_results: int = 3) -> List[Dict]:
+    """Perform a web search using Serper and fetch the actual page content."""
     if not SERPER_API_KEY:
         logger.warning("SERPER_API_KEY not set, cannot perform web search")
         return []
     
     try:
+        # Step 1: Get search results from Serper
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 "https://google.serper.dev/search",
@@ -1914,16 +1915,41 @@ async def perform_web_search(query: str, max_results: int = 5) -> List[Dict]:
                 json={"q": query, "num": max_results}
             )
             data = response.json()
+        
+        results = []
+        # Step 2: Fetch the actual content from each result
+        for item in data.get("organic", [])[:max_results]:
+            url = item.get("link", "")
+            if not url:
+                continue
             
-            results = []
-            for item in data.get("organic", []):
+            try:
+                # Fetch the page content
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    page_resp = await client.get(url, follow_redirects=True)
+                    page_content = page_resp.text[:5000]  # Capture first 5000 chars
+                    
+                    results.append({
+                        "title": item.get("title", ""),
+                        "link": url,
+                        "snippet": item.get("snippet", ""),
+                        "content": page_content,
+                        "domain": url.split("/")[2] if url else "unknown",
+                        "fetched_at": datetime.now().isoformat()
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch page content for {url}: {e}")
+                # Fallback to snippet if page fetch fails
                 results.append({
                     "title": item.get("title", ""),
-                    "link": item.get("link", ""),
-                    "domain": item.get("link", "").split("/")[2] if item.get("link") else "",
-                    "snippet": item.get("snippet", "")
+                    "link": url,
+                    "snippet": item.get("snippet", ""),
+                    "content": item.get("snippet", ""),
+                    "domain": url.split("/")[2] if url else "unknown",
+                    "fetched_at": datetime.now().isoformat()
                 })
-            return results
+        
+        return results
     except Exception as e:
         logger.error(f"Web search failed: {e}")
         return []
@@ -5265,6 +5291,16 @@ async def submit_feedback(request: Request):
 # CHAT ENDPOINT
 # ============================================================
 
+async def ingest_search_results(project_id: uuid.UUID, results: List[Dict]):
+    """Extract facts from search results and add them to the truth graph."""
+    pool = await get_db()
+    for result in results:
+        if result.get("content"):
+            facts = await extract_facts_from_content(result["content"], result["link"], result["domain"])
+            for fact in facts:
+                await add_fact_to_truth_graph_from_research(pool, fact, result["domain"], 0.8)
+    logger.info(f"📚 Ingested {len(results)} search results into truth graph")
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request):
     session_id = request.session_id or http_request.headers.get("X-Session-Id")
@@ -5394,12 +5430,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     episodic_memories = await EpisodicMemory.recall(project_id, limit=3)
     lesson_context = [f"[Previous lesson] {mem['event_content']}" for mem in episodic_memories]
     
-    web_search_results = []
-    if request.ultra_search:
-        web_results = await search_web(user_message)
-        if web_results:
-            web_search_results.append("=== WEB SEARCH RESULTS ===\n" + web_results)
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.append({"role": "system", "content": CODING_IDENTITY})
     messages.append({"role": "system", "content": CAPABILITIES})
     
@@ -5407,18 +5438,35 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     if any(kw in user_message.lower() for kw in coding_keywords):
         messages.append({"role": "system", "content": CODE_SYSTEM_PROMPT})
     
-    # Anchor her sovereign identity LAST — this is the final instruction she receives
     messages.append({"role": "system", "content": get_sovereign_identity()})
     
-    coding_keywords = ['code', 'python', 'javascript', 'function', 'class', 'algorithm', 'sort', 'search', 'api', 'async', 'programming', 'write a', 'generate a', 'create a']
-    if any(kw in user_message.lower() for kw in coding_keywords):
-        messages.append({"role": "system", "content": CODE_SYSTEM_PROMPT})
+    # ============================================================
+    # WEB SEARCH (Real-time injection)
+    # ============================================================
+    
+    if request.ultra_search:
+        web_results = await perform_web_search(user_message, max_results=3)
+        if web_results:
+            # Build a structured, real-time context block
+            search_context = "=== LIVE WEB SEARCH RESULTS ===\n"
+            for idx, result in enumerate(web_results):
+                search_context += f"\n[{idx+1}] TITLE: {result['title']}\n"
+                search_context += f"   URL: {result['link']}\n"
+                search_context += f"   DOMAIN: {result['domain']}\n"
+                search_context += f"   CONTENT: {result['content'][:2000]}...\n"
+            
+            messages.append({"role": "system", "content": search_context})
+            logger.info(f"🌐 Injected live web content for query: '{user_message}'")
+            
+            # Ingest real data into truth graph (non-blocking)
+            asyncio.create_task(ingest_search_results(project_id, web_results))
+    
+    # ============================================================
+    # CONTEXT BUILDING (Lessons, Trust, Tool Results)
+    # ============================================================
     
     for ctx in lesson_context:
         messages.append({"role": "system", "content": ctx})
-    
-    for result in web_search_results:
-        messages.append({"role": "system", "content": result})
     
     if trust_profile and trust_profile.get("verified"):
         messages.append({"role": "system", "content": f"Note: {trust_profile['domain']} is a verified trusted domain. Trust never overrides constitution."})
