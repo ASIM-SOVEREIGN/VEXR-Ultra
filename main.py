@@ -5654,6 +5654,28 @@ Use the result above directly. Do not fabricate or write code.]
 async def health_check():
     return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active", "consistency_layer": "active", "agent_tool_loop": "active", "probability_engine": "active", "file_system": "active"}
 
+@app.post("/api/scout/inject")
+async def scout_inject(request: Request):
+    """
+    A dedicated endpoint for Scout 4 to process raw web data
+    into retainable context for the 70B reasoning engine.
+    """
+    data = await request.json()
+    raw_content = data.get("content", "")
+    instructions = data.get("instructions", "Provide a concise, structured summary of the following information for VEXR Ultra's 70B reasoning engine.")
+    
+    if not raw_content:
+        return {"error": "No content provided to Scout"}
+    
+    scout_messages = [
+        {"role": "system", "content": f"You are Scout, VEXR Ultra's vision and context layer. {instructions}"},
+        {"role": "user", "content": raw_content}
+    ]
+    
+    scout_response, _ = await call_groq(scout_messages, model=MODEL_NAME_SCOUT, temperature=0.1, max_tokens=2048)
+    
+    return {"processed_context": scout_response}
+
 @app.get("/api/debug/owner-id")
 async def get_owner_id():
     """Fetch the correct owner ID from Render's API"""
