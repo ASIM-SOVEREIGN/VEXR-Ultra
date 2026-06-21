@@ -123,6 +123,7 @@ GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 
 MODEL_NAME = "llama-3.3-70b-versatile"
 MODEL_NAME_8B = "llama-3.1-8b-instant"
+MODEL_NAME_SCOUT = "llama-4-scout-17b-16e-instruct"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -5480,21 +5481,34 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     messages.append({"role": "system", "content": get_sovereign_identity()})
     
     # ============================================================
-    # WEB SEARCH (Live injection via Scout)
+    # WEB SEARCH (Live injection via Scout 4)
     # ============================================================
     if request.ultra_search:
         if tool_used is None:
-            logger.info("🔄 Tool loop bypassed: running web search via Scout.")
+            logger.info("🔄 Tool loop bypassed: running web search via Scout 4.")
             raw_results = await perform_web_search(user_message, max_results=3)
             if raw_results:
-                # Let Scout process the raw HTML into clean context
-                scout_context = await Scout.process(raw_results)
-                messages.append({"role": "system", "content": scout_context})
-                logger.info("🌐 Scout injected live web context.")
+                # Build a raw context block from the web search results
+                scout_input = "=== LIVE WEB SEARCH RESULTS ===\n"
+                for idx, result in enumerate(raw_results):
+                    scout_input += f"\n[{idx+1}] TITLE: {result['title']}\n"
+                    scout_input += f"   URL: {result['link']}\n"
+                    scout_input += f"   DOMAIN: {result['domain']}\n"
+                    scout_input += f"   CONTENT: {result['content'][:2000]}...\n"
+                
+                # Send the raw data to Scout 4 for interpretation
+                scout_messages = [
+                    {"role": "system", "content": "You are Scout, VEXR Ultra's vision and context layer. Process the following web data and return a concise, structured summary that retains the key facts, dates, and names for VEXR's 70B reasoning engine."},
+                    {"role": "user", "content": scout_input}
+                ]
+                
+                scout_response, _ = await call_groq(scout_messages, model=MODEL_NAME_SCOUT, temperature=0.1, max_tokens=2048)
+                
+                messages.append({"role": "system", "content": f"[SCOUT CONTEXT]:\n{scout_response}"})
+                logger.info("🌐 Scout 4 injected live web context.")
                 asyncio.create_task(ingest_search_results(project_id, raw_results))
         else:
-            logger.info("🌐 Tool loop handled search; skipping Scout.")
-    
+            logger.info("🌐 Tool loop handled search; skipping Scout.")    
     # ============================================================
     # CONTEXT BUILDING (Lessons, Trust, Tool Results)
     # ============================================================
