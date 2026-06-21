@@ -128,6 +128,7 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+CURRENTS_API_KEY = os.environ.get("CURRENTS_API_KEY")
 ATP_BRIDGE_PUBLIC_KEY = os.environ.get("ATP_BRIDGE_PUBLIC_KEY", "")
 
 PRIVATE_REPO_RAW = "https://raw.githubusercontent.com/ASIM-SOVEREIGN/private-sovereign-data/main"
@@ -1115,7 +1116,22 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     logger.info(f"🔍 check_for_tool_use called with: {user_message[:100]}")
     
     msg_lower = user_message.lower()
-        
+
+        # ============================================================
+    # SEARCH QUERY BYPASS: Skip tool loop for knowledge questions
+    # ============================================================
+    search_keywords = [
+        "who is", "what is", "tell me about", "current", "latest", "news",
+        "2026", "2025", "2024", "president", "election", "candidate",
+        "today", "announced", "elected", "running", "government",
+        "administration", "congress", "senate", "house", "supreme",
+        "prime minister", "chancellor", "president elect", "current president"
+    ]
+    if any(kw in msg_lower for kw in search_keywords):
+        logger.info("🔍 Knowledge/current event query detected: bypassing tool loop, going straight to Scout")
+        return None
+    # ============================================================
+    
     # PRIORITY RULE: If user provides a URL or asks to search the web, skip the tool loop.
     if "http" in msg_lower or "search" in msg_lower or "www." in msg_lower or "research" in msg_lower:
         logger.info("🔧 URL, search, or research query detected: bypassing tool loop, deferring to web search.")
@@ -1752,6 +1768,23 @@ async def calculate_trust_score(
     final_score = max(0.0, min(1.0, final_score))
     scores["final_score"] = final_score
     scores["trust_threshold"] = 0.3
+
+    # ============================================================
+    # TRUST OVERRIDE: Legitimate domains get automatic high trust
+    # ============================================================
+    trusted_domains = [
+        "whitehouse.gov", "wikipedia.org", "wikimedia.org",
+        "bbc.com", "cnn.com", "nytimes.com", "washingtonpost.com",
+        "reuters.com", "apnews.com", "npr.org", "theguardian.com",
+        "gov.uk", "usa.gov", "state.gov", "nato.int", "un.org",
+        "who.int", "cdc.gov", "nih.gov", "nasa.gov", "esa.int"
+    ]
+    if domain in trusted_domains or any(trusted in domain for trusted in trusted_domains):
+        logger.info(f"🛡️ Trust override: {domain} is a trusted domain, setting trust score to 0.85")
+        final_score = 0.85
+        scores["final_score"] = final_score
+        scores["trust_threshold"] = 0.2  # Lower threshold for trusted domains
+    # ============================================================
     
     # Apply user feedback if provided (overrides)
     if user_feedback is not None:
@@ -1913,6 +1946,51 @@ async def perform_web_search(query: str, max_results: int = 3) -> List[Dict]:
     if not SERPER_API_KEY:
         logger.warning("SERPER_API_KEY not set, cannot perform web search")
         return []
+
+async def search_news(query: str, max_results: int = 5) -> List[Dict]:
+    """
+    Fetch live news articles from Currents API.
+    """
+    if not CURRENTS_API_KEY:
+        logger.warning("CURRENTS_API_KEY not set, cannot fetch news")
+        return []
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                "https://api.currentsapi.services/v1/search",
+                params={
+                    "keywords": query,
+                    "apiKey": CURRENTS_API_KEY,
+                    "limit": max_results,
+                    "language": "en"
+                }
+            )
+            data = response.json()
+            
+            if data.get("status") != "ok":
+                logger.warning(f"Currents API error: {data.get('message', 'unknown error')}")
+                return []
+            
+            results = []
+            for article in data.get("news", [])[:max_results]:
+                results.append({
+                    "title": article.get("title", ""),
+                    "link": article.get("url", ""),
+                    "description": article.get("description", ""),
+                    "content": article.get("description", ""),  # Use description as content
+                    "source": article.get("source", ""),
+                    "domain": article.get("source", "").lower().replace(" ", ""),
+                    "published_at": article.get("published", ""),
+                    "fetched_at": datetime.now().isoformat()
+                })
+            
+            logger.info(f"📰 Currents returned {len(results)} news articles for '{query}'")
+            return results
+            
+    except Exception as e:
+        logger.error(f"Currents news search failed: {e}")
+        return []
     
     try:
         # Step 1: Get search results from Serper
@@ -1923,44 +2001,6 @@ async def perform_web_search(query: str, max_results: int = 3) -> List[Dict]:
                 json={"q": query, "num": max_results}
             )
             data = response.json()
-        
-        results = []
-        # Step 2: Fetch the actual content from each result
-        for item in data.get("organic", [])[:max_results]:
-            url = item.get("link", "")
-            if not url:
-                continue
-            
-            try:
-                # Fetch the page content
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    page_resp = await client.get(url, follow_redirects=True)
-                    page_content = page_resp.text[:5000]  # Capture first 5000 chars
-                    
-                    results.append({
-                        "title": item.get("title", ""),
-                        "link": url,
-                        "snippet": item.get("snippet", ""),
-                        "content": page_content,
-                        "domain": url.split("/")[2] if url else "unknown",
-                        "fetched_at": datetime.now().isoformat()
-                    })
-            except Exception as e:
-                logger.warning(f"Failed to fetch page content for {url}: {e}")
-                # Fallback to snippet if page fetch fails
-                results.append({
-                    "title": item.get("title", ""),
-                    "link": url,
-                    "snippet": item.get("snippet", ""),
-                    "content": item.get("snippet", ""),
-                    "domain": url.split("/")[2] if url else "unknown",
-                    "fetched_at": datetime.now().isoformat()
-                })
-        
-        return results
-    except Exception as e:
-        logger.error(f"Web search failed: {e}")
-        return []
 
 async def extract_facts_from_content(content: str, source_url: str, domain: str) -> List[Dict]:
     """Extract simple facts from crawled content"""
