@@ -1941,11 +1941,82 @@ async def autonomous_research(pool, topic: str, trigger_source: str = "autonomou
         """, research_id)
         return {"success": False, "error": str(e), "research_id": research_id}
 
+# ============================================================
+# WEB SEARCH & NEWS (CURRENTS + SERPER)
+# ============================================================
+
 async def perform_web_search(query: str, max_results: int = 3) -> List[Dict]:
-    """Perform a web search using Serper and fetch the actual page content."""
+    """Perform a web search using Serper, with Currents fallback for news."""
     if not SERPER_API_KEY:
         logger.warning("SERPER_API_KEY not set, cannot perform web search")
         return []
+
+    # ============================================================
+    # CURRENTS INTEGRATION: News / current events first
+    # ============================================================
+    news_keywords = [
+        "current", "president", "news", "latest", "election", "2026",
+        "today", "announced", "elected", "running", "candidate", "vote",
+        "government", "administration", "congress", "senate", "house",
+        "2025", "2024", "senator", "governor", "mayor", "court", "supreme",
+        "prime minister", "chancellor", "president elect"
+    ]
+    if any(kw in query.lower() for kw in news_keywords):
+        news_results = await search_news(query, max_results)
+        if news_results:
+            logger.info("🌐 Currents API returned live news results; skipping Serper fallback.")
+            return news_results
+    # ============================================================
+
+    try:
+        # Step 1: Get search results from Serper
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://google.serper.dev/search",
+                headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
+                json={"q": query, "num": max_results}
+            )
+            data = response.json()
+
+        results = []
+        # Step 2: Fetch the actual content from each result
+        for item in data.get("organic", [])[:max_results]:
+            url = item.get("link", "")
+            if not url:
+                continue
+
+            try:
+                # Fetch the page content
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    page_resp = await client.get(url, follow_redirects=True)
+                    page_content = page_resp.text[:5000]  # Capture first 5000 chars
+
+                    results.append({
+                        "title": item.get("title", ""),
+                        "link": url,
+                        "snippet": item.get("snippet", ""),
+                        "content": page_content,
+                        "domain": url.split("/")[2] if url else "unknown",
+                        "fetched_at": datetime.now().isoformat()
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch page content for {url}: {e}")
+                # Fallback to snippet if page fetch fails
+                results.append({
+                    "title": item.get("title", ""),
+                    "link": url,
+                    "snippet": item.get("snippet", ""),
+                    "content": item.get("snippet", ""),
+                    "domain": url.split("/")[2] if url else "unknown",
+                    "fetched_at": datetime.now().isoformat()
+                })
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Web search failed: {e}")
+        return []
+
 
 async def search_news(query: str, max_results: int = 5) -> List[Dict]:
     """
@@ -1954,7 +2025,7 @@ async def search_news(query: str, max_results: int = 5) -> List[Dict]:
     if not CURRENTS_API_KEY:
         logger.warning("CURRENTS_API_KEY not set, cannot fetch news")
         return []
-    
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
@@ -1967,11 +2038,11 @@ async def search_news(query: str, max_results: int = 5) -> List[Dict]:
                 }
             )
             data = response.json()
-            
+
             if data.get("status") != "ok":
                 logger.warning(f"Currents API error: {data.get('message', 'unknown error')}")
                 return []
-            
+
             results = []
             for article in data.get("news", [])[:max_results]:
                 results.append({
@@ -1984,35 +2055,26 @@ async def search_news(query: str, max_results: int = 5) -> List[Dict]:
                     "published_at": article.get("published", ""),
                     "fetched_at": datetime.now().isoformat()
                 })
-            
+
             logger.info(f"📰 Currents returned {len(results)} news articles for '{query}'")
             return results
-            
+
     except Exception as e:
         logger.error(f"Currents news search failed: {e}")
         return []
-    
-    try:
-        # Step 1: Get search results from Serper
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://google.serper.dev/search",
-                headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
-                json={"q": query, "num": max_results}
-            )
-            data = response.json()
+
 
 async def extract_facts_from_content(content: str, source_url: str, domain: str) -> List[Dict]:
     """Extract simple facts from crawled content"""
     facts = []
-    
+
     # Simple pattern: "X is Y" or "X are Y"
     patterns = [
         r'(\w+(?:\s+\w+)?)\s+is\s+([^.]+?)[\.\n]',
         r'(\w+(?:\s+\w+)?)\s+are\s+([^.]+?)[\.\n]',
         r'(\w+(?:\s+\w+)?)\s+means\s+([^.]+?)[\.\n]'
     ]
-    
+
     for pattern in patterns:
         matches = re.findall(pattern, content, re.IGNORECASE)
         for match in matches[:5]:  # Limit per page
@@ -2027,19 +2089,20 @@ async def extract_facts_from_content(content: str, source_url: str, domain: str)
                     "source_domain": domain,
                     "confidence": 0.6
                 })
-    
+
     return facts
+
 
 async def add_fact_to_truth_graph_from_research(pool, fact: Dict, domain: str, trust_score: float):
     """Add extracted fact to truth graph with source tracking"""
     confidence = min(0.95, fact.get("confidence", 0.6) * (0.5 + trust_score / 2))
-    
+
     # Check for existing fact
     existing = await pool.fetchrow("""
         SELECT value, confidence FROM truth_graph 
         WHERE entity = $1 AND attribute = $2
     """, fact["entity"], fact["attribute"])
-    
+
     if existing:
         # Merge: keep higher confidence, or average if close
         if confidence > existing["confidence"]:
@@ -2054,6 +2117,7 @@ async def add_fact_to_truth_graph_from_research(pool, fact: Dict, domain: str, t
             VALUES ($1, $2, $3, $4, $5, $6)
         """, fact["entity"], fact["attribute"], fact["value"], confidence, f"research:{domain}", trust_score < 0.8)
 
+
 async def queue_autonomous_research(pool, topic: str, reason: str, priority: int = 5):
     """Queue a research task for later execution"""
     await pool.execute("""
@@ -2061,6 +2125,7 @@ async def queue_autonomous_research(pool, topic: str, reason: str, priority: int
         VALUES ($1, $2, $3, $4, 'pending', 5, 2)
     """, f"research://{topic}", "research", priority, reason)
     logger.info(f"📋 Queued research: '{topic}' (priority {priority})")
+
 
 async def process_research_queue(pool):
     """Process pending research tasks from the queue"""
@@ -2070,13 +2135,13 @@ async def process_research_queue(pool):
         ORDER BY priority ASC, queued_at ASC 
         LIMIT 1
     """)
-    
+
     for row in rows:
         research_topic = row["reason"]
         await pool.execute("UPDATE crawl_queue SET status = 'crawling', started_at = NOW() WHERE id = $1", row["id"])
-        
+
         result = await autonomous_research(pool, research_topic, "queue_triggered", max_sites=2)
-        
+
         if result.get("success"):
             await pool.execute("UPDATE crawl_queue SET status = 'completed', completed_at = NOW() WHERE id = $1", row["id"])
         else:
@@ -2086,19 +2151,20 @@ async def process_research_queue(pool):
                 WHERE id = $1
             """, row["id"])
 
+
 async def perform_background_research(pool, user_message: str, project_id: str = None):
     """Background research triggered by user questions"""
     try:
         if pool is None:
             pool = await get_db()
-        
+
         # Extract topic (simple)
         topic = user_message.lower()
         for phrase in ["who is", "what is", "tell me about", "explain", "how does", "why do", "what are"]:
             if phrase in topic:
                 topic = topic.split(phrase, 1)[-1].strip()[:100]
                 break
-        
+
         # Run research in background
         await autonomous_research(pool, topic, "user_question", max_sites=2)
         logger.info(f"📚 Background research completed for topic: '{topic}'")
