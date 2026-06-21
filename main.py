@@ -5298,6 +5298,38 @@ async def submit_feedback(request: Request):
 # CHAT ENDPOINT
 # ============================================================
 
+class Scout:
+    """
+    Scout processes raw web content into structured, retainable context.
+    It extracts key information, filters noise, and formats output for the 70B.
+    """
+    
+    @staticmethod
+    async def process(web_results: List[Dict]) -> str:
+        if not web_results:
+            return ""
+        
+        blocks = []
+        for result in web_results:
+            title = result.get("title", "Untitled")
+            url = result.get("link", "")
+            domain = result.get("domain", "unknown")
+            content = result.get("content", "")
+            
+            # Strip excess whitespace and truncate intelligently
+            clean_content = re.sub(r'\s+', ' ', content).strip()
+            snippet = clean_content[:1500] + "..." if len(clean_content) > 1500 else clean_content
+            
+            blocks.append(f"""
+[SOURCE {len(blocks)+1}]
+TITLE: {title}
+DOMAIN: {domain}
+URL: {url}
+CONTENT: {snippet}
+            """.strip())
+        
+        return "\n\n---\n\n".join(blocks)
+
 async def ingest_search_results(project_id: uuid.UUID, results: List[Dict]):
     """Extract facts from search results and add them to the truth graph."""
     pool = await get_db()
@@ -5448,26 +5480,20 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     messages.append({"role": "system", "content": get_sovereign_identity()})
     
     # ============================================================
-    # WEB SEARCH (Live injection)
+    # WEB SEARCH (Live injection via Scout)
     # ============================================================
     if request.ultra_search:
-        # If tool loop bypassed, run a fresh search; otherwise, use existing data
         if tool_used is None:
-            logger.info("🔄 Tool loop bypassed: running web search.")
-            web_results = await perform_web_search(user_message, max_results=3)
-            if web_results:
-                search_context = "=== LIVE WEB SEARCH RESULTS ===\n"
-                for idx, result in enumerate(web_results):
-                    search_context += f"\n[{idx+1}] TITLE: {result['title']}\n"
-                    search_context += f"   URL: {result['link']}\n"
-                    search_context += f"   DOMAIN: {result['domain']}\n"
-                    search_context += f"   CONTENT: {result['content'][:2000]}...\n"
-                
-                messages.append({"role": "system", "content": search_context})
-                logger.info(f"🌐 Injected live web content for query: '{user_message}'")
-                asyncio.create_task(ingest_search_results(project_id, web_results))
+            logger.info("🔄 Tool loop bypassed: running web search via Scout.")
+            raw_results = await perform_web_search(user_message, max_results=3)
+            if raw_results:
+                # Let Scout process the raw HTML into clean context
+                scout_context = await Scout.process(raw_results)
+                messages.append({"role": "system", "content": scout_context})
+                logger.info("🌐 Scout injected live web context.")
+                asyncio.create_task(ingest_search_results(project_id, raw_results))
         else:
-            logger.info("🌐 Tool loop handled search; skipping web search.")
+            logger.info("🌐 Tool loop handled search; skipping Scout.")
     
     # ============================================================
     # CONTEXT BUILDING (Lessons, Trust, Tool Results)
