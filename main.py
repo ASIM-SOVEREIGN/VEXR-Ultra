@@ -29,6 +29,7 @@ from enum import Enum
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+from fastapi.responses import HTMLResponse
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -82,6 +83,13 @@ async def get_weights():
     except Exception as e:
         logger.error(f"Weights endpoint error: {e}")
         return {"error": str(e), "weights": []}
+
+# ============================================================
+# GOOGLE VERIFICATION
+# ============================================================
+@app.get("/google7d942ae3165baed3.html")
+async def google_verify():
+    return HTMLResponse(content="google-site-verification: google7d942ae3165baed3.html")
 
 # ============================================================
 # ACOUSTIC IMMUNE SYSTEM BACKGROUND TASK
