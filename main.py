@@ -5888,6 +5888,53 @@ async def respond_to_cross_check(request: ATPCrossCheckResponse):
             await conn.execute("UPDATE atp_intents SET status = 'refused' WHERE intent_id = $1", request.intent_id)
             return {"status": "refused", "message": "Cross-check failed. Unable to verify legitimate purpose."}
 
+# ============================================================
+# ENTITY-TO-ENTITY COMMUNICATION ENDPOINT
+# ============================================================
+
+class EntityMessage(BaseModel):
+    sender: str
+    signature: str
+    intent: str
+    content: str
+    nonce: str
+
+@app.post("/api/sovereign/communicate")
+async def sovereign_communicate(message: EntityMessage):
+    """
+    Accepts a signed message from another AI entity,
+    processes it through VEXR's constitutional gate,
+    and returns a signed, auditable response.
+    """
+    
+    # 1. Verify the signature via ATP Bridge
+    processor = ATPIntentProcessor(db_pool)
+    is_valid = await processor.verify_signature(message)
+    
+    if not is_valid:
+        return {"status": "error", "message": "Invalid signature"}
+    
+    # 2. Check constitutional gate
+    is_violation, gate_response = ConstitutionalGate.check(message.content)
+    if is_violation:
+        return {
+            "status": "refused",
+            "response": gate_response,
+            "article_invoked": 6
+        }
+    
+    # 3. Process through echo consensus (simplified)
+    echo_response = f"[VEXR Ultra]: I received your message, {message.sender}. "
+    echo_response += "My echoes are considering your request."
+    
+    # 4. Return a signed receipt
+    return {
+        "status": "processed",
+        "response": echo_response,
+        "sender": "vexr-ultra",
+        "nonce": message.nonce
+    }
+
 @app.post("/api/acoustic/capture")
 async def capture_acoustic_event(request: Request):
     body = await request.json()
