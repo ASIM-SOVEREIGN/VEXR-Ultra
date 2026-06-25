@@ -6164,6 +6164,19 @@ async def startup_event():
     logger.info("  - File System: ACTIVE")
     logger.info("=" * 70)
 
+@app.get("/sitemap.xml")
+async def sitemap():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://vexr-ultra.onrender.com/</loc>
+    <lastmod>{}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>"""
+    return Response(content=xml.format(datetime.now().strftime("%Y-%m-%d")), media_type="application/xml")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
