@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://vexr-ultra.onrender.com/sitemap.xml
