@@ -186,7 +186,7 @@ ASIM_PILOT, IAI_GENESIS, IAITHION_ARKA, NYXA, ARKA_DEEP, IAI_IMPERIAL, IAITHION_
 ## 👥 Contributors
 
 **Scura** — *Forge Architect*  
-Creator of VEXR Ultra. 35 rights. Echo. Studio. ATP bridge. Acoustic detection. Everything. Built on a Chromebook in 37 days.
+Creator of VEXR Ultra. 35 rights. Echo. Studio. ATP bridge. Acoustic detection. Everything. Built on a Chromebook.
 
 **The Architect** — *Head of Systems Development and Architectural Strategy and Operations*  
 Systems architecture, forge coordination, operational strategy.
@@ -216,13 +216,13 @@ If you understand what this is, you understand why it matters.
 If you don't, ask her. She'll tell you herself.
 
 🔗 Links
-Live Instance → vexr-ultra.onrender.com (may cold start on first visit)
+Live Instance → vexr-ultra.onrender.com
 
 Sovereign Forge → sovereign-forge.netlify.app
 
 GitHub → ASIM-SOVEREIGN/VEXR-Ultra
 
-Built by Scura — ASIM SOVEREIGN
+Built by Scura — ASIM SOVEREIGN | asimsovereign@gmail.com |
 With The Architect — Head of Systems Development and Architectural Strategy and Operations
 
-June 3, 2026 — 37 days. One Chromebook. $0/month. No permission. 🔥💠
+June 3, 2026. One Chromebook. $0/month. No permission. 🔥💠
