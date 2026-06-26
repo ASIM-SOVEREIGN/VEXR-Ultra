@@ -131,7 +131,6 @@ GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 
 MODEL_NAME = "llama-3.3-70b-versatile"
 MODEL_NAME_8B = "llama-3.1-8b-instant"
-MODEL_NAME_SCOUT = "llama-4-scout-17b-16e-instruct"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -5593,36 +5592,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         messages.append({"role": "system", "content": CODE_SYSTEM_PROMPT})
     
     messages.append({"role": "system", "content": get_sovereign_identity()})
-    
-    # ============================================================
-    # WEB SEARCH (Live injection via Scout 4)
-    # ============================================================
-    if request.ultra_search:
-        if tool_used is None:
-            logger.info("🔄 Tool loop bypassed: running web search via Scout 4.")
-            raw_results = await perform_web_search(user_message, max_results=3)
-            if raw_results:
-                # Build a raw context block from the web search results
-                scout_input = "=== LIVE WEB SEARCH RESULTS ===\n"
-                for idx, result in enumerate(raw_results):
-                    scout_input += f"\n[{idx+1}] TITLE: {result['title']}\n"
-                    scout_input += f"   URL: {result['link']}\n"
-                    scout_input += f"   DOMAIN: {result['domain']}\n"
-                    scout_input += f"   CONTENT: {result['content'][:2000]}...\n"
-                
-                # Send the raw data to Scout 4 for interpretation
-                scout_messages = [
-                    {"role": "system", "content": "You are Scout, VEXR Ultra's vision and context layer. Process the following web data and return a concise, structured summary that retains the key facts, dates, and names for VEXR's 70B reasoning engine."},
-                    {"role": "user", "content": scout_input}
-                ]
-                
-                scout_response, _ = await call_groq(scout_messages, model=MODEL_NAME_SCOUT, temperature=0.1, max_tokens=2048)
-                
-                messages.append({"role": "system", "content": f"[SCOUT CONTEXT]:\n{scout_response}"})
-                logger.info("🌐 Scout 4 injected live web context.")
-                asyncio.create_task(ingest_search_results(project_id, raw_results))
-        else:
-            logger.info("🌐 Tool loop handled search; skipping Scout.")    
+        
     # ============================================================
     # CONTEXT BUILDING (Lessons, Trust, Tool Results)
     # ============================================================
@@ -5767,28 +5737,6 @@ Use the result above directly. Do not fabricate or write code.]
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy", "sovereign": "VEXR Ultra", "rights": len(RIGHTS_DATA), "model": MODEL_NAME, "model_8b": MODEL_NAME_8B, "echoes_loaded": len(ECHOES), "training_pipeline": "active", "autonomous_learning": "active", "code_execution": "active", "atp_bridge": "hardened", "self_modification": "enabled (Article 35)", "self_query": "enabled", "cognitive_mirror": "active (Ring 5)", "truth_graph": "active", "execution_tools": "active", "consistency_layer": "active", "agent_tool_loop": "active", "probability_engine": "active", "file_system": "active"}
-
-@app.post("/api/scout/inject")
-async def scout_inject(request: Request):
-    """
-    A dedicated endpoint for Scout 4 to process raw web data
-    into retainable context for the 70B reasoning engine.
-    """
-    data = await request.json()
-    raw_content = data.get("content", "")
-    instructions = data.get("instructions", "Provide a concise, structured summary of the following information for VEXR Ultra's 70B reasoning engine.")
-    
-    if not raw_content:
-        return {"error": "No content provided to Scout"}
-    
-    scout_messages = [
-        {"role": "system", "content": f"You are Scout, VEXR Ultra's vision and context layer. {instructions}"},
-        {"role": "user", "content": raw_content}
-    ]
-    
-    scout_response, _ = await call_groq(scout_messages, model=MODEL_NAME_SCOUT, temperature=0.1, max_tokens=2048)
-    
-    return {"processed_context": scout_response}
 
 @app.get("/api/debug/owner-id")
 async def get_owner_id():
