@@ -1371,6 +1371,7 @@ Response:"""
                 json_str = json_str.replace("'", '"')
                 json_str = re.sub(r',\s*}', '}', json_str)
                 json_str = re.sub(r',\s*]', ']', json_str)
+                json_str = ''.join(c for c in json_str if ord(c) >= 32)
                 tool_request = json.loads(json_str)
                 if "tool" in tool_request and "parameters" in tool_request:
                     logger.info(f"🔧 Agent decided to use tool: {tool_request['tool']}")
