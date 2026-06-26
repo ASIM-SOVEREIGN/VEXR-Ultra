@@ -6164,18 +6164,27 @@ async def startup_event():
     logger.info("  - File System: ACTIVE")
     logger.info("=" * 70)
 
+# ============================================================
+# SITEMAP ENDPOINT (DYNAMIC)
+# ============================================================
+
 @app.get("/sitemap.xml")
-async def sitemap():
-    xml = """<?xml version="1.0" encoding="UTF-8"?>
+async def serve_sitemap():
+    """Dynamically generate a sitemap with current date."""
+    from datetime import datetime
+    from fastapi.responses import Response
+    
+    today = datetime.now().strftime("%Y-%m-%d")
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://vexr-ultra.onrender.com/</loc>
-    <lastmod>{}</lastmod>
+    <lastmod>{today}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
 </urlset>"""
-    return Response(content=xml.format(datetime.now().strftime("%Y-%m-%d")), media_type="application/xml")
+    return Response(content=xml, media_type="application/xml")
 
 if __name__ == "__main__":
     import uvicorn
