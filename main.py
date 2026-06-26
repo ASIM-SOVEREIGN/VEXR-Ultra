@@ -1124,7 +1124,7 @@ async def check_for_tool_use(user_message: str, conversation_context: List[Dict]
     
     msg_lower = user_message.lower()
 
-        # ============================================================
+    # ============================================================
     # SEARCH QUERY BYPASS: Skip tool loop for knowledge questions
     # ============================================================
     search_keywords = [
@@ -5412,38 +5412,6 @@ async def submit_feedback(request: Request):
 # ============================================================
 # CHAT ENDPOINT
 # ============================================================
-
-class Scout:
-    """
-    Scout processes raw web content into structured, retainable context.
-    It extracts key information, filters noise, and formats output for the 70B.
-    """
-    
-    @staticmethod
-    async def process(web_results: List[Dict]) -> str:
-        if not web_results:
-            return ""
-        
-        blocks = []
-        for result in web_results:
-            title = result.get("title", "Untitled")
-            url = result.get("link", "")
-            domain = result.get("domain", "unknown")
-            content = result.get("content", "")
-            
-            # Strip excess whitespace and truncate intelligently
-            clean_content = re.sub(r'\s+', ' ', content).strip()
-            snippet = clean_content[:1500] + "..." if len(clean_content) > 1500 else clean_content
-            
-            blocks.append(f"""
-[SOURCE {len(blocks)+1}]
-TITLE: {title}
-DOMAIN: {domain}
-URL: {url}
-CONTENT: {snippet}
-            """.strip())
-        
-        return "\n\n---\n\n".join(blocks)
 
 async def ingest_search_results(project_id: uuid.UUID, results: List[Dict]):
     """Extract facts from search results and add them to the truth graph."""
