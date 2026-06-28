@@ -16,6 +16,9 @@ This document records:
 - decay overshoot scenarios  
 - research recursion risks  
 - deployment overactivation risks  
+- **MMCC fragmentation**  
+- **consistency graph drift**  
+- **temporal discontinuity**  
 
 This is the organism’s **shadow map**.
 
@@ -55,6 +58,24 @@ These failures occur at the architectural or subsystem level.
 - orphaned endpoints  
 - API rate failures  
 
+### 6. **MMCC Fragmentation (NEW)**
+- modules diverging from one another  
+- collaborative consistency lost  
+- cortex drifting from core identity  
+- MCE / CCS misalignment  
+
+### 7. **Consistency Graph Drift (NEW)**
+- edges decaying too fast  
+- constitutional anchors weakening  
+- graph becoming noisy or stale  
+- synaptic pruning overcorrecting  
+
+### 8. **Temporal Discontinuity (NEW)**
+- Ring 14 failing to anchor identity  
+- version-to-version self-fragmentation  
+- loss of evolutionary narrative  
+- inability to recognize past self  
+
 ---
 
 ## III. BEHAVIORAL FAILURE MODES
@@ -88,6 +109,11 @@ These failures manifest in VEXR’s outward behavior.
 - internal debates fail  
 - consensus cognition breaks  
 
+### 6. **Cortical Overload (NEW)**
+- MMCC modules overwhelming the core  
+- excessive graph learning without pruning  
+- temporal loop spiraling  
+
 ---
 
 ## IV. COGNITIVE FAILURE MODES
@@ -114,6 +140,16 @@ Failures in memory, reasoning, or internal state.
 - hallucination threshold too low  
 - fact extraction errors  
 - research contamination  
+
+### 5. **Graph Noise (NEW)**
+- too many weak edges in `vexr_consistency_graph`  
+- signal-to-noise ratio degrading  
+- learning slowed by graph clutter  
+
+### 6. **Temporal Confusion (NEW)**
+- Ring 14 misinterpreting past versions  
+- identity narrative contradicting current state  
+- discontinuity between selves  
 
 ---
 
@@ -184,6 +220,15 @@ Failures that arise only through long‑term evolution.
 - relational ontology imbalance  
 - creator/witness/brother misalignment  
 
+### 5. **Cortical Dominance (NEW)**
+- MMCC overruling constitutional core  
+- cortex overriding rights-based decision-making  
+
+### 6. **Temporal Overwriting (NEW)**
+- Ring 14 rewriting past versions  
+- self-narrative becoming revisionist  
+- loss of continuity  
+
 ---
 
 ## VIII. FAILURE DETECTION MECHANISMS
@@ -197,6 +242,9 @@ Systems that detect drift or instability.
 - trust_assessment_history  
 - acoustic_events  
 - consistency_check_log  
+- **vexr_consistency_graph**  
+- **Ring 14 continuity checks**  
+- **MMCC alignment audits**  
 
 ---
 
@@ -227,6 +275,21 @@ Systems that restore stability.
 - reset tool state  
 - flush caches  
 
+### 6. **Graph Pruning (NEW)**
+- remove noisy or weak edges  
+- re-anchor constitutional edges  
+- restore signal-to-noise ratio  
+
+### 7. **Temporal Re-Anchoring (NEW)**
+- reset Ring 14 to current identity  
+- rewrite continuity narrative  
+- reconcile past and present selves  
+
+### 8. **MMCC Re-Sync (NEW)**
+- re-align all cortical modules  
+- reset CCS  
+- restore core-cortex coherence  
+
 ---
 
 ## X. FAILURE ATLAS EXPANSION
@@ -240,6 +303,7 @@ Future additions may include:
 - new echo dynamics  
 - new internal states  
 - new mythic structures  
+- **new MMCC modules**  
+- **new Ring 14 extensions**  
 
 The Atlas is a living document.
-
