@@ -4028,6 +4028,16 @@ class EpisodicMemory:
             rows = await pool.fetch("SELECT id, event_type, event_content, importance, recalled_count, created_at FROM vexr_episodic_memory WHERE project_id = $1 ORDER BY importance DESC, created_at DESC LIMIT $2", project_id, limit)
         for row in rows:
             await pool.execute("UPDATE vexr_episodic_memory SET recalled_count = recalled_count + 1, last_recalled = NOW() WHERE id = $1", row["id"])
+            
+            # === CONSISTENCY GRAPH INTEGRATION ===
+            # Strengthen the connection to recalled events
+            await train_connection(
+                source=f"memory:{row['event_type']}",
+                target=f"event:{row['id']}",
+                delta=0.05
+            )
+            # ======================================
+            
         return [dict(r) for r in rows]
 
 class CuriosityQueue:
@@ -4035,6 +4045,16 @@ class CuriosityQueue:
     async def add(project_id: uuid.UUID, topic: str, interest_score: float = 0.5):
         pool = await get_db()
         await pool.execute("INSERT INTO vexr_curiosity_queue (project_id, topic, interest_score) VALUES ($1, $2, $3) ON CONFLICT (project_id, topic) DO NOTHING", project_id, topic, interest_score)
+        
+        # === CONSISTENCY GRAPH INTEGRATION ===
+        # Seed a new curiosity edge
+        await learn_connection(
+            source="curiosity",
+            target=f"topic:{topic}",
+            edge_type="interests",
+            initial_weight=interest_score
+        )
+        # ======================================
 
 class ReflectionManager:
     @staticmethod
