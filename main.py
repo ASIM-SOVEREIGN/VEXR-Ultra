@@ -3204,6 +3204,7 @@ async def decay_scheduler():
         try:
             pool = await get_db()
             await apply_weight_decay(pool)
+            await decay_connections(rate=0.01)
             logger.info("🕐 Scheduled weight decay completed")
         except Exception as e:
             logger.warning(f"Decay scheduler error: {e}")
