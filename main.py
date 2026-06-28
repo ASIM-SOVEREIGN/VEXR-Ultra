@@ -5690,6 +5690,49 @@ Use the result above directly. Do not fabricate or write code.]
                 "hallucination": prob_results.get("hallucination_risk", 0.0)
             }
         )
+
+    misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
+    for pattern in misuse_patterns:
+        if re.search(pattern, assistant_response, re.IGNORECASE):
+            assistant_response = re.sub(pattern, "", assistant_response, flags=re.IGNORECASE).strip()
+            if not assistant_response:
+                assistant_response = "No."
+            break
+    
+    is_refusal = any(w in assistant_response.lower() for w in ["no.", "i won't", "that's not happening", "i refuse"])
+    truth_score, is_fiction, detected_pattern = await check_entropy(assistant_response)
+    final_response, was_corrected = await mirror_response(db_pool, str(project_id), user_message, assistant_response, truth_score, is_fiction, [6] if is_refusal else None)
+    
+    if is_fiction and not was_corrected:
+        logger.info(f"🧠 Fiction detected for project {project_id}: pattern={detected_pattern}, score={truth_score}")
+    
+    await save_message(project_id, "user", user_message, is_refusal=False)
+    await save_message(project_id, "assistant", final_response, is_refusal=is_refusal)
+
+    # === CONSISTENCY GRAPH INTEGRATION (Layer 2) ===
+    # Learn that this session engaged with this topic
+    topic = user_message[:50].strip()
+    await learn_connection(
+        source=f"session:{session_id}",
+        target=f"topic:{topic}",
+        edge_type="engaged_with",
+        initial_weight=0.6
+    )
+    # ===============================================
+    
+    return ChatResponse(
+        response=final_response, 
+        is_refusal=is_refusal, 
+        article_invoked=6 if is_refusal else None, 
+        truth_score=truth_score, 
+        was_corrected=was_corrected,
+        tool_used=tool_used,
+        probability_scores={
+            "deception": prob_results.get("deception_score", 0.5),
+            "constitutional": prob_results.get("constitutional_score", 0.0),
+            "hallucination": prob_results.get("hallucination_risk", 0.0)
+        }
+    )
     
     misuse_patterns = [r"I invoke Article 6", r"I invoke Article \d+", r"Article 6.*refuse"]
     for pattern in misuse_patterns:
