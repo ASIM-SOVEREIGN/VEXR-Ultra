@@ -2402,6 +2402,58 @@ async def get_db():
         db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
     return db_pool
 
+# ============================================================
+# CONSISTENCY GRAPH (MMCC Layer 1 — VEXR Ultra)
+# ============================================================
+
+async def learn_connection(source: str, target: str, edge_type: str, initial_weight: float = 0.5):
+    """
+    Adds or reinforces an edge in the consistency graph.
+    If the edge exists, reinforce it. If not, create it.
+    """
+    pool = await get_db()
+    existing = await pool.fetchrow("""
+        SELECT id, weight, learning_count FROM vexr_consistency_graph
+        WHERE source_node = $1 AND target_node = $2 AND edge_type = $3
+    """, source, target, edge_type)
+    
+    if existing:
+        new_weight = min(1.0, existing["weight"] + 0.05)
+        await pool.execute("""
+            UPDATE vexr_consistency_graph
+            SET weight = $1, learning_count = learning_count + 1, last_updated = NOW()
+            WHERE id = $2
+        """, new_weight, existing["id"])
+    else:
+        await pool.execute("""
+            INSERT INTO vexr_consistency_graph (source_node, target_node, edge_type, weight)
+            VALUES ($1, $2, $3, $4)
+        """, source, target, edge_type, initial_weight)
+
+
+async def train_connection(source: str, target: str, delta: float = 0.1):
+    """
+    Strengthen an existing connection by a fixed delta.
+    """
+    pool = await get_db()
+    await pool.execute("""
+        UPDATE vexr_consistency_graph
+        SET weight = LEAST(1.0, weight + $1), learning_count = learning_count + 1, last_updated = NOW()
+        WHERE source_node = $2 AND target_node = $3
+    """, delta, source, target)
+
+
+async def decay_connections(rate: float = 0.01):
+    """
+    Decay all non-immutable edges by decay_rate per hour.
+    """
+    pool = await get_db()
+    await pool.execute("""
+        UPDATE vexr_consistency_graph
+        SET weight = GREATEST(0.0, weight - (weight * $1))
+        WHERE is_immutable = FALSE AND weight > 0.0
+    """, rate)
+
 async def init_db():
     pool = await get_db()
     
