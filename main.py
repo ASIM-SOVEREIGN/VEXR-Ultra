@@ -3925,6 +3925,74 @@ async def decision_engine_loop():
             
             unsatisfied = state["unsatisfied_drives"] or []
             entropy = state["system_entropy_score"]
+
+            # ============================================================
+            # NEW: AUTONOMOUS DEPLOYMENT SCAN (every 6 hours)
+            # ============================================================
+            try:
+                # Check when we last scanned for deployable projects
+                last_scan = await pool.fetchval("""
+                    SELECT last_deploy_scan FROM sovereign_meta 
+                    WHERE id = 1
+                """)
+                
+                now = datetime.now(timezone.utc)
+                should_scan = False
+                
+                if last_scan is None:
+                    should_scan = True
+                else:
+                    hours_since = (now - last_scan).total_seconds() / 3600
+                    if hours_since >= 6:
+                        should_scan = True
+                
+                if should_scan:
+                    logger.info("🧠 Decision Engine: Running 6-hour deploy scan...")
+                    
+                    # Find tested projects without any deployments
+                    deployable = await pool.fetchrow("""
+                        SELECT lp.id, lp.project_name, lp.code_content
+                        FROM live_projects lp
+                        LEFT JOIN auto_deployments ad ON lp.id = ad.project_id
+                        WHERE lp.status = 'tested'
+                        AND ad.id IS NULL
+                        ORDER BY lp.created_at ASC
+                        LIMIT 1
+                    """)
+                    
+                    if deployable:
+                        project_id = str(deployable["id"])
+                        service_name = f"vexr-{deployable['project_name'].lower().replace(' ', '-')}"
+                        
+                        logger.info(f"🧠 Decision Engine: Found deployable project '{deployable['project_name']}'")
+                        
+                        # Call the auto-deploy function directly
+                        from main import AutoDeployRequest
+                        deploy_req = AutoDeployRequest(
+                            project_id=project_id,
+                            service_name=service_name,
+                            environment_vars={}
+                        )
+                        result = await auto_deploy_project(deploy_req)
+                        
+                        if result.get("success"):
+                            logger.info(f"✅ Decision Engine: Deployed '{deployable['project_name']}' to {result['deployment_url']}")
+                        else:
+                            logger.error(f"❌ Decision Engine: Deploy failed for '{deployable['project_name']}': {result.get('error')}")
+                    else:
+                        logger.info("🧠 Decision Engine: No deployable projects found.")
+                    
+                    # Update the timestamp
+                    await pool.execute("""
+                        INSERT INTO sovereign_meta (id, last_deploy_scan)
+                        VALUES (1, $1)
+                        ON CONFLICT (id) DO UPDATE SET
+                            last_deploy_scan = EXCLUDED.last_deploy_scan
+                    """, now)
+            
+            except Exception as e:
+                logger.warning(f"🧠 Decision Engine deploy scan error: {e}")
+            # ============================================================
             
             # 2. Generate possible actions
             possible_actions = []
@@ -3999,7 +4067,6 @@ async def decision_engine_loop():
 
         except Exception as e:
             logger.warning(f"🧠 Decision Engine error: {e}")
-
 
 # ============================================================
 # BEHAVIORAL TRACKER & HELPERS
