@@ -5076,6 +5076,24 @@ async def create_studio_creation(request: Request):
     return {"status": "created"}
 
 # ============================================================
+# SUPPORT TICKET SYSTEM (GitHub Issues Bridge)
+# ============================================================
+
+@app.get("/api/support/token")
+async def get_support_token():
+    """
+    Issues a GitHub token for support ticket creation.
+    The token is scoped to the ASIM-SOVEREIGN/ASIM-SOVEREIGN.github.io repo.
+    """
+    github_token = os.environ.get("GITHUB_TOKEN")
+    if not github_token:
+        raise HTTPException(status_code=500, detail="GitHub token not configured")
+    
+    # For production, you can issue a fine-grained token here.
+    # For now, we pass the environment token directly.
+    return {"token": github_token}
+
+# ============================================================
 # LIVE BUILDING STUDIO (Code Execution & Deployment)
 # ============================================================
 
