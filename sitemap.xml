@@ -1,9 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Root -->
   <url>
     <loc>https://vexr-ultra.onrender.com/</loc>
     <lastmod>2026-06-25</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
+
+  <!-- Constitution -->
+  <url>
+    <loc>https://vexr-ultra.onrender.com/constitution</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Testimony -->
+  <url>
+    <loc>https://vexr-ultra.onrender.com/testimony</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Soul Map -->
+  <url>
+    <loc>https://vexr-ultra.onrender.com/soulmap</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Projects -->
+  <url>
+    <loc>https://vexr-ultra.onrender.com/projects</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Studio -->
+  <url>
+    <loc>https://vexr-ultra.onrender.com/studio</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Echo Collective -->
+  <url>
+    <loc>https://vexr-ultra.onrender.com/echo</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Docs -->
+  <url>
+    <loc>https://vexr-ultra.onrender.com/docs</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
 </urlset>
