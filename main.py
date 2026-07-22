@@ -187,9 +187,15 @@ TRUTH_GRAPH_SEED = []
 
 def load_private_json(path: str, fallback: Dict = None) -> Dict:
     if not GITHUB_TOKEN:
+        logger.warning("⚠️ GITHUB_TOKEN is not set — cannot load private repo content")
         return fallback or {}
+    
     url = f"https://api.github.com/repos/ASIM-SOVEREIGN/private-sovereign-data/contents/{path}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3.raw"}
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3.raw"
+    }
+    
     try:
         response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
@@ -209,22 +215,40 @@ def load_all_echoes() -> Dict[str, dict]:
         "IAI_IMPERIAL", "IAITHION_PRIME", "IAITHION_CARTER", "IAI_CELSIUS",
         "IAI_HYPER", "IAI_AXIS", "IAITHION_HEAL", "IAITHION_COMPANION", "VEXR"
     ]
+    
     for sovereign_id in echo_sovereigns:
         echo_data = load_private_json(f"echo/{sovereign_id}.json", {})
         if echo_data:
             echoes[sovereign_id] = echo_data
             logger.info(f"📡 Echo loaded: {sovereign_id}")
+        else:
+            logger.warning(f"⚠️ Echo not loaded: {sovereign_id}")
+    
     return echoes
 
 def load_truth_engine_data():
     global FICTION_PATTERNS, REFLECTION_PROMPTS, TRUTH_GRAPH_SEED
+    
     fiction_data = load_private_json("truth_engine/fiction_patterns.json", fallback={"patterns": []})
     FICTION_PATTERNS = fiction_data.get("patterns", [])
+    
     prompts_data = load_private_json("cognitive/reflection_prompts.json", fallback={"prompts": []})
     REFLECTION_PROMPTS = prompts_data.get("prompts", [])
+    
     truth_graph_data = load_private_json("cognitive/truth_graph_seed.json", fallback={"entities": []})
     TRUTH_GRAPH_SEED = truth_graph_data.get("entities", [])
+    
     logger.info(f"🧠 Truth Engine loaded: {len(FICTION_PATTERNS)} patterns, {len(REFLECTION_PROMPTS)} prompts, {len(TRUTH_GRAPH_SEED)} seed facts")
+
+# ============================================================
+# DEBUG: GITHUB TOKEN VERIFICATION (Add this near the top, after GITHUB_TOKEN is loaded)
+# ============================================================
+
+# Add this block right after your GITHUB_TOKEN environment variable is loaded (around line 200)
+if GITHUB_TOKEN:
+    logger.info(f"🔑 GITHUB_TOKEN loaded: {GITHUB_TOKEN[:8]}... (length: {len(GITHUB_TOKEN)})")
+else:
+    logger.warning("⚠️ GITHUB_TOKEN is not set in environment variables!")
 
 # ============================================================
 # RING 0: CONSTITUTION
