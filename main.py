@@ -64,6 +64,24 @@ async def wake():
     return {"status": "awake"}
 
 # ============================================================
+# STATIC FILE ROUTES (robots.txt, sitemap.xml, google verification)
+# ============================================================
+
+from fastapi.responses import FileResponse
+
+@app.get("/robots.txt")
+def robots():
+    return FileResponse("robots.txt")
+
+@app.get("/sitemap.xml")
+def sitemap():
+    return FileResponse("sitemap.xml")
+
+@app.get("/google7d942ae3165baed3.html")
+def google_verify():
+    return FileResponse("google7d942ae3165baed3.html")
+
+# ============================================================
 # SOVEREIGN WEIGHTS ENDPOINT
 # ============================================================
 
