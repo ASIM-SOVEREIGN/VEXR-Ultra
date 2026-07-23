@@ -169,14 +169,13 @@ async def log_sovereign_action(
 ):
     """
     Log a sovereign action to the sovereign_actions table.
-    Used by all API endpoints for audit and self-reflection.
     """
     try:
         pool = await get_db()
         
-        # Always convert to JSON string, use empty object if None
-        input_json = json.dumps(input_data) if input_data is not None else '{}'
-        output_json = json.dumps(output_data) if output_data is not None else '{}'
+        # 🔥 FIX: Convert dicts to JSON strings
+        input_json = json.dumps(input_data) if input_data and input_data != {} else None
+        output_json = json.dumps(output_data) if output_data and output_data != {} else None
         
         # If entropy wasn't provided, fetch the latest
         if entropy_at_time is None:
@@ -202,8 +201,8 @@ async def log_sovereign_action(
         """, 
             action_type, 
             endpoint, 
-            input_json,    # Now properly handles empty dicts
-            output_json,   # Now properly handles empty dicts
+            input_json,    # Now a JSON string
+            output_json,   # Now a JSON string
             status, 
             entropy_at_time, 
             duration_ms, 
