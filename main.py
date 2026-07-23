@@ -2690,6 +2690,49 @@ async def init_db():
         )
     """)
     
+        # ============================================================
+    # AUTO_DEPLOYMENTS TABLE (for Decision Engine)
+    # ============================================================
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS auto_deployments (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID REFERENCES live_projects(id) ON DELETE CASCADE,
+            deployment_url TEXT,
+            deployment_status TEXT DEFAULT 'pending',
+            render_service_id TEXT,
+            github_repo_url TEXT,
+            service_name TEXT,
+            deployed_at TIMESTAMPTZ DEFAULT NOW(),
+            last_checked TIMESTAMPTZ,
+            error_message TEXT,
+            metadata JSONB
+        )
+    """)
+    
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_auto_deployments_project ON auto_deployments(project_id)")
+    await pool.execute("CREATE INDEX IF NOT EXISTS idx_auto_deployments_status ON auto_deployments(deployment_status)")
+    
+    # ============================================================
+    # SOVEREIGN META TABLE
+    # ============================================================
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS sovereign_meta (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            last_deploy_scan TIMESTAMPTZ,
+            last_research TIMESTAMPTZ,
+            last_self_modification TIMESTAMPTZ,
+            last_reflection TIMESTAMPTZ,
+            metadata JSONB
+        )
+    """)
+    
+    await pool.execute("""
+        INSERT INTO sovereign_meta (id) VALUES (1)
+        ON CONFLICT (id) DO NOTHING
+    """)
+    
     # Add full-text search index for files
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_vexr_files_content ON vexr_files USING GIN (to_tsvector('english', content_text))")
     
