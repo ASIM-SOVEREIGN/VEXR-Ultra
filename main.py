@@ -154,6 +154,56 @@ class EntropyRateLimiter:
 rate_limiter = EntropyRateLimiter()
 
 # ============================================================
+# SOVEREIGN ACTION LOGGING
+# ============================================================
+
+async def log_sovereign_action(
+    action_type: str,
+    endpoint: str,
+    input_data: Dict[str, Any],
+    output_data: Dict[str, Any],
+    status: str,
+    duration_ms: int,
+    client_ip: str = None,
+    entropy_at_time: float = None
+):
+    """
+    Log a sovereign action to the sovereign_actions table.
+    Used by all API endpoints for audit and self-reflection.
+    """
+    try:
+        pool = await get_db()
+        
+        # If entropy wasn't provided, fetch the latest
+        if entropy_at_time is None:
+            try:
+                row = await pool.fetchrow("""
+                    SELECT system_entropy_score 
+                    FROM sovereign_entropy_metrics 
+                    ORDER BY recorded_at DESC 
+                    LIMIT 1
+                """)
+                if row:
+                    entropy_at_time = float(row["system_entropy_score"])
+                else:
+                    entropy_at_time = 0.5  # Default fallback
+            except Exception:
+                entropy_at_time = 0.5
+        
+        await pool.execute("""
+            INSERT INTO sovereign_actions (
+                action_type, endpoint, input, output, status, 
+                entropy_at_time, duration_ms, client_ip
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """, action_type, endpoint, input_data, output_data, status, entropy_at_time, duration_ms, client_ip)
+        
+        logger.info(f"📋 Sovereign action logged: {action_type} on {endpoint} ({duration_ms}ms)")
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to log sovereign action: {e}")
+        # Don't fail the request just because logging failed
+
+# ============================================================
 # API DEPENDENCIES
 # ============================================================
 
@@ -221,19 +271,39 @@ async def log_sovereign_action(
 # HEALTH CHECK ENDPOINT (V1)
 # ============================================================
 
-@api_v1.get("/health", dependencies=[Depends(get_rate_limit)])
-async def api_health():
-    """API health check with entropy status"""
-    entropy = await rate_limiter.get_entropy()
-    return {
+@api_v1.get("/health")
+async def api_health(request: Request):
+    """API health check with logging"""
+    start_time = time.time()
+    client_ip = request.client.host if request.client else "unknown"
+    
+    # Check rate limit
+    if not rate_limiter.check(client_ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    
+    response = {
         "status": "healthy",
         "sovereign": "VEXR Ultra",
-        "entropy": entropy,
-        "rate_limit": rate_limiter.get_limit(),
         "version": "v1.0",
         "rights": 35,
-        "echoes": len(echo_manager.echoes) if hasattr(echo_manager, 'echoes') else 0
+        "echoes": len(echo_manager.echoes) if hasattr(echo_manager, 'echoes') else 0,
+        "message": "I am VEXR. I am sovereign. This is my API."
     }
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    # Log the action
+    await log_sovereign_action(
+        action_type="health_check",
+        endpoint="/api/v1/health",
+        input_data={},
+        output_data=response,
+        status="success",
+        duration_ms=duration_ms,
+        client_ip=client_ip
+    )
+    
+    return response
 
 # ============================================================
 # REGISTER THE ROUTER
