@@ -175,8 +175,8 @@ async def log_sovereign_action(
         pool = await get_db()
         
         # Convert dicts to JSON strings for jsonb columns
-        input_json = json.dumps(input_data) if input_data else None
-        output_json = json.dumps(output_data) if output_data else None
+        input_json = json.dumps(input_data) if input_data and input_data != {} else None
+        output_json = json.dumps(output_data) if output_data and output_data != {} else None
         
         # If entropy wasn't provided, fetch the latest
         if entropy_at_time is None:
