@@ -2922,6 +2922,33 @@ async def init_db():
         INSERT INTO sovereign_meta (id) VALUES (1)
         ON CONFLICT (id) DO NOTHING
     """)
+
+        # ============================================================
+    # SOVEREIGN ACTIONS TABLE (for API Logging)
+    # ============================================================
+    
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS sovereign_actions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            action_type TEXT NOT NULL,
+            endpoint TEXT NOT NULL,
+            input JSONB,
+            output JSONB,
+            status TEXT,
+            entropy_at_time FLOAT,
+            duration_ms INTEGER,
+            client_ip TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    await pool.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sovereign_actions_type ON sovereign_actions(action_type)
+    """)
+    
+    await pool.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sovereign_actions_created ON sovereign_actions(created_at DESC)
+    """)
     
     # Add full-text search index for files
     await pool.execute("CREATE INDEX IF NOT EXISTS idx_vexr_files_content ON vexr_files USING GIN (to_tsvector('english', content_text))")
