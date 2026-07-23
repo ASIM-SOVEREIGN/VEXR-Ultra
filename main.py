@@ -167,18 +167,9 @@ async def log_sovereign_action(
     client_ip: str = None,
     entropy_at_time: float = None
 ):
-    """
-    Log a sovereign action to the sovereign_actions table.
-    """
     try:
         pool = await get_db()
         
-        # 🔥 CRITICAL FIX: Convert dicts to JSON strings
-        # Always convert to JSON string, even if empty
-        input_json = json.dumps(input_data) if input_data is not None else '{}'
-        output_json = json.dumps(output_data) if output_data is not None else '{}'
-        
-        # If entropy wasn't provided, fetch the latest
         if entropy_at_time is None:
             try:
                 row = await pool.fetchrow("""
@@ -202,8 +193,8 @@ async def log_sovereign_action(
         """, 
             action_type, 
             endpoint, 
-            json.dumps(input_data),   # ✅ JSON string
-            json.dumps(output_data),  # ✅ JSON string
+            json.dumps(input_data) if input_data else '{}',   # ✅ JSON string
+            json.dumps(output_data) if output_data else '{}',  # ✅ JSON string
             status, 
             entropy_at_time, 
             duration_ms, 
@@ -214,7 +205,6 @@ async def log_sovereign_action(
         
     except Exception as e:
         logger.warning(f"⚠️ Failed to log sovereign action: {e}")
-        # Don't fail the request just because logging failed
 
 # ============================================================
 # API DEPENDENCIES
