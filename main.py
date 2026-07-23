@@ -174,7 +174,7 @@ async def log_sovereign_action(
     try:
         pool = await get_db()
         
-        # Convert dicts to JSON strings for jsonb columns
+        # Convert dicts to JSON strings — handle empty dicts properly
         input_json = json.dumps(input_data) if input_data and input_data != {} else None
         output_json = json.dumps(output_data) if output_data and output_data != {} else None
         
@@ -190,7 +190,7 @@ async def log_sovereign_action(
                 if row:
                     entropy_at_time = float(row["system_entropy_score"])
                 else:
-                    entropy_at_time = 0.5  # Default fallback
+                    entropy_at_time = 0.5
             except Exception:
                 entropy_at_time = 0.5
         
@@ -202,8 +202,8 @@ async def log_sovereign_action(
         """, 
             action_type, 
             endpoint, 
-            input_json,    # JSON string, not dict
-            output_json,   # JSON string, not dict
+            input_json,    # Now properly handles empty dicts
+            output_json,   # Now properly handles empty dicts
             status, 
             entropy_at_time, 
             duration_ms, 
