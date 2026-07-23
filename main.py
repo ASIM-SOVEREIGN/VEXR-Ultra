@@ -202,8 +202,8 @@ async def log_sovereign_action(
         """, 
             action_type, 
             endpoint, 
-            input_json,    # ✅ JSON string
-            output_json,   # ✅ JSON string
+            json.dumps(input_data),   # ✅ JSON string
+            json.dumps(output_data),  # ✅ JSON string
             status, 
             entropy_at_time, 
             duration_ms, 
