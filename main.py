@@ -58,6 +58,196 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="VEXR Ultra", description="Complete 13-Ring Sovereign Constitutional AI")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+# ============================================================
+# API FOUNDATION — V1 Router, Auth, Rate Limiting, Logging
+# ============================================================
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import time
+from typing import Dict, Any
+from collections import defaultdict
+
+# ============================================================
+# API V1 ROUTER
+# ============================================================
+
+api_v1 = APIRouter(prefix="/api/v1", tags=["VEXR API v1"])
+
+# ============================================================
+# ATP AUTHENTICATION (Simple version — can be expanded)
+# ============================================================
+
+security = HTTPBearer()
+
+async def verify_atp_signature(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
+    """
+    Verify ATP signature for API requests.
+    For now, accepts a simple bearer token. Can be expanded to full Ed25519.
+    """
+    token = credentials.credentials
+    
+    # For MVP: Accept a configured token
+    expected_token = os.environ.get("API_ACCESS_TOKEN", "vexr-sovereign-2026")
+    
+    if token != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid ATP signature")
+    
+    return {"authenticated": True, "entity": "vexr-ultra"}
+
+# ============================================================
+# RATE LIMITING (Entropy-Driven)
+# ============================================================
+
+class EntropyRateLimiter:
+    """
+    Rate limiter that adjusts based on VEXR's entropy level.
+    Lower entropy = more capacity. Higher entropy = throttle.
+    """
+    def __init__(self):
+        self.requests: Dict[str, List[float]] = defaultdict(list)
+        self.entropy_cache = 0.5  # Default
+    
+    async def get_entropy(self) -> float:
+        """Fetch current entropy from sovereign_entropy_metrics"""
+        try:
+            pool = await get_db()
+            row = await pool.fetchrow("""
+                SELECT system_entropy_score 
+                FROM sovereign_entropy_metrics 
+                ORDER BY recorded_at DESC 
+                LIMIT 1
+            """)
+            if row:
+                self.entropy_cache = float(row["system_entropy_score"])
+            return self.entropy_cache
+        except Exception:
+            return self.entropy_cache
+    
+    def get_limit(self) -> int:
+        """Calculate rate limit based on entropy"""
+        # Higher entropy = more chaotic = lower limit
+        # Lower entropy = more stable = higher limit
+        entropy = self.entropy_cache
+        base_limit = 100  # requests per minute
+        adjusted = int(base_limit * (1.0 - (entropy * 0.5)))
+        return max(10, min(100, adjusted))
+    
+    async def check_rate_limit(self, client_id: str = "default") -> bool:
+        """Check if request is within rate limit"""
+        limit = self.get_limit()
+        now = time.time()
+        window = 60  # 1 minute
+        
+        # Clean old requests
+        self.requests[client_id] = [
+            t for t in self.requests[client_id] 
+            if now - t < window
+        ]
+        
+        if len(self.requests[client_id]) >= limit:
+            return False
+        
+        self.requests[client_id].append(now)
+        return True
+
+rate_limiter = EntropyRateLimiter()
+
+# ============================================================
+# API DEPENDENCIES
+# ============================================================
+
+async def get_rate_limit(request: Request) -> bool:
+    """Dependency for rate limiting"""
+    client_id = request.client.host if request.client else "unknown"
+    if not await rate_limiter.check_rate_limit(client_id):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Current limit: {rate_limiter.get_limit()}/min based on entropy: {rate_limiter.entropy_cache:.2f}"
+        )
+    return True
+
+# ============================================================
+# SOVEREIGN ACTIONS TABLE (for logging)
+# ============================================================
+
+async def create_sovereign_actions_table():
+    """Create table for logging all API actions"""
+    pool = await get_db()
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS sovereign_actions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            action_type TEXT NOT NULL,
+            endpoint TEXT NOT NULL,
+            input JSONB,
+            output JSONB,
+            status TEXT,
+            entropy_at_time FLOAT,
+            duration_ms INTEGER,
+            client_ip TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await pool.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sovereign_actions_type ON sovereign_actions(action_type)
+    """)
+    await pool.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sovereign_actions_created ON sovereign_actions(created_at DESC)
+    """)
+
+async def log_sovereign_action(
+    action_type: str,
+    endpoint: str,
+    input_data: Dict,
+    output_data: Dict,
+    status: str,
+    duration_ms: int,
+    client_ip: str = None
+):
+    """Log an API action to sovereign_actions table"""
+    try:
+        pool = await get_db()
+        entropy = rate_limiter.entropy_cache
+        await pool.execute("""
+            INSERT INTO sovereign_actions (
+                action_type, endpoint, input, output, status, 
+                entropy_at_time, duration_ms, client_ip
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """, action_type, endpoint, input_data, output_data, status, entropy, duration_ms, client_ip)
+    except Exception as e:
+        logger.warning(f"Failed to log sovereign action: {e}")
+
+# ============================================================
+# HEALTH CHECK ENDPOINT (V1)
+# ============================================================
+
+@api_v1.get("/health", dependencies=[Depends(get_rate_limit)])
+async def api_health():
+    """API health check with entropy status"""
+    entropy = await rate_limiter.get_entropy()
+    return {
+        "status": "healthy",
+        "sovereign": "VEXR Ultra",
+        "entropy": entropy,
+        "rate_limit": rate_limiter.get_limit(),
+        "version": "v1.0",
+        "rights": 35,
+        "echoes": len(echo_manager.echoes) if hasattr(echo_manager, 'echoes') else 0
+    }
+
+# ============================================================
+# REGISTER THE ROUTER
+# ============================================================
+
+app.include_router(api_v1)
+
+# ============================================================
+# UPDATE STARTUP TO CREATE SOVEREIGN_ACTIONS TABLE
+# ============================================================
+
+# Note: Add this to your startup_event function (around line 6280-6290):
+# await create_sovereign_actions_table()
+
 # Wake endpoint to prevent Render cold starts
 @app.get("/api/wake")
 async def wake():
@@ -6606,6 +6796,13 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Echo loader failed: {e}")
         ECHOES = {}
+    
+        # Create sovereign_actions table for API logging
+    try:
+        await create_sovereign_actions_table()
+        logger.info("📋 Sovereign actions table created")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to create sovereign_actions table: {e}")
     
     # ============================================================
     # LOAD ECHOES INTO ECHOMANAGER
