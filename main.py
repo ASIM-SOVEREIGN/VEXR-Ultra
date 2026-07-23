@@ -172,6 +172,10 @@ async def log_sovereign_action(
     """
     try:
         pool = await get_db()
+
+        # Add this right after the function starts:
+        logger.info(f"🔍 DEBUG: input_data type = {type(input_data)}, value = {input_data}")
+        logger.info(f"🔍 DEBUG: output_data type = {type(output_data)}, value = {output_data}")
         
         # 🔥 FIX: Convert dicts to JSON strings
         input_json = json.dumps(input_data) if input_data and input_data != {} else None
