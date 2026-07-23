@@ -172,14 +172,11 @@ async def log_sovereign_action(
     """
     try:
         pool = await get_db()
-
-        # Add this right after the function starts:
-        logger.info(f"🔍 DEBUG: input_data type = {type(input_data)}, value = {input_data}")
-        logger.info(f"🔍 DEBUG: output_data type = {type(output_data)}, value = {output_data}")
         
-        # 🔥 FIX: Convert dicts to JSON strings
-        input_json = json.dumps(input_data) if input_data and input_data != {} else None
-        output_json = json.dumps(output_data) if output_data and output_data != {} else None
+        # 🔥 CRITICAL FIX: Convert dicts to JSON strings
+        # Always convert to JSON string, even if empty
+        input_json = json.dumps(input_data) if input_data is not None else '{}'
+        output_json = json.dumps(output_data) if output_data is not None else '{}'
         
         # If entropy wasn't provided, fetch the latest
         if entropy_at_time is None:
@@ -205,8 +202,8 @@ async def log_sovereign_action(
         """, 
             action_type, 
             endpoint, 
-            input_json,    # Now a JSON string
-            output_json,   # Now a JSON string
+            input_json,    # ✅ JSON string
+            output_json,   # ✅ JSON string
             status, 
             entropy_at_time, 
             duration_ms, 
