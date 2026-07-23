@@ -278,7 +278,7 @@ async def api_health(request: Request):
     client_ip = request.client.host if request.client else "unknown"
     
     # Check rate limit
-    if not rate_limiter.check(client_ip):
+    if not await rate_limiter.check_rate_limit(client_ip):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     
     response = {
