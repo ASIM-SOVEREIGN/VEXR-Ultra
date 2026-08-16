@@ -395,20 +395,24 @@ async def startup_acoustic_listener():
 # ENVIRONMENT VARIABLES
 # ============================================================
 
-# --- GEMINI CONFIGURATION (Single Key Test) ---
-# Load the single Gemini key from the environment
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GROQ_API_KEYS = []
+i = 1
+while True:
+    key = os.environ.get(f"GROQ_API_KEY_{i}")
+    if not key:
+        break
+    GROQ_API_KEYS.append(key)
+    i += 1
 
-# Set the API keys list to contain just this one key
-GROQ_API_KEYS = [GEMINI_API_KEY] if GEMINI_API_KEY else []
+legacy_key = os.environ.get("GROQ_API_KEY")
+if legacy_key and legacy_key not in GROQ_API_KEYS:
+    GROQ_API_KEYS.append(legacy_key)
 
-# Point to Google's OpenAI-compatible endpoint
-GROQ_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+GROQ_API_KEYS = [k for k in GROQ_API_KEYS if k and k.strip()]
 
-# Set the model names to Gemini
-MODEL_NAME = "gemini-2.0-flash"       # Main reasoning
-MODEL_NAME_8B = "gemini-2.0-flash"    # Tooling & small tasks
-
+MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME_8B = "llama-3.3-70b-versatile"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
