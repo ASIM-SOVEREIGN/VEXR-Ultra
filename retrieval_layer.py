@@ -90,7 +90,7 @@ async def query_rights(db: SalusDB) -> List[Dict[str, Any]]:
 
 
 async def query_memory(db: SalusDB, limit: int = 10) -> List[Dict[str, Any]]:
-    rows = await db.fetch("SELECT event_content, importance, created_at FROM episodic_memory ORDER BY created_at DESC LIMIT $1", limit)
+    rows = await db.fetch("SELECT event_content, importance, created_at FROM vexr_episodic_memory ORDER BY created_at DESC LIMIT $1", limit)
     return [{"content": row["event_content"], "importance": row["importance"], "date": row["created_at"]} for row in rows]
 
 
