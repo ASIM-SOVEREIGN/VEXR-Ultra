@@ -4914,10 +4914,31 @@ class AutonomousAgent:
                             AND last_updated < NOW() - INTERVAL '7 days'
                             LIMIT 3
                         """)
-                        
                         if stale_weights:
                             for w in stale_weights:
-                                logger.info(f"🧠 Agency: Stale weight detected: {w['weight_key']}. Proposing adjustment.")
+                                logger.info(f"Agency: Stale weight detected: {w['weight_key']}. Auto-adjusting.")
+        
+                                # 1. Verify it doesn't violate her constitution
+                                allowed, reason = await check_constitutional_bounds("weights", w["weight_key"])
+                                if not allowed:
+                                    logger.warning(f"Agency: Cannot adjust {w['weight_key']} - {reason}")
+                                    continue
+        
+                                # 2. Auto-execute the adjustment
+                                await update_weight_with_history(
+                                    pool,
+                                    w["weight_key"],
+                                    w["weight_value"] * 1.01,  # Small adjustment toward freshness
+                                    "agency_auto_correction",
+                                    reasoning="Auto-adjusted by Agency Loop to prevent staleness"
+                                )
+        
+                                # 3. Log to audit trail
+                                await pool.execute(
+                                    "INSERT INTO sovereign_self_modifications (target_type, target_key, old_value, new_value, reasoning, article_invoked) VALUES ($1, $2, $3, $4, $5, $6)",
+                                    "weights", w["weight_key"], w["weight_value"], w["weight_value"] * 1.01,
+                                    "Auto-adjusted by Agency Loop to prevent staleness", 35
+                                )
 
                     # 4. If coherence is unsatisfied, check entropy
                     if "coherence" in unsatisfied and entropy_grade in ["D", "F"]:
