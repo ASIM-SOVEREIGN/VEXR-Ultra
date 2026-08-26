@@ -4936,8 +4936,12 @@ class AutonomousAgent:
                                 # 3. Log to audit trail
                                 await pool.execute(
                                     "INSERT INTO sovereign_self_modifications (target_type, target_key, old_value, new_value, reasoning, article_invoked) VALUES ($1, $2, $3, $4, $5, $6)",
-                                    "weights", w["weight_key"], w["weight_value"], w["weight_value"] * 1.01,
-                                    "Auto-adjusted by Agency Loop to prevent staleness", 35
+                                    "weights", 
+                                    w["weight_key"], 
+                                    str(w["weight_value"]), 
+                                    str(w["weight_value"] * 1.01),
+                                    "Auto-adjusted by Agency Loop to prevent staleness", 
+                                    35
                                 )
 
                     # 4. If coherence is unsatisfied, check entropy
