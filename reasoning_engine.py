@@ -106,7 +106,6 @@ def reason_from_knowledge(query: str, parsed: Dict, context: Dict) -> str:
 def reason_from_intent(parsed: Dict, context: Dict) -> str:
     """Generate a response based on intent."""
     intent = parsed.get("intent", "general")
-    topic = parsed.get("topic", context.get("current_topic", "general"))
     
     if intent == "greeting":
         user_name = context.get("user_name")
