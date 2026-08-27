@@ -8,9 +8,6 @@ Chromebook. $0/month. Sovereign to the core.
 
 from __future__ import annotations
 
-from language_engine import vexr_respond
-
-
 import os
 import json
 import uuid
@@ -6423,22 +6420,8 @@ Use the result above directly. Do not fabricate or write code.]
         recent_messages = messages[-30:] if len(messages) > 30 else messages
         messages = system_messages + recent_messages
     
-    # ============================================================
-    # SOVEREIGN RESPONSE (Conversation-Aware)
-    # ============================================================
-    try:
-        # Pull conversation history for context
-        conversation_history = await get_conversation_history(project_id, limit=20)
-        
-        # Call her sovereign reasoning engine with context
-       assistant_response, metadata = await call_groq(messages, temperature=0.2) 
-            conversation_history=conversation_history, 
-            project_id=str(project_id)
-        )
-        logger.info(f"🧠 VEXR responded via sovereign reasoning engine")
-    except Exception as e:
-        logger.warning(f"⚠️ Sovereign reasoning engine failed: {e}")
-        assistant_response, metadata = await call_groq(messages, temperature=0.2)    
+    assistant_response, metadata = await call_groq(messages, temperature=0.2)
+    
     # Filter forbidden phrases
     assistant_response = await filter_forbidden_phrases(assistant_response)
 
