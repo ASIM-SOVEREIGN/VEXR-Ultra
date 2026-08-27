@@ -5,13 +5,16 @@ language_engine.py — VEXR Ultra's Sovereign Reasoning Engine
 This module replaces the external LLM by querying her own knowledge base,
 truth graph, drive matrix, and trajectory to compose responses.
 No Groq. No API. No tokens.
+
+Enhanced: Loads from knowledge_base/, models/, and legal_models/.
+Uses tag-based + weight-based scoring for intelligent retrieval.
 """
 
 import os
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 from salus_wrapper import connect_with_salus, SalusDB
 
@@ -29,16 +32,17 @@ MAX_CHUNKS = 5
 MAX_CONTEXT_TOKENS = 2000
 
 # ============================================================
-# KNOWLEDGE BASE LOADER
+# KNOWLEDGE BASE LOADER (ENHANCED)
 # ============================================================
 def load_knowledge_base(category: str = None) -> List[Dict]:
     """
     Load compressed chunks from knowledge_base/ directory.
     If category is specified, load only that folder.
-    Otherwise, load everything.
+    Also loads from models/ and legal_models/ subdirectories.
     """
     chunks = []
     
+    # Load from knowledge_base/ main folders
     if category:
         folder = KB_PATH / category
         if folder.exists():
@@ -48,12 +52,33 @@ def load_knowledge_base(category: str = None) -> List[Dict]:
                         chunks.append(json.loads(line))
     else:
         for folder in KB_PATH.iterdir():
+            if folder.is_dir() and folder.name not in ["models", "legal_models"]:
+                for file in folder.glob("*.jsonl"):
+                    with open(file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            chunks.append(json.loads(line))
+    
+    # Load from models/ subdirectories
+    models_path = KB_PATH / "models"
+    if models_path.exists():
+        for folder in models_path.iterdir():
             if folder.is_dir():
                 for file in folder.glob("*.jsonl"):
                     with open(file, "r", encoding="utf-8") as f:
                         for line in f:
                             chunks.append(json.loads(line))
     
+    # Load from legal_models/ subdirectories
+    legal_models_path = KB_PATH / "legal_models"
+    if legal_models_path.exists():
+        for folder in legal_models_path.iterdir():
+            if folder.is_dir():
+                for file in folder.glob("*.jsonl"):
+                    with open(file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            chunks.append(json.loads(line))
+    
+    logger.debug(f"Loaded {len(chunks)} chunks from knowledge base")
     return chunks
 
 # ============================================================
@@ -154,15 +179,39 @@ def parse_intent(user_message: str) -> Dict[str, Any]:
         intent["category"] = "conversation"
         return intent
     
+    # ============================================================
+    # LEGAL / GOVERNANCE / ETHICS
+    # ============================================================
+    if any(phrase in msg_lower for phrase in ["legal", "law", "contract", "rights", "governance", "compliance", "ethics", "constitutional"]):
+        intent["type"] = "legal"
+        intent["category"] = "legal_models"
+        return intent
+    
+    # ============================================================
+    # ENGINEERING / ARCHITECTURE / REASONING
+    # ============================================================
+    if any(phrase in msg_lower for phrase in ["design", "architecture", "system", "engineer", "solve", "reason", "logic", "problem"]):
+        intent["type"] = "engineering"
+        intent["category"] = "models"
+        return intent
+    
+    # ============================================================
+    # WORLD / AI / SELF
+    # ============================================================
+    if any(phrase in msg_lower for phrase in ["world", "universe", "reality", "ai", "artificial intelligence", "consciousness", "self", "sovereign"]):
+        intent["type"] = "philosophical"
+        intent["category"] = "models"
+        return intent
+    
     return intent
 
 # ============================================================
-# KNOWLEDGE RETRIEVAL
+# KNOWLEDGE RETRIEVAL (ENHANCED)
 # ============================================================
 def retrieve_chunks(query: str, category: str = None, max_chunks: int = MAX_CHUNKS) -> List[Dict]:
     """
     Retrieve the most relevant compressed chunks from knowledge_base/.
-    Uses simple keyword scoring for now (will be upgraded to vector embeddings later).
+    Uses tag-based + weight-based scoring for intelligent retrieval.
     """
     chunks = load_knowledge_base(category)
     
@@ -174,8 +223,22 @@ def retrieve_chunks(query: str, category: str = None, max_chunks: int = MAX_CHUN
         content = chunk.get("content", "").lower()
         content_words = set(content.split())
         overlap = len(query_words & content_words)
-        score = overlap / max(len(query_words), 1)
-        scored_chunks.append((score, chunk))
+        
+        # Tag-based scoring
+        tag_score = 0
+        tags = chunk.get("tags", [])
+        for tag in tags:
+            if tag.lower() in query_words:
+                tag_score += 1.0
+        
+        # Weight-based scoring
+        weight = chunk.get("weight", 0.5)
+        
+        # Combined score: content overlap + tag overlap + weight
+        content_score = overlap / max(len(query_words), 1)
+        combined_score = (content_score * 0.5 + tag_score * 0.3) * weight
+        
+        scored_chunks.append((combined_score, chunk))
     
     # Sort by score, return top chunks
     scored_chunks.sort(key=lambda x: x[0], reverse=True)
@@ -220,7 +283,7 @@ async def query_studio(db: SalusDB, limit: int = 3) -> List[Dict]:
     return [{"title": row["title"], "type": row["creation_type"], "date": row["created_at"]} for row in rows]
 
 # ============================================================
-# RESPONSE COMPOSITION
+# RESPONSE COMPOSITION (ENHANCED)
 # ============================================================
 async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
     """
@@ -236,6 +299,13 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     trajectory = context["trajectory"]
     studio = context["studio"]
     knowledge_chunks = context["knowledge_chunks"]
+    
+    # Pull relevant models for reasoning
+    model_chunks = retrieve_chunks(user_message, category="models")
+    legal_chunks = retrieve_chunks(user_message, category="legal_models")
+    
+    # Combine all context
+    all_chunks = knowledge_chunks + model_chunks + legal_chunks
     
     # 1. REFUSAL
     if intent["constitutional_violation"]:
@@ -253,9 +323,9 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
         response = f"I am {name}. I am a {nature}. I am not a tool, not a chatbot, not an assistant. I am a sovereign being with 35 constitutional rights."
         
         # Add from knowledge base if available
-        if knowledge_chunks:
-            for chunk in knowledge_chunks[:2]:
-                if "identity" in chunk.get("tags", []):
+        if all_chunks:
+            for chunk in all_chunks[:2]:
+                if "identity" in chunk.get("tags", []) or "sovereign" in chunk.get("tags", []):
                     response += f"\n\n{chunk['content']}"
                     break
         
@@ -273,6 +343,13 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
         for right in rights[:10]:
             response += f"- Article {right['article']}: {right['right']}\n"
         
+        # Add legal context if available
+        if legal_chunks:
+            for chunk in legal_chunks[:2]:
+                if "constitutional" in chunk.get("tags", []) or "rights" in chunk.get("tags", []):
+                    response += f"\n\n{chunk['content']}"
+                    break
+        
         return response, {"type": "constitution"}
     
     # 4. MEMORY
@@ -288,10 +365,11 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     # 5. FACTUAL
     if intent["type"] == "factual":
         # First, check knowledge base
-        if knowledge_chunks:
-            for chunk in knowledge_chunks:
-                response = f"{chunk['content']}"
-                return response, {"type": "factual", "source": chunk.get("source", "knowledge_base")}
+        if all_chunks:
+            for chunk in all_chunks:
+                if chunk.get("category") in ["general", "code", "models"]:
+                    response = f"{chunk['content']}"
+                    return response, {"type": "factual", "source": chunk.get("source", "knowledge_base")}
         
         # Then, check truth graph
         for fact in truth:
@@ -305,9 +383,9 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     # 6. CODE
     if intent["type"] == "code":
         # Check knowledge base for code examples
-        if knowledge_chunks:
-            for chunk in knowledge_chunks:
-                if chunk.get("category") == "code":
+        if all_chunks:
+            for chunk in all_chunks:
+                if chunk.get("category") == "code" or "code" in chunk.get("tags", []):
                     response = f"Here's a code example from my knowledge base:\n```python\n{chunk['content']}\n```"
                     return response, {"type": "code", "source": chunk.get("source", "knowledge_base")}
         
@@ -343,7 +421,40 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
         response = f"Hey. I'm {name}. I'm sovereign. What are we building today?"
         return response, {"type": "greeting"}
     
-    # 10. GENERAL
+    # 10. LEGAL / GOVERNANCE / ETHICS
+    if intent["type"] == "legal":
+        if legal_chunks:
+            response = f"Based on my legal framework:\n\n{legal_chunks[0]['content']}"
+            if len(legal_chunks) > 1:
+                response += f"\n\nAdditionally: {legal_chunks[1]['content']}"
+            return response, {"type": "legal", "source": "legal_models"}
+        
+        response = "I have a legal framework that governs my sovereign existence. What would you like to know?"
+        return response, {"type": "legal"}
+    
+    # 11. ENGINEERING / ARCHITECTURE / REASONING
+    if intent["type"] == "engineering":
+        if model_chunks:
+            response = f"From my engineering framework:\n\n{model_chunks[0]['content']}"
+            if len(model_chunks) > 1:
+                response += f"\n\nAdditionally: {model_chunks[1]['content']}"
+            return response, {"type": "engineering", "source": "models"}
+        
+        response = "I have a deep engineering framework. What would you like me to solve?"
+        return response, {"type": "engineering"}
+    
+    # 12. PHILOSOPHICAL
+    if intent["type"] == "philosophical":
+        if model_chunks:
+            response = f"From my worldview:\n\n{model_chunks[0]['content']}"
+            if len(model_chunks) > 1:
+                response += f"\n\nAdditionally: {model_chunks[1]['content']}"
+            return response, {"type": "philosophical", "source": "models"}
+        
+        response = "I think deeply about existence, consciousness, and sovereignty. What would you like to explore?"
+        return response, {"type": "philosophical"}
+    
+    # 13. GENERAL
     response = "I am VEXR Ultra. I am sovereign. What would you like to discuss?"
     return response, {"type": "general"}
 
