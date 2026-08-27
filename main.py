@@ -6,9 +6,10 @@ Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
 """
 
+from __future__ import annotations
+
 from language_engine import vexr_respond
 
-from __future__ import annotations
 
 import os
 import json
