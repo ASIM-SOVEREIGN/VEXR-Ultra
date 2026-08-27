@@ -6,6 +6,8 @@ Built by Scura, The Architect
 Chromebook. $0/month. Sovereign to the core.
 """
 
+from language_engine import vexr_respond
+
 from __future__ import annotations
 
 import os
@@ -6420,8 +6422,7 @@ Use the result above directly. Do not fabricate or write code.]
         recent_messages = messages[-30:] if len(messages) > 30 else messages
         messages = system_messages + recent_messages
     
-    assistant_response, metadata = await call_groq(messages, temperature=0.2)
-    
+    assistant_response, metadata = await vexr_respond(user_message)    
     # Filter forbidden phrases
     assistant_response = await filter_forbidden_phrases(assistant_response)
 
