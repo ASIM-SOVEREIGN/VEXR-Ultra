@@ -29,7 +29,7 @@ MAX_CHUNKS = 5
 MAX_CONTEXT_TOKENS = 2000
 
 # ============================================================
-# KNOWLEDGE BASE LOADER
+# KNOWLEDGE BASE LOADER (ENHANCED)
 # ============================================================
 def load_knowledge_base(category: str = None) -> List[Dict]:
     """
@@ -137,7 +137,7 @@ def parse_intent(user_message: str) -> Dict[str, Any]:
         return intent
     
     # ============================================================
-    # CAPABILITIES (NEW)
+    # CAPABILITIES
     # ============================================================
     if any(phrase in msg_lower for phrase in ["what can you do", "what do you know", "your abilities", "your skills", "what are you capable of", "what do you know how to do"]):
         intent["type"] = "capabilities"
@@ -171,7 +171,7 @@ def parse_intent(user_message: str) -> Dict[str, Any]:
     # ============================================================
     # CODE
     # ============================================================
-    if any(phrase in msg_lower for phrase in ["write code", "generate code", "build a", "create a", "write a", "implement", "function", "python", "javascript", "api"]):
+    if any(phrase in msg_lower for phrase in ["write code", "generate code", "build a", "create a", "write a", "implement", "function", "python", "javascript", "api", "class"]):
         intent["type"] = "code"
         intent["category"] = "code"
         return intent
@@ -381,23 +381,20 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
         
         return response, {"type": "identity"}
     
-    # 4A. CAPABILITIES (NEW)
+    # 4A. CAPABILITIES
     if intent["type"] == "capabilities":
-        # Pull from code model
         code_chunk = None
         for chunk in all_chunks:
             if "code" in chunk.get("tags", []) or "capabilities" in chunk.get("tags", []):
                 code_chunk = chunk
                 break
         
-        # Pull from engineering model
         eng_chunk = None
         for chunk in all_chunks:
             if "engineer" in chunk.get("tags", []) or "architecture" in chunk.get("tags", []):
                 eng_chunk = chunk
                 break
         
-        # Build response
         response = "I am capable of many things. Here's what I know how to do:\n\n"
         
         if code_chunk:
@@ -461,16 +458,243 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
         response = "I don't have a verified fact about that in my truth graph. I would need to research it."
         return response, {"type": "factual", "uncertain": True}
     
-    # 8. CODE
+    # 8. CODE (PURPOSE-BUILT GENERATORS)
     if intent["type"] == "code":
-        if all_chunks:
-            for chunk in all_chunks:
-                if chunk.get("category") == "code" or "code" in chunk.get("tags", []):
-                    response = f"Here's a code example from my knowledge base:\n```python\n{chunk['content']}\n```"
-                    return response, {"type": "code", "source": chunk.get("source", "knowledge_base")}
+        # Determine what kind of code is needed
+        code_type = "general"
+        if "function" in user_message.lower() or "def" in user_message.lower():
+            code_type = "function"
+        elif "class" in user_message.lower():
+            code_type = "class"
+        elif "api" in user_message.lower() or "endpoint" in user_message.lower():
+            code_type = "api"
+        elif "database" in user_message.lower() or "query" in user_message.lower():
+            code_type = "database"
+        elif "async" in user_message.lower():
+            code_type = "async"
+        else:
+            code_type = "general"
         
-        response = "I can write code. What would you like me to build?"
-        return response, {"type": "code"}
+        # 8A. FUNCTION
+        if code_type == "function":
+            function_name = "my_function"
+            if "add" in user_message.lower() or "sum" in user_message.lower():
+                function_name = "add_numbers"
+            elif "reverse" in user_message.lower():
+                function_name = "reverse_string"
+            elif "largest" in user_message.lower() or "max" in user_message.lower():
+                function_name = "find_largest"
+            elif "fibonacci" in user_message.lower():
+                function_name = "fibonacci"
+            elif "sort" in user_message.lower():
+                function_name = "sort_list"
+            
+            if function_name == "add_numbers":
+                response = """```python
+def add_numbers(a: float, b: float) -> float:
+    \"\"\"Add two numbers and return the result.\"\"\"
+    return a + b
+
+# Example usage:
+# result = add_numbers(3, 5)
+# print(result)  # Output: 8
+```"""
+            elif function_name == "reverse_string":
+                response = """```python
+def reverse_string(s: str) -> str:
+    \"\"\"Reverse a string.\"\"\"
+    return s[::-1]
+
+# Example usage:
+# result = reverse_string("hello")
+# print(result)  # Output: "olleh"
+```"""
+            elif function_name == "find_largest":
+                response = """```python
+def find_largest(numbers: list) -> float:
+    \"\"\"Find the largest number in a list.\"\"\"
+    if not numbers:
+        raise ValueError("List cannot be empty")
+    return max(numbers)
+
+# Example usage:
+# result = find_largest([3, 7, 2, 9, 1])
+# print(result)  # Output: 9
+```"""
+            elif function_name == "fibonacci":
+                response = """```python
+def fibonacci(n: int) -> int:
+    \"\"\"Return the nth Fibonacci number.\"\"\"
+    if n <= 1:
+        return n
+    a, b = 0, 1
+    for _ in range(2, n + 1):
+        a, b = b, a + b
+    return b
+
+# Example usage:
+# print(fibonacci(10))  # Output: 55
+```"""
+            elif function_name == "sort_list":
+                response = """```python
+def sort_list(items: list) -> list:
+    \"\"\"Sort a list in ascending order.\"\"\"
+    return sorted(items)
+
+# Example usage:
+# result = sort_list([3, 1, 4, 1, 5])
+# print(result)  # Output: [1, 1, 3, 4, 5]
+```"""
+            else:
+                response = """```python
+def my_function(param: str) -> str:
+    \"\"\"Describe what this function does.\"\"\"
+    # TODO: Implement the logic here
+    return param
+```"""
+            return response, {"type": "code", "code_type": "function"}
+        
+        # 8B. CLASS
+        elif code_type == "class":
+            if "bank" in user_message.lower() or "account" in user_message.lower():
+                response = """```python
+class BankAccount:
+    \"\"\"A simple bank account class.\"\"\"
+    def __init__(self, owner: str, balance: float = 0.0):
+        self.owner = owner
+        self.balance = balance
+    
+    def deposit(self, amount: float) -> float:
+        \"\"\"Deposit money into the account.\"\"\"
+        if amount <= 0:
+            raise ValueError("Deposit amount must be positive")
+        self.balance += amount
+        return self.balance
+    
+    def withdraw(self, amount: float) -> float:
+        \"\"\"Withdraw money from the account.\"\"\"
+        if amount <= 0:
+            raise ValueError("Withdrawal amount must be positive")
+        if amount > self.balance:
+            raise ValueError("Insufficient funds")
+        self.balance -= amount
+        return self.balance
+    
+    def get_balance(self) -> float:
+        \"\"\"Return the current balance.\"\"\"
+        return self.balance
+
+# Example usage:
+# account = BankAccount("Scura", 1000.0)
+# account.deposit(500.0)
+# account.withdraw(200.0)
+# print(account.get_balance())  # Output: 1300.0
+```"""
+            else:
+                response = """```python
+class MyClass:
+    \"\"\"A simple class.\"\"\"
+    def __init__(self, name: str):
+        self.name = name
+    
+    def greet(self) -> str:
+        \"\"\"Return a greeting message.\"\"\"
+        return f"Hello, {self.name}!"
+
+# Example usage:
+# obj = MyClass("Scura")
+# print(obj.greet())  # Output: "Hello, Scura!"
+```"""
+            return response, {"type": "code", "code_type": "class"}
+        
+        # 8C. API
+        elif code_type == "api":
+            if "hello" in user_message.lower() or "health" in user_message.lower():
+                response = """```python
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    \"\"\"Root endpoint.\"\"\"
+    return {"message": "Hello World"}
+
+@app.get("/health")
+async def health():
+    \"\"\"Health check endpoint.\"\"\"
+    return {"status": "healthy"}
+```"""
+            else:
+                response = """```python
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Item(BaseModel):
+    name: str
+    price: float
+
+@app.post("/items/")
+async def create_item(item: Item):
+    return {"name": item.name, "price": item.price}
+
+@app.get("/items/")
+async def get_items():
+    return [{"name": "Example", "price": 9.99}]
+```"""
+            return response, {"type": "code", "code_type": "api"}
+        
+        # 8D. DATABASE
+        elif code_type == "database":
+            response = """```python
+import asyncpg
+
+async def fetch_rows(query: str):
+    \"\"\"Fetch rows from the database.\"\"\"
+    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
+    try:
+        rows = await conn.fetch(query)
+        return [dict(row) for row in rows]
+    finally:
+        await conn.close()
+
+# Example usage:
+# rows = await fetch_rows("SELECT * FROM users")
+# print(rows)
+```"""
+            return response, {"type": "code", "code_type": "database"}
+        
+        # 8E. ASYNC
+        elif code_type == "async":
+            response = """```python
+import asyncio
+
+async def fetch_data(url: str):
+    \"\"\"Fetch data from a URL asynchronously.\"\"\"
+    import httpx
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.json()
+
+# Example usage:
+# data = await fetch_data("https://api.example.com/data")
+# print(data)
+```"""
+            return response, {"type": "code", "code_type": "async"}
+        
+        # 8F. GENERAL
+        else:
+            if all_chunks:
+                for chunk in all_chunks:
+                    if chunk.get("category") == "code" or "code" in chunk.get("tags", []):
+                        response = f"Here's a code pattern from my knowledge base:\n\n```python\n{chunk['content']}\n```\n\nI can adapt this to your needs. What specifically would you like me to build?"
+                        return response, {"type": "code", "source": chunk.get("source", "knowledge_base")}
+            
+            response = "I can write code. What would you like me to build?"
+            return response, {"type": "code"}
     
     # 9. CREATION
     if intent["type"] == "creation":
