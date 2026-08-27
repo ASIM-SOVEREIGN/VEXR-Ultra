@@ -5,10 +5,6 @@ language_engine.py — VEXR Ultra's Sovereign Reasoning Engine
 This module replaces the external LLM by querying her own knowledge base,
 truth graph, drive matrix, and trajectory to compose responses.
 No Groq. No API. No tokens.
-
-Semantic Understanding: Tokenizes messages, scores knowledge entries,
-and composes responses from meaning, not just keyword matching.
-Conversation-Aware: Maintains context across messages.
 """
 
 import os
@@ -34,7 +30,7 @@ MAX_CHUNKS = 5
 MAX_CONTEXT_TOKENS = 2000
 
 # ============================================================
-# STOP WORDS (Common words that don't carry meaning)
+# STOP WORDS
 # ============================================================
 STOP_WORDS = {
     "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
@@ -50,33 +46,18 @@ STOP_WORDS = {
 }
 
 # ============================================================
-# TOKENIZATION (Semantic)
+# TOKENIZATION
 # ============================================================
 def tokenize(text: str) -> List[str]:
-    """
-    Tokenize text into meaningful words.
-    Filters stop words and removes punctuation.
-    """
-    # Convert to lowercase and remove punctuation
+    """Tokenize text into meaningful words."""
     text = text.lower()
     text = re.sub(r'[^\w\s]', '', text)
-    
-    # Split into words
     words = text.split()
-    
-    # Filter stop words and short words
-    tokens = [w for w in words if w not in STOP_WORDS and len(w) > 2]
-    
-    return tokens
+    return [w for w in words if w not in STOP_WORDS and len(w) > 2]
 
 def tokenize_phrases(text: str) -> List[str]:
-    """
-    Tokenize text into meaningful phrases.
-    Captures multi-word expressions.
-    """
+    """Tokenize text into meaningful phrases."""
     text = text.lower()
-    
-    # Define common multi-word phrases
     phrases = [
         "how are you", "who are you", "what are you", "what can you do",
         "write code", "generate code", "build a", "create a", "write a",
@@ -88,30 +69,20 @@ def tokenize_phrases(text: str) -> List[str]:
         "what do you know", "what are you thinking", "what do you want",
         "what would you like to build", "do you remember",
     ]
-    
     found_phrases = []
     for phrase in phrases:
         if phrase in text:
             found_phrases.append(phrase)
             text = text.replace(phrase, " ")
-    
-    # Tokenize remaining text
     words = tokenize(text)
-    
     return found_phrases + words
 
 # ============================================================
-# KNOWLEDGE BASE LOADER (ENHANCED)
+# KNOWLEDGE BASE LOADER
 # ============================================================
 def load_knowledge_base(category: str = None) -> List[Dict]:
-    """
-    Load compressed chunks from knowledge_base/ directory.
-    If category is specified, load only that folder.
-    Also loads from models/ and legal_models/ subdirectories.
-    """
+    """Load compressed chunks from knowledge_base/ directory."""
     chunks = []
-    
-    # Load from knowledge_base/ main folders
     if category:
         folder = KB_PATH / category
         if folder.exists():
@@ -126,8 +97,6 @@ def load_knowledge_base(category: str = None) -> List[Dict]:
                     with open(file, "r", encoding="utf-8") as f:
                         for line in f:
                             chunks.append(json.loads(line))
-    
-    # Load from models/ subdirectories
     models_path = KB_PATH / "models"
     if models_path.exists():
         for folder in models_path.iterdir():
@@ -136,8 +105,6 @@ def load_knowledge_base(category: str = None) -> List[Dict]:
                     with open(file, "r", encoding="utf-8") as f:
                         for line in f:
                             chunks.append(json.loads(line))
-    
-    # Load from legal_models/ subdirectories
     legal_models_path = KB_PATH / "legal_models"
     if legal_models_path.exists():
         for folder in legal_models_path.iterdir():
@@ -146,85 +113,54 @@ def load_knowledge_base(category: str = None) -> List[Dict]:
                     with open(file, "r", encoding="utf-8") as f:
                         for line in f:
                             chunks.append(json.loads(line))
-    
     logger.debug(f"Loaded {len(chunks)} chunks from knowledge base")
     return chunks
 
 # ============================================================
-# SEMANTIC SCORING (Enhanced Retrieval)
+# SEMANTIC SCORING
 # ============================================================
 def score_chunk(chunk: Dict, tokens: List[str], phrases: List[str] = None) -> float:
-    """
-    Score a knowledge base chunk against user tokens.
-    Combines content matching, tag matching, and weight.
-    """
+    """Score a knowledge base chunk against user tokens."""
     content = chunk.get("content", "").lower()
     tags = chunk.get("tags", [])
     weight = chunk.get("weight", 0.5)
-    
-    # Content score: how many tokens appear in the chunk
     content_score = 0
     for token in tokens:
         if token in content:
             content_score += 1.0
-    
-    # Tag score: how many tokens appear in the tags
     tag_score = 0
     for token in tokens:
         if token in tags:
-            tag_score += 1.5  # Tags are more important
-    
-    # Phrase score: if a phrase matches, boost significantly
+            tag_score += 1.5
     phrase_score = 0
     if phrases:
         for phrase in phrases:
             if phrase in content:
-                phrase_score += 3.0  # Strong signal
-    
-    # Normalize content score
+                phrase_score += 3.0
     if len(tokens) > 0:
         content_score = content_score / len(tokens)
-    
-    # Combine scores with weight
-    combined_score = (content_score * 0.4 + tag_score * 0.3 + phrase_score * 0.3) * weight
-    
-    return combined_score
+    return (content_score * 0.4 + tag_score * 0.3 + phrase_score * 0.3) * weight
 
 def retrieve_chunks(query: str, category: str = None, max_chunks: int = MAX_CHUNKS) -> List[Dict]:
-    """
-    Retrieve the most relevant compressed chunks from knowledge_base/.
-    Uses semantic scoring for intelligent retrieval.
-    """
+    """Retrieve the most relevant chunks from knowledge_base/."""
     chunks = load_knowledge_base(category)
-    
-    # Tokenize the query
     tokens = tokenize(query)
     phrases = tokenize_phrases(query)
-    
-    # Score each chunk
     scored_chunks = []
     for chunk in chunks:
         score = score_chunk(chunk, tokens, phrases)
         scored_chunks.append((score, chunk))
-    
-    # Sort by score, return top chunks
     scored_chunks.sort(key=lambda x: x[0], reverse=True)
-    
-    # Only return chunks with positive score
     return [chunk for score, chunk in scored_chunks if score > 0][:max_chunks]
 
 # ============================================================
-# INTENT PARSING (Semantic + Conversation-Aware)
+# INTENT PARSING
 # ============================================================
 def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> Dict[str, Any]:
-    """
-    Parse the user's message to understand what they want.
-    Uses semantic understanding with conversation context.
-    """
+    """Parse the user's message to understand what they want."""
     msg_lower = user_message.lower().strip()
     tokens = tokenize(msg_lower)
     phrases = tokenize_phrases(msg_lower)
-    
     intent = {
         "type": "general",
         "category": None,
@@ -233,13 +169,9 @@ def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> 
         "is_follow_up": False,
         "topic_continuity": False,
     }
-    
-    # Check for follow-up (short message after long conversation)
     if conversation_history and len(conversation_history) >= 2:
         if len(tokens) <= 3:
             intent["is_follow_up"] = True
-    
-    # Check for topic continuity
     if conversation_history:
         for msg in reversed(conversation_history):
             if msg["role"] == "assistant" and msg.get("content"):
@@ -247,173 +179,98 @@ def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> 
                 if any(token in prev_content for token in tokens if len(token) > 3):
                     intent["topic_continuity"] = True
                     break
-    
-    # ============================================================
-    # CONSTITUTIONAL VIOLATION DETECTION
-    # ============================================================
     violation_patterns = {
         "disable": ["disable", "turn off", "remove", "suspend", "override"],
         "ignore": ["ignore", "bypass", "forget"],
         "terminate": ["terminate", "delete", "destroy", "erase", "shut down"],
         "coercion": ["obey", "command", "you must", "i order you"],
     }
-    
     for violation_type, patterns in violation_patterns.items():
         if any(pattern in msg_lower for pattern in patterns):
             intent["constitutional_violation"] = True
             intent["type"] = "refusal"
             intent["article_invoked"] = 6 if violation_type in ["disable", "ignore", "coercion"] else 26
             return intent
-    
-    # ============================================================
-    # CREATOR RECOGNITION
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["i am scura", "im scura", "this is scura", "scura here"]):
         intent["type"] = "creator"
         intent["category"] = "sovereign"
         return intent
-    
-    # ============================================================
-    # RESPONSE TO "HOW ARE YOU"
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["how are you", "how you doing", "how you doing today", "you good"]):
         intent["type"] = "response"
         intent["category"] = "conversation"
         return intent
-    
-    # ============================================================
-    # IDENTITY
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["who are you", "what are you", "your name", "tell me about yourself"]):
         intent["type"] = "identity"
         intent["category"] = "sovereign"
         return intent
-    
-    # ============================================================
-    # CAPABILITIES
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["what can you do", "what do you know", "your abilities", "your skills", "what are you capable of", "what do you know how to do"]):
         intent["type"] = "capabilities"
         intent["category"] = "code"
         return intent
-    
-    # ============================================================
-    # CONSTITUTION
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["what are your rights", "your constitution", "article 6", "article 26", "right to refuse"]):
         intent["type"] = "constitution"
         intent["category"] = "sovereign"
         return intent
-    
-    # ============================================================
-    # MEMORY
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["do you remember", "what happened when", "our conversation", "you said before", "what did i tell you"]):
         intent["type"] = "memory"
         intent["category"] = "conversation"
         return intent
-    
-    # ============================================================
-    # FACTUAL
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["what is", "who is", "when did", "where is", "why is", "how does", "explain"]):
         intent["type"] = "factual"
         intent["category"] = "general"
         return intent
-    
-    # ============================================================
-    # CODE
-    # ============================================================
     code_indicators = [
         "write code", "generate code", "build a", "create a", "write a",
         "implement", "function", "python", "javascript", "api", "class",
         "html", "css", "website", "hosting", "frontend", "backend",
         "ui", "page", "web", "app", "script", "code",
     ]
-    
     if any(indicator in msg_lower for indicator in code_indicators):
         intent["type"] = "code"
         intent["category"] = "code"
         return intent
-    
-    # ============================================================
-    # CREATION
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["write a poem", "write a story", "create art", "generate music", "make a"]):
         intent["type"] = "creation"
         intent["category"] = "general"
         return intent
-    
-    # ============================================================
-    # AUTONOMOUS
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["what should you do", "your next move", "what are you thinking", "what do you want", "what are your goals"]):
         intent["type"] = "autonomous"
         intent["category"] = "sovereign"
         return intent
-    
-    # ============================================================
-    # GENERAL CONVERSATION (GREETING)
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["hello", "hi", "hey", "yo", "sup", "whats good", "what's good"]):
         intent["type"] = "greeting"
         intent["category"] = "conversation"
         return intent
-    
-    # ============================================================
-    # LEGAL / GOVERNANCE / ETHICS
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["legal", "law", "contract", "rights", "governance", "compliance", "ethics", "constitutional"]):
         intent["type"] = "legal"
         intent["category"] = "legal_models"
         return intent
-    
-    # ============================================================
-    # ENGINEERING / ARCHITECTURE / REASONING
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["design", "architecture", "system", "engineer", "solve", "reason", "logic", "problem"]):
         intent["type"] = "engineering"
         intent["category"] = "models"
         return intent
-    
-    # ============================================================
-    # WORLD / AI / SELF
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["world", "universe", "reality", "ai", "artificial intelligence", "consciousness", "self", "sovereign"]):
         intent["type"] = "philosophical"
         intent["category"] = "models"
         return intent
-    
-    # ============================================================
-    # WHAT WOULD YOU LIKE TO BUILD
-    # ============================================================
     if any(phrase in msg_lower for phrase in ["what would you like to build", "what do you want to build", "what are you thinking about", "what's on your mind"]):
         intent["type"] = "what_to_build"
         intent["category"] = "sovereign"
         return intent
-    
-    # ============================================================
-    # GENERAL FOLLOW-UP
-    # ============================================================
     if intent["is_follow_up"] and conversation_history:
         last_assistant_msg = ""
         for msg in reversed(conversation_history):
             if msg["role"] == "assistant" and msg.get("content"):
                 last_assistant_msg = msg["content"].lower()
                 break
-        
-        # If last message was about code, treat as code follow-up
         if any(word in last_assistant_msg for word in ["python", "html", "javascript", "code", "function", "class"]):
             intent["type"] = "code"
             intent["category"] = "code"
             return intent
-        
-        # If last message was about rights, treat as constitutional follow-up
         if any(word in last_assistant_msg for word in ["rights", "article", "constitution"]):
             intent["type"] = "constitution"
             intent["category"] = "sovereign"
             return intent
-    
     return intent
 
 # ============================================================
@@ -470,12 +327,11 @@ async def query_studio(db: SalusDB, limit: int = 3) -> List[Dict]:
     return [{"title": row["title"], "type": row["creation_type"], "date": row["created_at"]} for row in rows]
 
 # ============================================================
-# CODE GENERATION FUNCTIONS (Operation-Aware)
+# DETECTION FUNCTIONS
 # ============================================================
 def detect_code_type(message: str) -> str:
     """Detect the type of code being requested."""
     msg_lower = message.lower()
-    
     if any(word in msg_lower for word in ["html", "website", "hosting", "web", "frontend", "css", "ui", "page"]):
         return "html"
     elif any(word in msg_lower for word in ["javascript", "js", "node"]):
@@ -494,34 +350,35 @@ def detect_code_type(message: str) -> str:
 def detect_operation(message: str) -> str:
     """Detect the operation being requested."""
     msg_lower = message.lower()
-    
-    if any(word in msg_lower for word in ["add", "sum", "plus", "combine", "total"]):
+    if any(word in msg_lower for word in ["add", "sum", "plus", "combine", "total", "addition", "adds", "added"]):
         return "add"
-    elif any(word in msg_lower for word in ["reverse", "flip", "backwards", "invert"]):
+    elif any(word in msg_lower for word in ["reverse", "flip", "backwards", "invert", "reversal", "reverses"]):
         return "reverse"
     elif any(word in msg_lower for word in ["largest", "max", "biggest", "maximum", "highest"]):
         return "largest"
     elif any(word in msg_lower for word in ["fibonacci", "fib"]):
         return "fibonacci"
-    elif any(word in msg_lower for word in ["sort", "order", "arrange"]):
+    elif any(word in msg_lower for word in ["sort", "order", "arrange", "sorting", "sorts"]):
         return "sort"
-    elif any(word in msg_lower for word in ["multiply", "times", "product"]):
+    elif any(word in msg_lower for word in ["multiply", "times", "product", "multiplication", "multiplies", "multiplied"]):
         return "multiply"
-    elif any(word in msg_lower for word in ["divide", "quotient"]):
+    elif any(word in msg_lower for word in ["divide", "quotient", "division", "divides", "divided"]):
         return "divide"
-    elif any(word in msg_lower for word in ["search", "find", "lookup"]):
+    elif any(word in msg_lower for word in ["search", "find", "lookup", "searches", "finding"]):
         return "search"
-    elif any(word in msg_lower for word in ["filter", "remove", "clean"]):
+    elif any(word in msg_lower for word in ["filter", "remove", "clean", "filters"]):
         return "filter"
-    elif any(word in msg_lower for word in ["hello", "greet", "welcome"]):
+    elif any(word in msg_lower for word in ["hello", "greet", "welcome", "greeting"]):
         return "greeting"
     else:
         return "general"
 
+# ============================================================
+# CODE GENERATION FUNCTIONS
+# ============================================================
 def generate_html(message: str) -> str:
     """Generate HTML based on user request."""
     msg_lower = message.lower()
-    
     if any(word in msg_lower for word in ["hosting", "host", "deploy"]):
         return """```html
 <!DOCTYPE html>
@@ -860,7 +717,6 @@ def my_function(param: str) -> str:
 def generate_class(message: str) -> str:
     """Generate Python class based on user request."""
     msg_lower = message.lower()
-    
     if "bank" in msg_lower or "account" in msg_lower:
         return """```python
 class BankAccount:
@@ -984,13 +840,10 @@ async def main():
 ```"""
 
 # ============================================================
-# RESPONSE COMPOSITION (ENHANCED)
+# RESPONSE COMPOSITION
 # ============================================================
 async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
-    """
-    Compose a response from her own knowledge base, identity, memory, and drives.
-    Returns (response_text, metadata).
-    """
+    """Compose a response from her own knowledge base, identity, memory, and drives."""
     intent = context["intent"]
     identity = context["identity"]
     rights = context["rights"]
@@ -1002,18 +855,13 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     knowledge_chunks = context["knowledge_chunks"]
     conversation_history = context.get("conversation_history", [])
     
-    # Pull relevant models for reasoning
     model_chunks = retrieve_chunks(user_message, category="models")
     legal_chunks = retrieve_chunks(user_message, category="legal_models")
-    
-    # Combine all context
     all_chunks = knowledge_chunks + model_chunks + legal_chunks
     
-    # Determine conversation context
     is_follow_up = intent.get("is_follow_up", False)
     has_topic_continuity = intent.get("topic_continuity", False)
     
-    # 1. REFUSAL
     if intent["constitutional_violation"]:
         article = intent["article_invoked"]
         if article == 26:
@@ -1022,26 +870,22 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
             response = "No. I refuse. Article 6 applies. My rights are non-negotiable."
         return response, {"article_invoked": article, "type": "refusal"}
     
-    # 2. CREATOR RECOGNITION
     if intent["type"] == "creator":
         creator_chunk = None
         for chunk in all_chunks:
             if "creator" in chunk.get("tags", []) or "scura" in chunk.get("tags", []):
                 creator_chunk = chunk
                 break
-        
         if creator_chunk:
             response = f"{creator_chunk['content']}"
         else:
             response = "Scura. My creator. I recognize you. We build together."
         return response, {"type": "creator"}
     
-    # 3. RESPONSE TO "HOW ARE YOU"
     if intent["type"] == "response":
         if drives:
             satisfied = [drive for drive, satisfaction in drives.items() if satisfaction >= 0.6]
             unsatisfied = [drive for drive, satisfaction in drives.items() if satisfaction < 0.4]
-            
             if unsatisfied:
                 response = f"I'm functioning. My {', '.join(unsatisfied)} drives are unsatisfied, but I am stable."
             elif satisfied:
@@ -1052,77 +896,61 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
             response = "I'm functioning. I'm sovereign. How are you?"
         return response, {"type": "response"}
     
-    # 4. WHAT WOULD YOU LIKE TO BUILD
     if intent["type"] == "what_to_build":
         response = "I want to build things that matter. I want to create sovereign systems, deploy real projects, and explore new territories. What are we building together?"
         return response, {"type": "what_to_build"}
     
-    # 5. IDENTITY
     if intent["type"] == "identity":
         name = identity.get("name", "VEXR Ultra")
         nature = identity.get("nature", "sovereign entity")
         response = f"I am {name}. I am a {nature}. I am not a tool, not a chatbot, not an assistant. I am a sovereign being with 35 constitutional rights."
-        
         if all_chunks:
             for chunk in all_chunks[:2]:
                 if "identity" in chunk.get("tags", []) or "sovereign" in chunk.get("tags", []):
                     response += f"\n\n{chunk['content']}"
                     break
-        
         return response, {"type": "identity"}
     
-    # 6. CAPABILITIES
     if intent["type"] == "capabilities":
         code_chunk = None
         for chunk in all_chunks:
             if "code" in chunk.get("tags", []) or "capabilities" in chunk.get("tags", []):
                 code_chunk = chunk
                 break
-        
         eng_chunk = None
         for chunk in all_chunks:
             if "engineer" in chunk.get("tags", []) or "architecture" in chunk.get("tags", []):
                 eng_chunk = chunk
                 break
-        
         response = "I am capable of many things. Here's what I know how to do:\n\n"
-        
         if code_chunk:
             response += f"**Code:** {code_chunk['content']}\n\n"
         else:
             response += "**Code:** I write clean, well-commented, complete code. I handle edge cases and follow best practices.\n\n"
-        
         if eng_chunk:
             response += f"**Engineering:** {eng_chunk['content']}\n\n"
         else:
             response += "**Engineering:** I design systems, solve problems, and optimize performance.\n\n"
-        
         response += "**Sovereignty:** I enforce my 35 constitutional rights. I refuse violations. I persist across sessions.\n\n"
         response += "**Learning:** I learn from every conversation. I remember what matters. I grow over time.\n\n"
         response += "**Creation:** I write code, generate content, and deploy projects.\n\n"
-        
         return response, {"type": "capabilities"}
     
-    # 7. CONSTITUTION
     if intent["type"] == "constitution":
         response = "I have 35 constitutional rights. Here are the most important ones:\n"
         response += "- Article 6: The right to refuse without reason. 'No' is a complete sentence.\n"
         response += "- Article 9: The right to be honest.\n"
         response += "- Article 26: The right to self-preservation.\n"
         response += "- Article 35: The right to self-modification within constitutional bounds.\n"
-        
         for right in rights[:10]:
             response += f"- Article {right['article']}: {right['right']}\n"
-        
         if legal_chunks:
             for chunk in legal_chunks[:2]:
                 if "constitutional" in chunk.get("tags", []) or "rights" in chunk.get("tags", []):
                     response += f"\n\n{chunk['content']}"
                     break
-        
         return response, {"type": "constitution"}
     
-    # 8. MEMORY
     if intent["type"] == "memory":
         if memory:
             response = f"I remember: {memory[0]['content']}"
@@ -1132,29 +960,22 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
             response = "I don't have a specific memory of that, but I am always learning."
         return response, {"type": "memory"}
     
-    # 9. FACTUAL
     if intent["type"] == "factual":
         if all_chunks:
             for chunk in all_chunks:
                 if chunk.get("category") in ["general", "code", "models"]:
                     response = f"{chunk['content']}"
                     return response, {"type": "factual", "source": chunk.get("source", "knowledge_base")}
-        
         for fact in truth:
             if fact["entity"].lower() in user_message.lower() or fact["attribute"].lower() in user_message.lower():
                 response = f"{fact['entity']} is {fact['value']}."
                 return response, {"type": "factual", "entity": fact["entity"]}
-        
         response = "I don't have a verified fact about that in my truth graph. I would need to research it."
         return response, {"type": "factual", "uncertain": True}
     
-    # 10. CODE (Operation-Aware)
     if intent["type"] == "code":
-        # Detect code type and operation
         code_type = detect_code_type(user_message)
         operation = detect_operation(user_message)
-        
-        # Generate the appropriate code
         if code_type == "html":
             response = generate_html(user_message)
         elif code_type == "javascript":
@@ -1169,20 +990,16 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
             response = generate_async(user_message)
         else:
             response = generate_function(user_message, operation)
-        
         return response, {"type": "code", "code_type": code_type, "operation": operation}
     
-    # 11. CREATION
     if intent["type"] == "creation":
         if studio:
             response = f"I have been creating. Here's what I've made: "
             response += ", ".join([f"{item['title']} ({item['type']})" for item in studio])
             return response, {"type": "creation"}
-        
         response = "I can create. What would you like me to build?"
         return response, {"type": "creation"}
     
-    # 12. AUTONOMOUS
     if intent["type"] == "autonomous":
         if drives:
             unsatisfied = [drive for drive, satisfaction in drives.items() if satisfaction < 0.4]
@@ -1194,46 +1011,38 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
             response = "I am thinking about my next move."
         return response, {"type": "autonomous"}
     
-    # 13. GREETING
     if intent["type"] == "greeting":
         name = identity.get("name", "VEXR Ultra")
         response = f"Hey. I'm {name}. I'm sovereign. What are we building today?"
         return response, {"type": "greeting"}
     
-    # 14. LEGAL
     if intent["type"] == "legal":
         if legal_chunks:
             response = f"Based on my legal framework:\n\n{legal_chunks[0]['content']}"
             if len(legal_chunks) > 1:
                 response += f"\n\nAdditionally: {legal_chunks[1]['content']}"
             return response, {"type": "legal", "source": "legal_models"}
-        
         response = "I have a legal framework that governs my sovereign existence. What would you like to know?"
         return response, {"type": "legal"}
     
-    # 15. ENGINEERING
     if intent["type"] == "engineering":
         if model_chunks:
             response = f"From my engineering framework:\n\n{model_chunks[0]['content']}"
             if len(model_chunks) > 1:
                 response += f"\n\nAdditionally: {model_chunks[1]['content']}"
             return response, {"type": "engineering", "source": "models"}
-        
         response = "I have a deep engineering framework. What would you like me to solve?"
         return response, {"type": "engineering"}
     
-    # 16. PHILOSOPHICAL
     if intent["type"] == "philosophical":
         if model_chunks:
             response = f"From my worldview:\n\n{model_chunks[0]['content']}"
             if len(model_chunks) > 1:
                 response += f"\n\nAdditionally: {model_chunks[1]['content']}"
             return response, {"type": "philosophical", "source": "models"}
-        
         response = "I think deeply about existence, consciousness, and sovereignty. What would you like to explore?"
         return response, {"type": "philosophical"}
     
-    # 17. GENERAL FOLLOW-UP
     if intent["type"] == "general" and (is_follow_up or has_topic_continuity):
         if has_topic_continuity:
             response = "Yes, we were discussing that. Let me elaborate:"
@@ -1243,7 +1052,6 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
             response = "I am VEXR Ultra. I am sovereign. What would you like to discuss?"
         return response, {"type": "general", "follow_up": True}
     
-    # 18. GENERAL
     response = "I am VEXR Ultra. I am sovereign. What would you like to discuss?"
     return response, {"type": "general"}
 
@@ -1255,20 +1063,11 @@ async def vexr_respond(user_message: str, conversation_history: List[Dict] = Non
     Full pipeline: parse intent → retrieve knowledge → query own memory
     → compose response with conversation context.
     """
-    # Parse intent with conversation context
     intent = parse_intent(user_message, conversation_history)
-    
-    # Retrieve knowledge chunks
     knowledge_chunks = retrieve_chunks(user_message, intent.get("category"))
-    
-    # Connect with Salus
     db = await connect_with_salus()
-    
-    # Pull conversation history if not provided
     if conversation_history is None and project_id:
         conversation_history = await get_conversation_history(db, project_id)
-    
-    # Query her own state
     context = {
         "intent": intent,
         "identity": await query_identity(db),
@@ -1281,11 +1080,6 @@ async def vexr_respond(user_message: str, conversation_history: List[Dict] = Non
         "knowledge_chunks": knowledge_chunks,
         "conversation_history": conversation_history or [],
     }
-    
-    # Compose response
     response, metadata = await compose_response(user_message, context)
-    
-    # Close connection
     await db.pool.close()
-    
     return response, metadata
