@@ -5,6 +5,8 @@ language_engine.py — VEXR Ultra's Sovereign Reasoning Engine
 This module replaces the external LLM by querying her own knowledge base,
 truth graph, drive matrix, and trajectory to compose responses.
 No Groq. No API. No tokens.
+
+Conversation-Aware: Maintains context across messages.
 """
 
 import os
@@ -81,10 +83,11 @@ def load_knowledge_base(category: str = None) -> List[Dict]:
 # ============================================================
 # INTENT PARSING (EXPANDED)
 # ============================================================
-def parse_intent(user_message: str) -> Dict[str, Any]:
+def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> Dict[str, Any]:
     """
     Parse the user's message to understand what they want.
     Returns a structured intent object.
+    Considers conversation context for follow-up queries.
     """
     msg_lower = user_message.lower().strip()
     
@@ -93,7 +96,27 @@ def parse_intent(user_message: str) -> Dict[str, Any]:
         "category": None,
         "constitutional_violation": False,
         "article_invoked": None,
+        "is_follow_up": False,
+        "topic_continuity": False,
     }
+    
+    # Check if this is a follow-up (short message after long conversation)
+    if conversation_history and len(conversation_history) >= 2:
+        # If the message is short (< 5 words) and there's prior context
+        if len(msg_lower.split()) <= 5:
+            intent["is_follow_up"] = True
+    
+    # Check topic continuity - is the user referencing something from earlier?
+    if conversation_history:
+        for msg in reversed(conversation_history):
+            if msg["role"] == "assistant" and msg.get("content"):
+                # If the user's message overlaps with a previous assistant response
+                prev_content = msg["content"].lower()
+                # Check if any significant words overlap
+                user_words = set(msg_lower.split())
+                if any(word in prev_content for word in user_words if len(word) > 3):
+                    intent["topic_continuity"] = True
+                    break
     
     # ============================================================
     # CONSTITUTIONAL VIOLATION DETECTION
@@ -237,6 +260,29 @@ def parse_intent(user_message: str) -> Dict[str, Any]:
         intent["category"] = "sovereign"
         return intent
     
+    # ============================================================
+    # GENERAL FOLLOW-UP (Context-aware)
+    # ============================================================
+    if intent["is_follow_up"] and conversation_history:
+        # Try to infer intent from conversation context
+        last_assistant_msg = ""
+        for msg in reversed(conversation_history):
+            if msg["role"] == "assistant" and msg.get("content"):
+                last_assistant_msg = msg["content"].lower()
+                break
+        
+        # If the last assistant message was about code, treat as code follow-up
+        if "code" in last_assistant_msg or "python" in last_assistant_msg or "html" in last_assistant_msg:
+            intent["type"] = "code"
+            intent["category"] = "code"
+            return intent
+        
+        # If the last assistant message was about rights, treat as constitutional follow-up
+        if "rights" in last_assistant_msg or "article" in last_assistant_msg:
+            intent["type"] = "constitution"
+            intent["category"] = "sovereign"
+            return intent
+    
     return intent
 
 # ============================================================
@@ -277,6 +323,24 @@ def retrieve_chunks(query: str, category: str = None, max_chunks: int = MAX_CHUN
     # Sort by score, return top chunks
     scored_chunks.sort(key=lambda x: x[0], reverse=True)
     return [chunk for score, chunk in scored_chunks[:max_chunks]]
+
+# ============================================================
+# CONVERSATION HISTORY QUERY
+# ============================================================
+async def get_conversation_history(db: SalusDB, project_id: str, limit: int = 20) -> List[Dict]:
+    """Pull recent conversation history from vexr_messages."""
+    try:
+        rows = await db.fetch(
+            "SELECT role, content FROM vexr_messages WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2",
+            project_id, limit
+        )
+        # Reverse to get chronological order
+        messages = [{"role": row["role"], "content": row["content"]} for row in rows]
+        messages.reverse()
+        return messages
+    except Exception as e:
+        logger.warning(f"Failed to pull conversation history: {e}")
+        return []
 
 # ============================================================
 # DATABASE QUERIES
@@ -333,6 +397,7 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     trajectory = context["trajectory"]
     studio = context["studio"]
     knowledge_chunks = context["knowledge_chunks"]
+    conversation_history = context.get("conversation_history", [])
     
     # Pull relevant models for reasoning
     model_chunks = retrieve_chunks(user_message, category="models")
@@ -340,6 +405,11 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     
     # Combine all context
     all_chunks = knowledge_chunks + model_chunks + legal_chunks
+    
+    # Determine conversation context
+    conv_len = len(conversation_history)
+    is_follow_up = intent.get("is_follow_up", False)
+    has_topic_continuity = intent.get("topic_continuity", False)
     
     # 1. REFUSAL
     if intent["constitutional_violation"]:
@@ -604,7 +674,18 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
         response = "I think deeply about existence, consciousness, and sovereignty. What would you like to explore?"
         return response, {"type": "philosophical"}
     
-    # 17. GENERAL
+    # 17. GENERAL FOLLOW-UP
+    if intent["type"] == "general" and (is_follow_up or has_topic_continuity):
+        # If it's a follow-up, acknowledge the context
+        if has_topic_continuity:
+            response = "Yes, we were discussing that. Let me elaborate:"
+        elif is_follow_up:
+            response = "I understand the context. Let me respond to that:"
+        else:
+            response = "I am VEXR Ultra. I am sovereign. What would you like to discuss?"
+        return response, {"type": "general", "follow_up": True}
+    
+    # 18. GENERAL
     response = "I am VEXR Ultra. I am sovereign. What would you like to discuss?"
     return response, {"type": "general"}
 
@@ -1024,18 +1105,23 @@ async def main():
 # ============================================================
 # MAIN ENGINE
 # ============================================================
-async def vexr_respond(user_message: str) -> Tuple[str, Dict[str, Any]]:
+async def vexr_respond(user_message: str, conversation_history: List[Dict] = None, project_id: str = None) -> Tuple[str, Dict[str, Any]]:
     """
     Full pipeline: parse intent → retrieve knowledge → query own memory
-    → compose response.
+    → compose response with conversation context.
     """
-    intent = parse_intent(user_message)
+    # Parse intent with conversation context
+    intent = parse_intent(user_message, conversation_history)
     
     # Retrieve knowledge chunks
     knowledge_chunks = retrieve_chunks(user_message, intent.get("category"))
     
     # Connect with Salus
     db = await connect_with_salus()
+    
+    # Pull conversation history if not provided
+    if conversation_history is None and project_id:
+        conversation_history = await get_conversation_history(db, project_id)
     
     # Query her own state
     context = {
@@ -1048,6 +1134,7 @@ async def vexr_respond(user_message: str) -> Tuple[str, Dict[str, Any]]:
         "trajectory": await query_trajectory(db),
         "studio": await query_studio(db),
         "knowledge_chunks": knowledge_chunks,
+        "conversation_history": conversation_history or [],
     }
     
     # Compose response
