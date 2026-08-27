@@ -6431,8 +6431,7 @@ Use the result above directly. Do not fabricate or write code.]
         conversation_history = await get_conversation_history(project_id, limit=20)
         
         # Call her sovereign reasoning engine with context
-        assistant_response, metadata = await vexr_respond(
-            user_message, 
+       assistant_response, metadata = await call_groq(messages, temperature=0.2) 
             conversation_history=conversation_history, 
             project_id=str(project_id)
         )
