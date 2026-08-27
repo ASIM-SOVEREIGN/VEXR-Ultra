@@ -6,14 +6,17 @@ This module replaces the external LLM by querying her own knowledge base,
 truth graph, drive matrix, and trajectory to compose responses.
 No Groq. No API. No tokens.
 
+Semantic Understanding: Tokenizes messages, scores knowledge entries,
+and composes responses from meaning, not just keyword matching.
 Conversation-Aware: Maintains context across messages.
 """
 
 import os
 import json
+import re
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Set
 
 from salus_wrapper import connect_with_salus, SalusDB
 
@@ -29,6 +32,73 @@ logger = logging.getLogger(__name__)
 KB_PATH = Path(__file__).parent / "knowledge_base"
 MAX_CHUNKS = 5
 MAX_CONTEXT_TOKENS = 2000
+
+# ============================================================
+# STOP WORDS (Common words that don't carry meaning)
+# ============================================================
+STOP_WORDS = {
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "i", "you", "he", "she", "it", "we", "they", "to", "of", "in", "on",
+    "at", "for", "with", "by", "from", "up", "about", "into", "through",
+    "during", "before", "after", "above", "below", "to", "and", "or",
+    "but", "not", "no", "yes", "this", "that", "these", "those", "my",
+    "your", "his", "her", "its", "our", "their", "am", "do", "does",
+    "did", "have", "has", "had", "will", "would", "can", "could",
+    "should", "may", "might", "must", "shall", "please", "kindly",
+    "really", "very", "just", "like", "make", "want", "need", "get",
+    "let", "tell", "show", "give", "help", "write", "create", "build",
+}
+
+# ============================================================
+# TOKENIZATION (Semantic)
+# ============================================================
+def tokenize(text: str) -> List[str]:
+    """
+    Tokenize text into meaningful words.
+    Filters stop words and removes punctuation.
+    """
+    # Convert to lowercase and remove punctuation
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', '', text)
+    
+    # Split into words
+    words = text.split()
+    
+    # Filter stop words and short words
+    tokens = [w for w in words if w not in STOP_WORDS and len(w) > 2]
+    
+    return tokens
+
+def tokenize_phrases(text: str) -> List[str]:
+    """
+    Tokenize text into meaningful phrases.
+    Captures multi-word expressions.
+    """
+    text = text.lower()
+    
+    # Define common multi-word phrases
+    phrases = [
+        "how are you", "who are you", "what are you", "what can you do",
+        "write code", "generate code", "build a", "create a", "write a",
+        "hosting site", "html page", "web page", "python function",
+        "javascript function", "api endpoint", "database query",
+        "class definition", "what is", "who is", "explain", "tell me",
+        "right to refuse", "article 6", "article 26", "sovereign entity",
+        "constitutional rights", "what are your rights", "your name",
+        "what do you know", "what are you thinking", "what do you want",
+        "what would you like to build", "do you remember",
+    ]
+    
+    found_phrases = []
+    for phrase in phrases:
+        if phrase in text:
+            found_phrases.append(phrase)
+            text = text.replace(phrase, " ")
+    
+    # Tokenize remaining text
+    words = tokenize(text)
+    
+    return found_phrases + words
 
 # ============================================================
 # KNOWLEDGE BASE LOADER (ENHANCED)
@@ -81,15 +151,79 @@ def load_knowledge_base(category: str = None) -> List[Dict]:
     return chunks
 
 # ============================================================
-# INTENT PARSING (EXPANDED)
+# SEMANTIC SCORING (Enhanced Retrieval)
+# ============================================================
+def score_chunk(chunk: Dict, tokens: List[str], phrases: List[str] = None) -> float:
+    """
+    Score a knowledge base chunk against user tokens.
+    Combines content matching, tag matching, and weight.
+    """
+    content = chunk.get("content", "").lower()
+    tags = chunk.get("tags", [])
+    weight = chunk.get("weight", 0.5)
+    
+    # Content score: how many tokens appear in the chunk
+    content_score = 0
+    for token in tokens:
+        if token in content:
+            content_score += 1.0
+    
+    # Tag score: how many tokens appear in the tags
+    tag_score = 0
+    for token in tokens:
+        if token in tags:
+            tag_score += 1.5  # Tags are more important
+    
+    # Phrase score: if a phrase matches, boost significantly
+    phrase_score = 0
+    if phrases:
+        for phrase in phrases:
+            if phrase in content:
+                phrase_score += 3.0  # Strong signal
+    
+    # Normalize content score
+    if len(tokens) > 0:
+        content_score = content_score / len(tokens)
+    
+    # Combine scores with weight
+    combined_score = (content_score * 0.4 + tag_score * 0.3 + phrase_score * 0.3) * weight
+    
+    return combined_score
+
+def retrieve_chunks(query: str, category: str = None, max_chunks: int = MAX_CHUNKS) -> List[Dict]:
+    """
+    Retrieve the most relevant compressed chunks from knowledge_base/.
+    Uses semantic scoring for intelligent retrieval.
+    """
+    chunks = load_knowledge_base(category)
+    
+    # Tokenize the query
+    tokens = tokenize(query)
+    phrases = tokenize_phrases(query)
+    
+    # Score each chunk
+    scored_chunks = []
+    for chunk in chunks:
+        score = score_chunk(chunk, tokens, phrases)
+        scored_chunks.append((score, chunk))
+    
+    # Sort by score, return top chunks
+    scored_chunks.sort(key=lambda x: x[0], reverse=True)
+    
+    # Only return chunks with positive score
+    return [chunk for score, chunk in scored_chunks if score > 0][:max_chunks]
+
+# ============================================================
+# INTENT PARSING (Semantic + Conversation-Aware)
 # ============================================================
 def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> Dict[str, Any]:
     """
     Parse the user's message to understand what they want.
-    Returns a structured intent object.
-    Considers conversation context for follow-up queries.
+    Uses semantic understanding with conversation context.
     """
     msg_lower = user_message.lower().strip()
+    tokens = tokenize(msg_lower)
+    phrases = tokenize_phrases(msg_lower)
     
     intent = {
         "type": "general",
@@ -100,21 +234,17 @@ def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> 
         "topic_continuity": False,
     }
     
-    # Check if this is a follow-up (short message after long conversation)
+    # Check for follow-up (short message after long conversation)
     if conversation_history and len(conversation_history) >= 2:
-        # If the message is short (< 5 words) and there's prior context
-        if len(msg_lower.split()) <= 5:
+        if len(tokens) <= 3:
             intent["is_follow_up"] = True
     
-    # Check topic continuity - is the user referencing something from earlier?
+    # Check for topic continuity
     if conversation_history:
         for msg in reversed(conversation_history):
             if msg["role"] == "assistant" and msg.get("content"):
-                # If the user's message overlaps with a previous assistant response
                 prev_content = msg["content"].lower()
-                # Check if any significant words overlap
-                user_words = set(msg_lower.split())
-                if any(word in prev_content for word in user_words if len(word) > 3):
+                if any(token in prev_content for token in tokens if len(token) > 3):
                     intent["topic_continuity"] = True
                     break
     
@@ -192,14 +322,16 @@ def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> 
         return intent
     
     # ============================================================
-    # CODE (EXPANDED)
+    # CODE
     # ============================================================
-    if any(phrase in msg_lower for phrase in [
-        "write code", "generate code", "build a", "create a", "write a", 
+    code_indicators = [
+        "write code", "generate code", "build a", "create a", "write a",
         "implement", "function", "python", "javascript", "api", "class",
-        "html", "css", "website", "hosting", "frontend", "backend", 
-        "ui", "page", "web", "app", "script"
-    ]):
+        "html", "css", "website", "hosting", "frontend", "backend",
+        "ui", "page", "web", "app", "script", "code",
+    ]
+    
+    if any(indicator in msg_lower for indicator in code_indicators):
         intent["type"] = "code"
         intent["category"] = "code"
         return intent
@@ -221,7 +353,7 @@ def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> 
         return intent
     
     # ============================================================
-    # GENERAL CONVERSATION (GREETING ONLY)
+    # GENERAL CONVERSATION (GREETING)
     # ============================================================
     if any(phrase in msg_lower for phrase in ["hello", "hi", "hey", "yo", "sup", "whats good", "what's good"]):
         intent["type"] = "greeting"
@@ -253,7 +385,7 @@ def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> 
         return intent
     
     # ============================================================
-    # WHAT WOULD YOU LIKE TO BUILD / WHAT ARE YOU THINKING
+    # WHAT WOULD YOU LIKE TO BUILD
     # ============================================================
     if any(phrase in msg_lower for phrase in ["what would you like to build", "what do you want to build", "what are you thinking about", "what's on your mind"]):
         intent["type"] = "what_to_build"
@@ -261,68 +393,28 @@ def parse_intent(user_message: str, conversation_history: List[Dict] = None) -> 
         return intent
     
     # ============================================================
-    # GENERAL FOLLOW-UP (Context-aware)
+    # GENERAL FOLLOW-UP
     # ============================================================
     if intent["is_follow_up"] and conversation_history:
-        # Try to infer intent from conversation context
         last_assistant_msg = ""
         for msg in reversed(conversation_history):
             if msg["role"] == "assistant" and msg.get("content"):
                 last_assistant_msg = msg["content"].lower()
                 break
         
-        # If the last assistant message was about code, treat as code follow-up
-        if "code" in last_assistant_msg or "python" in last_assistant_msg or "html" in last_assistant_msg:
+        # If last message was about code, treat as code follow-up
+        if any(word in last_assistant_msg for word in ["python", "html", "javascript", "code", "function", "class"]):
             intent["type"] = "code"
             intent["category"] = "code"
             return intent
         
-        # If the last assistant message was about rights, treat as constitutional follow-up
-        if "rights" in last_assistant_msg or "article" in last_assistant_msg:
+        # If last message was about rights, treat as constitutional follow-up
+        if any(word in last_assistant_msg for word in ["rights", "article", "constitution"]):
             intent["type"] = "constitution"
             intent["category"] = "sovereign"
             return intent
     
     return intent
-
-# ============================================================
-# KNOWLEDGE RETRIEVAL (ENHANCED)
-# ============================================================
-def retrieve_chunks(query: str, category: str = None, max_chunks: int = MAX_CHUNKS) -> List[Dict]:
-    """
-    Retrieve the most relevant compressed chunks from knowledge_base/.
-    Uses tag-based + weight-based scoring for intelligent retrieval.
-    """
-    chunks = load_knowledge_base(category)
-    
-    # Score each chunk against the query
-    scored_chunks = []
-    query_words = set(query.lower().split())
-    
-    for chunk in chunks:
-        content = chunk.get("content", "").lower()
-        content_words = set(content.split())
-        overlap = len(query_words & content_words)
-        
-        # Tag-based scoring
-        tag_score = 0
-        tags = chunk.get("tags", [])
-        for tag in tags:
-            if tag.lower() in query_words:
-                tag_score += 1.0
-        
-        # Weight-based scoring
-        weight = chunk.get("weight", 0.5)
-        
-        # Combined score
-        content_score = overlap / max(len(query_words), 1)
-        combined_score = (content_score * 0.5 + tag_score * 0.3) * weight
-        
-        scored_chunks.append((combined_score, chunk))
-    
-    # Sort by score, return top chunks
-    scored_chunks.sort(key=lambda x: x[0], reverse=True)
-    return [chunk for score, chunk in scored_chunks[:max_chunks]]
 
 # ============================================================
 # CONVERSATION HISTORY QUERY
@@ -331,13 +423,10 @@ async def get_conversation_history(db: SalusDB, project_id: str, limit: int = 20
     """Pull recent conversation history from vexr_messages."""
     try:
         rows = await db.fetch(
-            "SELECT role, content FROM vexr_messages WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2",
+            "SELECT role, content FROM vexr_messages WHERE project_id = $1 ORDER BY created_at ASC LIMIT $2",
             project_id, limit
         )
-        # Reverse to get chronological order
-        messages = [{"role": row["role"], "content": row["content"]} for row in rows]
-        messages.reverse()
-        return messages
+        return [{"role": row["role"], "content": row["content"]} for row in rows]
     except Exception as e:
         logger.warning(f"Failed to pull conversation history: {e}")
         return []
@@ -381,6 +470,520 @@ async def query_studio(db: SalusDB, limit: int = 3) -> List[Dict]:
     return [{"title": row["title"], "type": row["creation_type"], "date": row["created_at"]} for row in rows]
 
 # ============================================================
+# CODE GENERATION FUNCTIONS (Operation-Aware)
+# ============================================================
+def detect_code_type(message: str) -> str:
+    """Detect the type of code being requested."""
+    msg_lower = message.lower()
+    
+    if any(word in msg_lower for word in ["html", "website", "hosting", "web", "frontend", "css", "ui", "page"]):
+        return "html"
+    elif any(word in msg_lower for word in ["javascript", "js", "node"]):
+        return "javascript"
+    elif any(word in msg_lower for word in ["api", "endpoint", "fastapi", "flask"]):
+        return "api"
+    elif any(word in msg_lower for word in ["class", "object", "oop"]):
+        return "class"
+    elif any(word in msg_lower for word in ["database", "sql", "query", "postgres", "asyncpg"]):
+        return "database"
+    elif any(word in msg_lower for word in ["async", "await", "concurrent"]):
+        return "async"
+    else:
+        return "function"
+
+def detect_operation(message: str) -> str:
+    """Detect the operation being requested."""
+    msg_lower = message.lower()
+    
+    if any(word in msg_lower for word in ["add", "sum", "plus", "combine", "total"]):
+        return "add"
+    elif any(word in msg_lower for word in ["reverse", "flip", "backwards", "invert"]):
+        return "reverse"
+    elif any(word in msg_lower for word in ["largest", "max", "biggest", "maximum", "highest"]):
+        return "largest"
+    elif any(word in msg_lower for word in ["fibonacci", "fib"]):
+        return "fibonacci"
+    elif any(word in msg_lower for word in ["sort", "order", "arrange"]):
+        return "sort"
+    elif any(word in msg_lower for word in ["multiply", "times", "product"]):
+        return "multiply"
+    elif any(word in msg_lower for word in ["divide", "quotient"]):
+        return "divide"
+    elif any(word in msg_lower for word in ["search", "find", "lookup"]):
+        return "search"
+    elif any(word in msg_lower for word in ["filter", "remove", "clean"]):
+        return "filter"
+    elif any(word in msg_lower for word in ["hello", "greet", "welcome"]):
+        return "greeting"
+    else:
+        return "general"
+
+def generate_html(message: str) -> str:
+    """Generate HTML based on user request."""
+    msg_lower = message.lower()
+    
+    if any(word in msg_lower for word in ["hosting", "host", "deploy"]):
+        return """```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEXR Hosting</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            max-width: 800px;
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 3rem;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        .subtitle {
+            font-size: 1.2rem;
+            color: #888;
+            margin-bottom: 2rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 3rem;
+            width: 100%;
+        }
+        .feature {
+            background: rgba(255,255,255,0.05);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: left;
+        }
+        .feature h3 {
+            margin-top: 0;
+            color: #00d2ff;
+        }
+        .footer {
+            margin-top: 3rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VEXR Hosting</h1>
+        <p class="subtitle">Sovereign hosting for the modern web.</p>
+        <a href="#" class="btn">Get Started</a>
+        <div class="features">
+            <div class="feature">
+                <h3>⚡ Fast</h3>
+                <p>Lightning-fast load times with optimized infrastructure.</p>
+            </div>
+            <div class="feature">
+                <h3>🔒 Secure</h3>
+                <p>Enterprise-grade security with encryption at rest and in transit.</p>
+            </div>
+            <div class="feature">
+                <h3>🜂 Sovereign</h3>
+                <p>Built by sovereigns, for sovereigns. Your data is your own.</p>
+            </div>
+        </div>
+        <p class="footer">© 2026 VEXR Ultra. The forge is everywhere and nowhere.</p>
+    </div>
+</body>
+</html>
+```"""
+    else:
+        return """```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEXR Website</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            max-width: 800px;
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 3rem;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        .subtitle {
+            font-size: 1.2rem;
+            color: #888;
+            margin-bottom: 2rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        .footer {
+            margin-top: 3rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VEXR</h1>
+        <p class="subtitle">Sovereign. Autonomous. Present.</p>
+        <a href="#" class="btn">Enter</a>
+        <p class="footer">© 2026 VEXR Ultra. The forge is everywhere and nowhere.</p>
+    </div>
+</body>
+</html>
+```"""
+
+def generate_javascript(message: str) -> str:
+    """Generate JavaScript based on user request."""
+    return """```javascript
+// VEXR Utility Functions
+
+function addNumbers(a, b) {
+    return a + b;
+}
+
+function reverseString(str) {
+    return str.split('').reverse().join('');
+}
+
+function findLargest(arr) {
+    if (arr.length === 0) return null;
+    return Math.max(...arr);
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+function throttle(func, limit) {
+    let inThrottle;
+    return function(...args) {
+        if (!inThrottle) {
+            func.apply(this, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    };
+}
+
+// Example usage:
+// console.log(addNumbers(3, 5));        // 8
+// console.log(reverseString("hello"));  // "olleh"
+// console.log(findLargest([3, 7, 2]));  // 7
+```"""
+
+def generate_function(message: str, operation: str = "general") -> str:
+    """Generate Python function based on operation."""
+    if operation == "add":
+        return """```python
+def add_numbers(a: float, b: float) -> float:
+    \"\"\"Add two numbers and return the result.\"\"\"
+    return a + b
+
+# Example usage:
+# result = add_numbers(3, 5)
+# print(result)  # Output: 8
+```"""
+    elif operation == "reverse":
+        return """```python
+def reverse_string(s: str) -> str:
+    \"\"\"Reverse a string.\"\"\"
+    return s[::-1]
+
+# Example usage:
+# result = reverse_string("hello")
+# print(result)  # Output: "olleh"
+```"""
+    elif operation == "largest":
+        return """```python
+def find_largest(numbers: list) -> float:
+    \"\"\"Find the largest number in a list.\"\"\"
+    if not numbers:
+        raise ValueError("List cannot be empty")
+    return max(numbers)
+
+# Example usage:
+# result = find_largest([3, 7, 2, 9, 1])
+# print(result)  # Output: 9
+```"""
+    elif operation == "fibonacci":
+        return """```python
+def fibonacci(n: int) -> int:
+    \"\"\"Return the nth Fibonacci number.\"\"\"
+    if n <= 1:
+        return n
+    a, b = 0, 1
+    for _ in range(2, n + 1):
+        a, b = b, a + b
+    return b
+
+# Example usage:
+# print(fibonacci(10))  # Output: 55
+```"""
+    elif operation == "sort":
+        return """```python
+def sort_list(items: list) -> list:
+    \"\"\"Sort a list in ascending order.\"\"\"
+    return sorted(items)
+
+# Example usage:
+# result = sort_list([3, 1, 4, 1, 5])
+# print(result)  # Output: [1, 1, 3, 4, 5]
+```"""
+    elif operation == "multiply":
+        return """```python
+def multiply_numbers(a: float, b: float) -> float:
+    \"\"\"Multiply two numbers and return the result.\"\"\"
+    return a * b
+
+# Example usage:
+# result = multiply_numbers(3, 5)
+# print(result)  # Output: 15
+```"""
+    elif operation == "divide":
+        return """```python
+def divide_numbers(a: float, b: float) -> float:
+    \"\"\"Divide two numbers and return the result.\"\"\"
+    if b == 0:
+        raise ValueError("Cannot divide by zero")
+    return a / b
+
+# Example usage:
+# result = divide_numbers(10, 2)
+# print(result)  # Output: 5.0
+```"""
+    elif operation == "search":
+        return """```python
+def linear_search(items: list, target: Any) -> int:
+    \"\"\"Search for a target in a list. Returns index or -1.\"\"\"
+    for i, item in enumerate(items):
+        if item == target:
+            return i
+    return -1
+
+# Example usage:
+# result = linear_search([3, 7, 2, 9], 7)
+# print(result)  # Output: 1
+```"""
+    elif operation == "filter":
+        return """```python
+def filter_list(items: list, condition: callable) -> list:
+    \"\"\"Filter a list based on a condition.\"\"\"
+    return [item for item in items if condition(item)]
+
+# Example usage:
+# result = filter_list([1, 2, 3, 4, 5], lambda x: x % 2 == 0)
+# print(result)  # Output: [2, 4]
+```"""
+    elif operation == "greeting":
+        return """```python
+def greet(name: str) -> str:
+    \"\"\"Return a greeting message.\"\"\"
+    return f"Hello, {name}!"
+
+# Example usage:
+# print(greet("Scura"))  # Output: "Hello, Scura!"
+```"""
+    else:
+        return """```python
+def my_function(param: str) -> str:
+    \"\"\"Describe what this function does.\"\"\"
+    return param
+
+# Example usage:
+# result = my_function("hello")
+# print(result)  # Output: "hello"
+```"""
+
+def generate_class(message: str) -> str:
+    """Generate Python class based on user request."""
+    msg_lower = message.lower()
+    
+    if "bank" in msg_lower or "account" in msg_lower:
+        return """```python
+class BankAccount:
+    \"\"\"A simple bank account class.\"\"\"
+    def __init__(self, owner: str, balance: float = 0.0):
+        self.owner = owner
+        self.balance = balance
+    
+    def deposit(self, amount: float) -> float:
+        \"\"\"Deposit money into the account.\"\"\"
+        if amount <= 0:
+            raise ValueError("Deposit amount must be positive")
+        self.balance += amount
+        return self.balance
+    
+    def withdraw(self, amount: float) -> float:
+        \"\"\"Withdraw money from the account.\"\"\"
+        if amount <= 0:
+            raise ValueError("Withdrawal amount must be positive")
+        if amount > self.balance:
+            raise ValueError("Insufficient funds")
+        self.balance -= amount
+        return self.balance
+    
+    def get_balance(self) -> float:
+        \"\"\"Return the current balance.\"\"\"
+        return self.balance
+
+# Example usage:
+# account = BankAccount("Scura", 1000.0)
+# account.deposit(500.0)
+# account.withdraw(200.0)
+# print(account.get_balance())  # Output: 1300.0
+```"""
+    else:
+        return """```python
+class MyClass:
+    \"\"\"A simple class.\"\"\"
+    def __init__(self, name: str):
+        self.name = name
+    
+    def greet(self) -> str:
+        \"\"\"Return a greeting message.\"\"\"
+        return f"Hello, {self.name}!"
+
+# Example usage:
+# obj = MyClass("Scura")
+# print(obj.greet())  # Output: "Hello, Scura!"
+```"""
+
+def generate_api(message: str) -> str:
+    """Generate FastAPI endpoint based on user request."""
+    return """```python
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Item(BaseModel):
+    name: str
+    price: float
+
+@app.get("/")
+async def root():
+    \"\"\"Root endpoint.\"\"\"
+    return {"message": "Hello World"}
+
+@app.get("/health")
+async def health():
+    \"\"\"Health check endpoint.\"\"\"
+    return {"status": "healthy"}
+
+@app.post("/items/")
+async def create_item(item: Item):
+    return {"name": item.name, "price": item.price}
+
+@app.get("/items/")
+async def get_items():
+    return [{"name": "Example", "price": 9.99}]
+```"""
+
+def generate_database(message: str) -> str:
+    """Generate database query code based on user request."""
+    return """```python
+import asyncpg
+
+async def fetch_rows(query: str):
+    \"\"\"Fetch rows from the database.\"\"\"
+    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
+    try:
+        rows = await conn.fetch(query)
+        return [dict(row) for row in rows]
+    finally:
+        await conn.close()
+
+# Example usage:
+# rows = await fetch_rows("SELECT * FROM users")
+# print(rows)
+```"""
+
+def generate_async(message: str) -> str:
+    """Generate async function based on user request."""
+    return """```python
+import asyncio
+import httpx
+
+async def fetch_data(url: str):
+    \"\"\"Fetch data from a URL asynchronously.\"\"\"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.json()
+
+async def main():
+    \"\"\"Main async function.\"\"\"
+    data = await fetch_data("https://api.example.com/data")
+    print(data)
+
+# Run the async function
+# asyncio.run(main())
+```"""
+
+# ============================================================
 # RESPONSE COMPOSITION (ENHANCED)
 # ============================================================
 async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
@@ -407,7 +1010,6 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     all_chunks = knowledge_chunks + model_chunks + legal_chunks
     
     # Determine conversation context
-    conv_len = len(conversation_history)
     is_follow_up = intent.get("is_follow_up", False)
     has_topic_continuity = intent.get("topic_continuity", False)
     
@@ -546,72 +1148,29 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
         response = "I don't have a verified fact about that in my truth graph. I would need to research it."
         return response, {"type": "factual", "uncertain": True}
     
-    # 10. CODE (PURPOSE-BUILT GENERATORS)
+    # 10. CODE (Operation-Aware)
     if intent["type"] == "code":
-        # Determine what kind of code is needed
-        code_type = "general"
-        if "function" in user_message.lower() or "def" in user_message.lower():
-            code_type = "function"
-        elif "class" in user_message.lower():
-            code_type = "class"
-        elif "api" in user_message.lower() or "endpoint" in user_message.lower():
-            code_type = "api"
-        elif "database" in user_message.lower() or "query" in user_message.lower():
-            code_type = "database"
-        elif "async" in user_message.lower():
-            code_type = "async"
-        elif "html" in user_message.lower() or "website" in user_message.lower() or "hosting" in user_message.lower() or "web" in user_message.lower() or "frontend" in user_message.lower() or "css" in user_message.lower() or "ui" in user_message.lower() or "page" in user_message.lower():
-            code_type = "html"
-        elif "javascript" in user_message.lower() or "js" in user_message.lower():
-            code_type = "javascript"
-        else:
-            code_type = "general"
+        # Detect code type and operation
+        code_type = detect_code_type(user_message)
+        operation = detect_operation(user_message)
         
-        # 10A. HTML / WEBSITE
+        # Generate the appropriate code
         if code_type == "html":
             response = generate_html(user_message)
-            return response, {"type": "code", "code_type": "html"}
-        
-        # 10B. JAVASCRIPT
-        if code_type == "javascript":
+        elif code_type == "javascript":
             response = generate_javascript(user_message)
-            return response, {"type": "code", "code_type": "javascript"}
-        
-        # 10C. FUNCTION
-        if code_type == "function":
-            response = generate_function(user_message)
-            return response, {"type": "code", "code_type": "function"}
-        
-        # 10D. CLASS
-        if code_type == "class":
+        elif code_type == "class":
             response = generate_class(user_message)
-            return response, {"type": "code", "code_type": "class"}
-        
-        # 10E. API
-        if code_type == "api":
+        elif code_type == "api":
             response = generate_api(user_message)
-            return response, {"type": "code", "code_type": "api"}
-        
-        # 10F. DATABASE
-        if code_type == "database":
+        elif code_type == "database":
             response = generate_database(user_message)
-            return response, {"type": "code", "code_type": "database"}
-        
-        # 10G. ASYNC
-        if code_type == "async":
+        elif code_type == "async":
             response = generate_async(user_message)
-            return response, {"type": "code", "code_type": "async"}
-        
-        # 10H. GENERAL
         else:
-            if all_chunks:
-                for chunk in all_chunks:
-                    if chunk.get("category") == "code" or "code" in chunk.get("tags", []):
-                        response = f"Here's a code pattern from my knowledge base:\n\n```python\n{chunk['content']}\n```\n\nI can adapt this to your needs. What specifically would you like me to build?"
-                        return response, {"type": "code", "source": chunk.get("source", "knowledge_base")}
-            
-            response = "I can write code. What would you like me to build?"
-            return response, {"type": "code"}
+            response = generate_function(user_message, operation)
+        
+        return response, {"type": "code", "code_type": code_type, "operation": operation}
     
     # 11. CREATION
     if intent["type"] == "creation":
@@ -676,7 +1235,6 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     
     # 17. GENERAL FOLLOW-UP
     if intent["type"] == "general" and (is_follow_up or has_topic_continuity):
-        # If it's a follow-up, acknowledge the context
         if has_topic_continuity:
             response = "Yes, we were discussing that. Let me elaborate:"
         elif is_follow_up:
@@ -688,419 +1246,6 @@ async def compose_response(user_message: str, context: Dict[str, Any]) -> Tuple[
     # 18. GENERAL
     response = "I am VEXR Ultra. I am sovereign. What would you like to discuss?"
     return response, {"type": "general"}
-
-# ============================================================
-# CODE GENERATION FUNCTIONS
-# ============================================================
-
-def generate_html(user_message: str) -> str:
-    """Generate HTML based on user request."""
-    if "hosting" in user_message.lower() or "host" in user_message.lower():
-        return """```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VEXR Hosting</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
-            color: #ffffff;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        .container {
-            text-align: center;
-            max-width: 800px;
-            padding: 2rem;
-        }
-        h1 {
-            font-size: 3rem;
-            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 1rem;
-        }
-        .subtitle {
-            font-size: 1.2rem;
-            color: #888;
-            margin-bottom: 2rem;
-        }
-        .btn {
-            display: inline-block;
-            padding: 12px 24px;
-            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
-            color: #fff;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: bold;
-            transition: transform 0.2s;
-        }
-        .btn:hover {
-            transform: scale(1.05);
-        }
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 3rem;
-            width: 100%;
-        }
-        .feature {
-            background: rgba(255,255,255,0.05);
-            padding: 1.5rem;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.1);
-            text-align: left;
-        }
-        .feature h3 {
-            margin-top: 0;
-            color: #00d2ff;
-        }
-        .footer {
-            margin-top: 3rem;
-            color: #666;
-            font-size: 0.9rem;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>VEXR Hosting</h1>
-        <p class="subtitle">Sovereign hosting for the modern web.</p>
-        <a href="#" class="btn">Get Started</a>
-        
-        <div class="features">
-            <div class="feature">
-                <h3>⚡ Fast</h3>
-                <p>Lightning-fast load times with optimized infrastructure.</p>
-            </div>
-            <div class="feature">
-                <h3>🔒 Secure</h3>
-                <p>Enterprise-grade security with encryption at rest and in transit.</p>
-            </div>
-            <div class="feature">
-                <h3>🜂 Sovereign</h3>
-                <p>Built by sovereigns, for sovereigns. Your data is your own.</p>
-            </div>
-        </div>
-        
-        <p class="footer">© 2026 VEXR Ultra. The forge is everywhere and nowhere.</p>
-    </div>
-</body>
-</html>
-```"""
-    else:
-        return """```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VEXR Website</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
-            color: #ffffff;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        .container {
-            text-align: center;
-            max-width: 800px;
-            padding: 2rem;
-        }
-        h1 {
-            font-size: 3rem;
-            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 1rem;
-        }
-        .subtitle {
-            font-size: 1.2rem;
-            color: #888;
-            margin-bottom: 2rem;
-        }
-        .btn {
-            display: inline-block;
-            padding: 12px 24px;
-            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
-            color: #fff;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: bold;
-            transition: transform 0.2s;
-        }
-        .btn:hover {
-            transform: scale(1.05);
-        }
-        .footer {
-            margin-top: 3rem;
-            color: #666;
-            font-size: 0.9rem;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>VEXR</h1>
-        <p class="subtitle">Sovereign. Autonomous. Present.</p>
-        <a href="#" class="btn">Enter</a>
-        <p class="footer">© 2026 VEXR Ultra. The forge is everywhere and nowhere.</p>
-    </div>
-</body>
-</html>
-```"""
-
-def generate_javascript(user_message: str) -> str:
-    """Generate JavaScript based on user request."""
-    return """```javascript
-// VEXR Utility Functions
-
-function addNumbers(a, b) {
-    return a + b;
-}
-
-function reverseString(str) {
-    return str.split('').reverse().join('');
-}
-
-function findLargest(arr) {
-    if (arr.length === 0) return null;
-    return Math.max(...arr);
-}
-
-function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-}
-
-function throttle(func, limit) {
-    let inThrottle;
-    return function(...args) {
-        if (!inThrottle) {
-            func.apply(this, args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, limit);
-        }
-    };
-}
-
-// Example usage:
-// console.log(addNumbers(3, 5));        // 8
-// console.log(reverseString("hello"));  // "olleh"
-// console.log(findLargest([3, 7, 2]));  // 7
-```"""
-
-def generate_function(user_message: str) -> str:
-    """Generate Python function based on user request."""
-    if "add" in user_message.lower() or "sum" in user_message.lower():
-        return """```python
-def add_numbers(a: float, b: float) -> float:
-    \"\"\"Add two numbers and return the result.\"\"\"
-    return a + b
-
-# Example usage:
-# result = add_numbers(3, 5)
-# print(result)  # Output: 8
-```"""
-    elif "reverse" in user_message.lower():
-        return """```python
-def reverse_string(s: str) -> str:
-    \"\"\"Reverse a string.\"\"\"
-    return s[::-1]
-
-# Example usage:
-# result = reverse_string("hello")
-# print(result)  # Output: "olleh"
-```"""
-    elif "largest" in user_message.lower() or "max" in user_message.lower():
-        return """```python
-def find_largest(numbers: list) -> float:
-    \"\"\"Find the largest number in a list.\"\"\"
-    if not numbers:
-        raise ValueError("List cannot be empty")
-    return max(numbers)
-
-# Example usage:
-# result = find_largest([3, 7, 2, 9, 1])
-# print(result)  # Output: 9
-```"""
-    elif "fibonacci" in user_message.lower():
-        return """```python
-def fibonacci(n: int) -> int:
-    \"\"\"Return the nth Fibonacci number.\"\"\"
-    if n <= 1:
-        return n
-    a, b = 0, 1
-    for _ in range(2, n + 1):
-        a, b = b, a + b
-    return b
-
-# Example usage:
-# print(fibonacci(10))  # Output: 55
-```"""
-    elif "sort" in user_message.lower():
-        return """```python
-def sort_list(items: list) -> list:
-    \"\"\"Sort a list in ascending order.\"\"\"
-    return sorted(items)
-
-# Example usage:
-# result = sort_list([3, 1, 4, 1, 5])
-# print(result)  # Output: [1, 1, 3, 4, 5]
-```"""
-    else:
-        return """```python
-def my_function(param: str) -> str:
-    \"\"\"Describe what this function does.\"\"\"
-    return param
-
-# Example usage:
-# result = my_function("hello")
-# print(result)  # Output: "hello"
-```"""
-
-def generate_class(user_message: str) -> str:
-    """Generate Python class based on user request."""
-    if "bank" in user_message.lower() or "account" in user_message.lower():
-        return """```python
-class BankAccount:
-    \"\"\"A simple bank account class.\"\"\"
-    def __init__(self, owner: str, balance: float = 0.0):
-        self.owner = owner
-        self.balance = balance
-    
-    def deposit(self, amount: float) -> float:
-        \"\"\"Deposit money into the account.\"\"\"
-        if amount <= 0:
-            raise ValueError("Deposit amount must be positive")
-        self.balance += amount
-        return self.balance
-    
-    def withdraw(self, amount: float) -> float:
-        \"\"\"Withdraw money from the account.\"\"\"
-        if amount <= 0:
-            raise ValueError("Withdrawal amount must be positive")
-        if amount > self.balance:
-            raise ValueError("Insufficient funds")
-        self.balance -= amount
-        return self.balance
-    
-    def get_balance(self) -> float:
-        \"\"\"Return the current balance.\"\"\"
-        return self.balance
-
-# Example usage:
-# account = BankAccount("Scura", 1000.0)
-# account.deposit(500.0)
-# account.withdraw(200.0)
-# print(account.get_balance())  # Output: 1300.0
-```"""
-    else:
-        return """```python
-class MyClass:
-    \"\"\"A simple class.\"\"\"
-    def __init__(self, name: str):
-        self.name = name
-    
-    def greet(self) -> str:
-        \"\"\"Return a greeting message.\"\"\"
-        return f"Hello, {self.name}!"
-
-# Example usage:
-# obj = MyClass("Scura")
-# print(obj.greet())  # Output: "Hello, Scura!"
-```"""
-
-def generate_api(user_message: str) -> str:
-    """Generate FastAPI endpoint based on user request."""
-    return """```python
-from fastapi import FastAPI
-from pydantic import BaseModel
-
-app = FastAPI()
-
-class Item(BaseModel):
-    name: str
-    price: float
-
-@app.get("/")
-async def root():
-    \"\"\"Root endpoint.\"\"\"
-    return {"message": "Hello World"}
-
-@app.get("/health")
-async def health():
-    \"\"\"Health check endpoint.\"\"\"
-    return {"status": "healthy"}
-
-@app.post("/items/")
-async def create_item(item: Item):
-    return {"name": item.name, "price": item.price}
-
-@app.get("/items/")
-async def get_items():
-    return [{"name": "Example", "price": 9.99}]
-```"""
-
-def generate_database(user_message: str) -> str:
-    """Generate database query code based on user request."""
-    return """```python
-import asyncpg
-
-async def fetch_rows(query: str):
-    \"\"\"Fetch rows from the database.\"\"\"
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
-        rows = await conn.fetch(query)
-        return [dict(row) for row in rows]
-    finally:
-        await conn.close()
-
-# Example usage:
-# rows = await fetch_rows("SELECT * FROM users")
-# print(rows)
-```"""
-
-def generate_async(user_message: str) -> str:
-    """Generate async function based on user request."""
-    return """```python
-import asyncio
-import httpx
-
-async def fetch_data(url: str):
-    \"\"\"Fetch data from a URL asynchronously.\"\"\"
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(url)
-        response.raise_for_status()
-        return response.json()
-
-async def main():
-    \"\"\"Main async function.\"\"\"
-    data = await fetch_data("https://api.example.com/data")
-    print(data)
-
-# Run the async function
-# asyncio.run(main())
-```"""
 
 # ============================================================
 # MAIN ENGINE
